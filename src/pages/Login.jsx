@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../services/supabaseClient';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { loginWithRole } from '../services/authService';
 
 
 function ForgotPasswordModal({ onClose }) {
@@ -130,23 +131,10 @@ export default function Login() {
     setError(null);
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-      if (authError) throw authError;
-
-      if (data.user) {
-        // Fetch role from profiles
-        const { data: profile } = await supabase
-          .from('profiles')
-          .select('role')
-          .eq('id', data.user.id)
-          .single();
-
-        const role = profile?.role || 'employee';
-        if (role === 'admin') {
-          navigate('/admin/dashboard');
-        } else {
-          navigate('/selection');
-        }
+      const { user, role } = await loginWithRole(email, password);
+      if (user) {
+        if (role === 'admin') navigate('/admin/dashboard');
+        else navigate('/selection');
       }
     } catch (err) {
       if (err.message?.toLowerCase().includes('invalid login')) {
