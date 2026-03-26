@@ -32,15 +32,19 @@ function CreateAccountModal({ onClose, onSuccess }) {
     setError(null);
 
     try {
-      // 1. Check if email already exists in profiles (to prevent duplicates)
+      // 1. Check if email OR name already exists in profiles
       const { data: existing, error: checkError } = await supabase
         .from('profiles')
-        .select('id')
-        .eq('denr_email', formData.email)
+        .select('id, denr_email, full_name')
+        .or(`denr_email.eq.${formData.email},full_name.eq.${formData.fullName}`)
         .maybeSingle();
 
       if (existing) {
-        setError('Account has already been made. Please use a different email.');
+        if (existing.denr_email?.toLowerCase() === formData.email.toLowerCase()) {
+          setError('An account with this email already exists.');
+        } else {
+          setError('A user with this name already exists.');
+        }
         setLoading(false);
         return;
       }
@@ -56,11 +60,19 @@ function CreateAccountModal({ onClose, onSuccess }) {
         }
       });
 
-      if (authError) throw authError;
+      if (authError) {
+        if (authError.message.includes('already registered')) {
+          setError('This email is already registered in the system.');
+        } else {
+          throw authError;
+        }
+        setLoading(false);
+        return;
+      }
 
       if (authData.user) {
-        // 3. Update the Profile (The trigger should have created it, but we update details)
-        // Note: The is_admin() function in DB will allow this if the current user is an admin
+        // 3. Ensure Profile is updated with all info
+        // The trigger creates the record, but we fill in the rest
         const { error: profileError } = await supabase
           .from('profiles')
           .update({
@@ -73,8 +85,8 @@ function CreateAccountModal({ onClose, onSuccess }) {
           .eq('id', authData.user.id);
 
         if (profileError) {
-          console.error('Error updating profile after creation:', profileError);
-          // Don't throw here if the user was created, but log it
+          console.error('Error updating profile:', profileError);
+          // If update fails, but user is created, maybe it's a policy issue or timing
         }
         
         onSuccess();
