@@ -44,6 +44,10 @@ function App() {
   }
 
   const isAuth = !!session;
+  const userEmail = session?.user?.email;
+
+  // Simple Admin Check
+  const isAdmin = isAuth && userEmail === 'admin@denr.gov.ph';
 
   return (
     <Router>
@@ -57,13 +61,13 @@ function App() {
         <Route path="/forms/travel" element={isAuth ? <TravelForm /> : <Navigate to="/" replace />} />
         <Route path="/success" element={isAuth ? <FormSuccessful /> : <Navigate to="/" replace />} />
 
-        {/* Admin Routes */}
-        <Route path="/admin/dashboard" element={isAuth ? <AdminDashboard /> : <Navigate to="/" replace />} />
-        <Route path="/admin/approved" element={isAuth ? <ApprovedForms /> : <Navigate to="/" replace />} />
-        <Route path="/admin/archive" element={isAuth ? <Archive /> : <Navigate to="/" replace />} />
-        <Route path="/admin/monthly-summary" element={isAuth ? <MonthlySummary /> : <Navigate to="/" replace />} />
-        <Route path="/admin/account-management" element={isAuth ? <AccountManagement /> : <Navigate to="/" replace />} />
-        <Route path="/admin/records" element={isAuth ? <Records /> : <Navigate to="/" replace />} />
+        {/* Admin Routes - Strictly protected */}
+        <Route path="/admin/dashboard" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />} />
+        <Route path="/admin/approved" element={isAdmin ? <ApprovedForms /> : <Navigate to="/" replace />} />
+        <Route path="/admin/archive" element={isAdmin ? <Archive /> : <Navigate to="/" replace />} />
+        <Route path="/admin/monthly-summary" element={isAdmin ? <MonthlySummary /> : <Navigate to="/" replace />} />
+        <Route path="/admin/account-management" element={isAdmin ? <AccountManagement /> : <Navigate to="/" replace />} />
+        <Route path="/admin/records" element={isAdmin ? <Records /> : <Navigate to="/" replace />} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

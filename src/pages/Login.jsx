@@ -134,17 +134,36 @@ export default function Login() {
       if (authError) throw authError;
 
       if (data.user) {
-        // Fetch role from profiles
-        const { data: profile } = await supabase
+        // Fetch profile to check role and activity status
+        const { data: profile, error: profileErr } = await supabase
           .from('profiles')
-          .select('role')
+          .select('role, is_active')
           .eq('id', data.user.id)
           .single();
 
+        if (profileErr) throw profileErr;
+
+        // Check if account is active
+        if (profile && !profile.is_active) {
+          // Sign out immediately if deactivated
+          await supabase.auth.signOut();
+          setError('This account has been deactivated. Please contact an administrator.');
+          setLoading(false);
+          return;
+        }
+
         const role = profile?.role || 'employee';
-        if (role === 'admin') {
+        const userEmail = data.user.email;
+
+        // Strict redirect for main admin
+        if (userEmail === 'admin@denr.gov.ph') {
+          navigate('/admin/dashboard');
+        } else if (role === 'admin') {
+          // If other admins exist, they also go to dashboard, 
+          // but the prompt emphasized the specific admin email.
           navigate('/admin/dashboard');
         } else {
+          // Employees go to selection
           navigate('/selection');
         }
       }

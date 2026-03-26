@@ -104,6 +104,7 @@ function PDFModal({ request, onClose }) {
 
 export default function AdminDashboard() {
   const [requests, setRequests] = useState([]);
+  const [archiveCount, setArchiveCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const now = new Date();
@@ -112,12 +113,24 @@ export default function AdminDashboard() {
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
+    
+    // Fetch active requests (non-archived)
+    const { data: activeData, error: activeErr } = await supabase
       .from('leave_requests')
       .select('*')
       .eq('is_archived', false)
       .order('submitted_at', { ascending: false });
-    if (!error) setRequests(data || []);
+    
+    if (!activeErr) setRequests(activeData || []);
+
+    // Fetch archived count (matching Archive.jsx logic: is_archived OR status='Declined')
+    const { count, error: countErr } = await supabase
+      .from('leave_requests')
+      .select('*', { count: 'exact', head: true })
+      .or('is_archived.eq.true,status.eq.Declined');
+    
+    if (!countErr) setArchiveCount(count || 0);
+
     setLoading(false);
   }, []);
 
@@ -147,16 +160,22 @@ export default function AdminDashboard() {
   const pendingTravel = pending.filter(r => r.request_type === 'Travel').length;
 
   const monthStart = new Date(year, now.getMonth(), 1).toISOString();
-  const monthlyApproved = requests.filter(r => r.status === 'Approved' && new Date(r.submitted_at || r.created_at) >= new Date(monthStart));
-  const approvedLeave = monthlyApproved.filter(r => r.request_type === 'Leave').length;
-  const approvedTravel = monthlyApproved.filter(r => r.request_type === 'Travel').length;
+  
+  // All approved (non-archived)
+  const allApproved = requests.filter(r => r.status === 'Approved');
+  const approvedLeaveCount = allApproved.filter(r => r.request_type === 'Leave').length;
+  const approvedTravelCount = allApproved.filter(r => r.request_type === 'Travel').length;
+  
+  // Specific monthly approved for the trending stat
+  const monthlyApproved = allApproved.filter(r => new Date(r.submitted_at || r.created_at) >= new Date(monthStart));
 
   const stats = [
     { icon: Clock, label: 'Pending Leave Orders', value: pendingLeave, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { icon: Clock, label: 'Pending Sick Leave', value: pendingTravel, color: 'text-orange-600', bg: 'bg-orange-50' },
-    { icon: Plane, label: 'Approved Travel Orders', value: approvedTravel, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { icon: FileText, label: 'Approved Sick Leave', value: approvedLeave, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { icon: TrendingUp, label: `Total Approved (${monthName})`, value: monthlyApproved.length, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { icon: Clock, label: 'Pending Travel Orders', value: pendingTravel, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { icon: Plane, label: 'Approved Travel Orders', value: approvedTravelCount, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { icon: FileText, label: 'Approved Leave Orders', value: approvedLeaveCount, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { icon: Archive, label: 'Total Archives', value: archiveCount, color: 'text-slate-600', bg: 'bg-slate-50' },
+    { icon: TrendingUp, label: `Approved this month`, value: monthlyApproved.length, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
   return (
