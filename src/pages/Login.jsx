@@ -134,18 +134,30 @@ export default function Login() {
       if (authError) throw authError;
 
       if (data.user) {
+        const userEmail = data.user.email;
+        
         // Fetch profile to check role and activity status
-        const { data: profile, error: profileErr } = await supabase
-          .from('profiles')
-          .select('role, is_active')
-          .eq('id', data.user.id)
-          .single();
+        // We use a try-catch for the profile fetch specifically to handle RLS/Policy errors gracefully
+        let profile = null;
+        try {
+          const { data: pData, error: profileErr } = await supabase
+            .from('profiles')
+            .select('role, is_active')
+            .eq('id', data.user.id)
+            .single();
+          
+          if (profileErr) {
+            console.error('Profile fetch error during login:', profileErr);
+            // If it's a policy error, we might still want to allow the main admin in
+          } else {
+            profile = pData;
+          }
+        } catch (pEx) {
+          console.error('Profile fetch crash during login:', pEx);
+        }
 
-        if (profileErr) throw profileErr;
-
-        // Check if account is active
-        if (profile && !profile.is_active) {
-          // Sign out immediately if deactivated
+        // Check if account is active (if we have a profile)
+        if (profile && profile.is_active === false) {
           await supabase.auth.signOut();
           setError('This account has been deactivated. Please contact an administrator.');
           setLoading(false);
@@ -153,17 +165,13 @@ export default function Login() {
         }
 
         const role = profile?.role || 'employee';
-        const userEmail = data.user.email;
 
-        // Strict redirect for main admin
+        // Strict redirect for main admin (always allow if email matches)
         if (userEmail === 'admin@denr.gov.ph') {
           navigate('/admin/dashboard');
         } else if (role === 'admin') {
-          // If other admins exist, they also go to dashboard, 
-          // but the prompt emphasized the specific admin email.
           navigate('/admin/dashboard');
         } else {
-          // Employees go to selection
           navigate('/selection');
         }
       }

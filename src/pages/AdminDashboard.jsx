@@ -7,7 +7,7 @@ import {
   Eye, Check, X, Archive, Download, User, Calendar, Mail
 } from 'lucide-react';
 
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 function StatCard({ icon: Icon, label, value, color, bg }) {
   return (
@@ -113,14 +113,14 @@ export default function AdminDashboard() {
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
-    
+
     // Fetch active requests (non-archived)
     const { data: activeData, error: activeErr } = await supabase
       .from('leave_requests')
       .select('*')
       .eq('is_archived', false)
       .order('submitted_at', { ascending: false });
-    
+
     if (!activeErr) setRequests(activeData || []);
 
     // Fetch archived count (matching Archive.jsx logic: is_archived OR status='Declined')
@@ -128,7 +128,7 @@ export default function AdminDashboard() {
       .from('leave_requests')
       .select('*', { count: 'exact', head: true })
       .or('is_archived.eq.true,status.eq.Declined');
-    
+
     if (!countErr) setArchiveCount(count || 0);
 
     setLoading(false);
@@ -160,12 +160,12 @@ export default function AdminDashboard() {
   const pendingTravel = pending.filter(r => r.request_type === 'Travel').length;
 
   const monthStart = new Date(year, now.getMonth(), 1).toISOString();
-  
+
   // All approved (non-archived)
   const allApproved = requests.filter(r => r.status === 'Approved');
   const approvedLeaveCount = allApproved.filter(r => r.request_type === 'Leave').length;
   const approvedTravelCount = allApproved.filter(r => r.request_type === 'Travel').length;
-  
+
   // Specific monthly approved for the trending stat
   const monthlyApproved = allApproved.filter(r => new Date(r.submitted_at || r.created_at) >= new Date(monthStart));
 
@@ -254,7 +254,7 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-slate-800">{req.user_name || 'Unknown'}</p>
-                            <p className="text-xs text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3"/>{req.user_email || '—'}</p>
+                            <p className="text-xs text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" />{req.user_email || '—'}</p>
                           </div>
                         </div>
                       </td>

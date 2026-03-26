@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../services/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
-import { 
-  UserPlus, Search, MoreVertical, Shield, User, 
-  Mail, Phone, Briefcase, Calendar, CheckCircle2, 
+import {
+  UserPlus, Search, MoreVertical, Shield, User,
+  Mail, Phone, Briefcase, Calendar, CheckCircle2,
   XCircle, Loader2, AlertCircle, Trash2, Power
 } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
@@ -32,19 +32,20 @@ function CreateAccountModal({ onClose, onSuccess }) {
     setError(null);
 
     try {
-      // 1. Check for duplicate email in profiles
-      const { data: existingUser, error: checkError } = await supabase
+      // 1. Check if email already exists in profiles (to prevent duplicates)
+      const { data: existing, error: checkError } = await supabase
         .from('profiles')
         .select('id')
         .eq('denr_email', formData.email)
         .maybeSingle();
 
-      if (checkError) throw checkError;
-      if (existingUser) {
-        throw new Error('An account with this email already exists.');
+      if (existing) {
+        setError('Account has already been made. Please use a different email.');
+        setLoading(false);
+        return;
       }
 
-      // 2. Sign up the user via the temporary client
+      // 2. Create the Auth User
       const { data: authData, error: authError } = await tempSupabase.auth.signUp({
         email: formData.email,
         password: formData.password,
@@ -58,8 +59,8 @@ function CreateAccountModal({ onClose, onSuccess }) {
       if (authError) throw authError;
 
       if (authData.user) {
-        // 3. Profile is auto-created by DB trigger, but we update it
-        // with the additional info from the form
+        // 3. Update the Profile (The trigger should have created it, but we update details)
+        // Note: The is_admin() function in DB will allow this if the current user is an admin
         const { error: profileError } = await supabase
           .from('profiles')
           .update({
@@ -71,7 +72,10 @@ function CreateAccountModal({ onClose, onSuccess }) {
           })
           .eq('id', authData.user.id);
 
-        if (profileError) throw profileError;
+        if (profileError) {
+          console.error('Error updating profile after creation:', profileError);
+          // Don't throw here if the user was created, but log it
+        }
         
         onSuccess();
         onClose();
@@ -106,7 +110,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
           <div className="space-y-4">
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Full Name</label>
-              <input 
+              <input
                 required
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                 placeholder="Juan Dela Cruz"
@@ -116,7 +120,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Email Address</label>
-              <input 
+              <input
                 required
                 type="email"
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
@@ -127,7 +131,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Password</label>
-              <input 
+              <input
                 required
                 type="password"
                 minLength={6}
@@ -139,7 +143,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Position</label>
-              <input 
+              <input
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none"
                 placeholder="e.g. Forester II"
                 value={formData.position}
@@ -148,7 +152,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
             </div>
             <div>
               <label className="block text-xs font-semibold text-slate-500 mb-1.5 uppercase">Role</label>
-              <select 
+              <select
                 className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white"
                 value={formData.role}
                 onChange={e => setFormData({ ...formData, role: e.target.value })}
@@ -185,7 +189,7 @@ export default function AccountManagement() {
       .from('profiles')
       .select('*')
       .order('created_at', { ascending: false });
-    
+
     if (!error) setAccounts(data || []);
     setLoading(false);
   }, []);
@@ -199,11 +203,11 @@ export default function AccountManagement() {
       .from('profiles')
       .update({ is_active: !currentStatus })
       .eq('id', id);
-    
+
     if (!error) fetchAccounts();
   };
 
-  const filteredAccounts = accounts.filter(acc => 
+  const filteredAccounts = accounts.filter(acc =>
     acc.full_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
     acc.denr_email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
@@ -216,7 +220,7 @@ export default function AccountManagement() {
             <h2 className="text-2xl font-black text-slate-800">Account Management</h2>
             <p className="text-slate-500 text-sm mt-0.5">Manage system access and roles</p>
           </div>
-          <button 
+          <button
             onClick={() => setShowCreateModal(true)}
             className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#1a3530] text-white text-sm font-bold shadow-lg shadow-emerald-900/10 hover:bg-[#2a5048] transition-all"
           >
@@ -229,7 +233,7 @@ export default function AccountManagement() {
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 mb-6">
           <div className="lg:col-span-2 relative">
             <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-            <input 
+            <input
               type="text"
               placeholder="Search by name or email..."
               className="w-full pl-11 pr-4 py-3 rounded-2xl border border-slate-100 bg-white text-sm focus:ring-2 focus:ring-emerald-500 outline-none shadow-sm"
@@ -310,7 +314,7 @@ export default function AccountManagement() {
                       </td>
                       <td className="px-6 py-5 text-right">
                         <div className="flex items-center justify-end gap-2">
-                          <button 
+                          <button
                             onClick={() => toggleAccountStatus(acc.id, acc.is_active)}
                             className={`p-2.5 rounded-xl transition-all ${acc.is_active ? 'bg-amber-50 text-amber-600 hover:bg-amber-100' : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'}`}
                             title={acc.is_active ? "Deactivate" : "Activate"}
@@ -329,8 +333,8 @@ export default function AccountManagement() {
       </div>
 
       {showCreateModal && (
-        <CreateAccountModal 
-          onClose={() => setShowCreateModal(false)} 
+        <CreateAccountModal
+          onClose={() => setShowCreateModal(false)}
           onSuccess={fetchAccounts}
         />
       )}

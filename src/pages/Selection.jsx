@@ -6,6 +6,16 @@ import { LogOut, FileText, Plane, ChevronRight } from 'lucide-react';
 export default function Selection() {
   const navigate = useNavigate();
 
+  // Get current user email for admin check
+  const [userEmail, setUserEmail] = React.useState(null);
+  React.useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUserEmail(user?.email);
+    });
+  }, []);
+
+  const isAdmin = userEmail === 'admin@denr.gov.ph';
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
     navigate('/');
@@ -26,13 +36,23 @@ export default function Selection() {
             <p className="text-slate-500 text-xs">DENR CENRO Olongapo</p>
           </div>
         </div>
-        <button
-          onClick={handleLogout}
-          className="flex items-center gap-2 text-sm text-slate-600 hover:text-red-600 transition-colors bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm hover:shadow border border-slate-200/80"
-        >
-          <LogOut className="h-4 w-4" />
-          <span className="font-medium">Logout</span>
-        </button>
+        <div className="flex items-center gap-3">
+          {isAdmin && (
+            <button
+              onClick={() => navigate('/admin/dashboard')}
+              className="flex items-center gap-2 text-sm text-emerald-700 hover:text-emerald-800 transition-colors bg-emerald-50 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm hover:shadow border border-emerald-200/80 font-bold"
+            >
+              Admin Dashboard
+            </button>
+          )}
+          <button
+            onClick={handleLogout}
+            className="flex items-center gap-2 text-sm text-slate-600 hover:text-red-600 transition-colors bg-white/80 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm hover:shadow border border-slate-200/80"
+          >
+            <LogOut className="h-4 w-4" />
+            <span className="font-medium">Logout</span>
+          </button>
+        </div>
       </header>
 
       {/* Main Content */}

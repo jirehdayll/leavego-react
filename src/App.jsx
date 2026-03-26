@@ -46,14 +46,17 @@ function App() {
   const isAuth = !!session;
   const userEmail = session?.user?.email;
 
-  // Simple Admin Check
+  // Strict Admin Check - for routing protection
   const isAdmin = isAuth && userEmail === 'admin@denr.gov.ph';
 
   return (
     <Router>
       <Routes>
-        {/* Public */}
-        <Route path="/" element={!isAuth ? <Login /> : <Navigate to="/selection" replace />} />
+        {/* Public / Landing */}
+        <Route 
+          path="/" 
+          element={!isAuth ? <Login /> : (isAdmin ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/selection" replace />)} 
+        />
 
         {/* Employee Routes */}
         <Route path="/selection" element={isAuth ? <Selection /> : <Navigate to="/" replace />} />
