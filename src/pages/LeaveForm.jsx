@@ -1,23 +1,9 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
+import { leaveRequestsAPI } from '../api/leaveRequests';
+import { LEAVE_TYPES, DEPARTMENTS, POSITIONS, SALARY_RANGES } from '../constants';
 import { ArrowLeft, Send, ChevronDown } from 'lucide-react';
-
-const LEAVE_TYPES = [
-  'Vacation Leave',
-  'Mandatory/Forced Leave',
-  'Sick Leave',
-  'Maternity Leave',
-  'Paternity Leave',
-  'Special Privilege Leave',
-  'Solo Parent Leave',
-  'Study Leave',
-  '10-Day VAWC Leave',
-  'Rehabilitation Privilege',
-  'Special Leave Benefits for Women',
-  'Special Emergency (Calamity) Leave',
-  'Adoption Leave',
-];
 
 const InputField = ({ label, required, children }) => (
   <div>
@@ -48,45 +34,108 @@ export default function LeaveForm() {
     end_date: '',
   });
 
-  const handleChange = (e) => setFormData({ ...formData, [e.target.name]: e.target.value });
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData({ ...formData, [name]: value });
+    
+    // Auto-calculate number of days when dates change
+    if (name === 'start_date' || name === 'end_date') {
+      const startDate = name === 'start_date' ? value : formData.start_date;
+      const endDate = name === 'end_date' ? value : formData.end_date;
+      
+      if (startDate && endDate) {
+        const start = new Date(startDate);
+        const end = new Date(endDate);
+        if (end >= start) {
+          const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
+          setFormData(prev => ({ ...prev, num_days: days.toString() }));
+        }
+      }
+    }
+  };
+
+  const validateDates = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const startDate = new Date(formData.start_date);
+    const endDate = new Date(formData.end_date);
+    
+    if (startDate < today) {
+      alert('Start date cannot be in the past.');
+      return false;
+    }
+    
+    if (endDate < startDate) {
+      alert('End date cannot be before start date.');
+      return false;
+    }
+    
+    return true;
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
+    
+    if (!validateDates()) {
+      return;
+    }
+    
     setLoading(true);
 
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error('You must be logged in to submit a request.');
+      // Get current session more reliably
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      if (sessionError || !session?.user) {
+        console.error('Session error:', sessionError);
+        throw new Error('You must be logged in to submit a request.');
+      }
 
       const fullName = `${formData.first_name} ${formData.middle_name} ${formData.last_name}`.trim();
-
-      const { error } = await supabase.from('leave_requests').insert([{
-        user_id: user.id,
-        user_email: user.email,
+      
+      console.log('Submitting leave request:', {
+        user_id: session.user.id,
+        user_email: session.user.email,
         user_name: fullName,
         request_type: 'Leave',
-        status: 'Pending',
+        department: formData.office_department,
+        details: formData
+      });
+
+      const { data, error } = await leaveRequestsAPI.create({
+        user_id: session.user.id,
+        user_email: session.user.email,
+        user_name: fullName,
+        request_type: 'Leave',
         department: formData.office_department,
         details: formData,
-      }]);
+      });
 
-      if (error) throw error;
+      console.log('Create response:', { data, error });
+
+      if (error) {
+        console.error('Create error:', error);
+        throw error;
+      }
+      
+      console.log('Leave request submitted successfully');
       navigate('/success', { state: { type: 'Leave', data: formData } });
     } catch (err) {
+      console.error('Submit error:', err);
       alert(err.message || 'Error submitting form. Please try again.');
       setLoading(false);
     }
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50/50 via-white to-slate-50 py-10 px-4 sm:px-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50/50 via-white to-slate-50 py-10 px-4 sm:px-6 fade-in-up">
       <div className="max-w-3xl mx-auto">
         <button onClick={() => navigate('/selection')} className="mb-6 flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors group">
           <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
           Back to Selection
         </button>
 
-        <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden">
+        <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden scale-in">
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-7 flex items-start gap-4">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
@@ -110,10 +159,29 @@ export default function LeaveForm() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <InputField label="Office / Department" required>
-                  <input type="text" name="office_department" required value={formData.office_department} onChange={handleChange} className={inputCls} placeholder="e.g. CENRO Olongapo" />
+                  <div className="relative">
+                    <select
+                      name="office_department"
+                      required
+                      value={formData.office_department}
+                      onChange={handleChange}
+                      className={`${inputCls} appearance-none pr-10`}
+                    >
+                      <option value="">Select Department...</option>
+                      {DEPARTMENTS.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  </div>
                 </InputField>
                 <InputField label="Date of Filing" required>
-                  <input type="date" name="date_of_filing" required value={formData.date_of_filing} onChange={handleChange} className={inputCls} />
+                  <input 
+                    type="date" 
+                    name="date_of_filing" 
+                    required 
+                    value={formData.date_of_filing} 
+                    readOnly
+                    className={`${inputCls} bg-slate-50 cursor-not-allowed`} 
+                  />
                 </InputField>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
@@ -129,10 +197,33 @@ export default function LeaveForm() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                 <InputField label="Position / Designation" required>
-                  <input type="text" name="position" required value={formData.position} onChange={handleChange} className={inputCls} placeholder="Environmental Management Specialist" />
+                  <div className="relative">
+                    <select
+                      name="position"
+                      required
+                      value={formData.position}
+                      onChange={handleChange}
+                      className={`${inputCls} appearance-none pr-10`}
+                    >
+                      <option value="">Select Position...</option>
+                      {POSITIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  </div>
                 </InputField>
                 <InputField label="Salary (Monthly)">
-                  <input type="text" name="salary" value={formData.salary} onChange={handleChange} className={inputCls} placeholder="₱ 0.00" />
+                  <div className="relative">
+                    <select
+                      name="salary"
+                      value={formData.salary}
+                      onChange={handleChange}
+                      className={`${inputCls} appearance-none pr-10`}
+                    >
+                      <option value="">Select Salary Range...</option>
+                      {SALARY_RANGES.map(range => <option key={range} value={range}>{range}</option>)}
+                    </select>
+                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
+                  </div>
                 </InputField>
               </div>
             </div>
@@ -181,10 +272,26 @@ export default function LeaveForm() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <InputField label="Start Date" required>
-                  <input type="date" name="start_date" required value={formData.start_date} onChange={handleChange} className={inputCls} />
+                  <input 
+                    type="date" 
+                    name="start_date" 
+                    required 
+                    value={formData.start_date} 
+                    onChange={handleChange} 
+                    min={new Date().toISOString().split('T')[0]}
+                    className={inputCls} 
+                  />
                 </InputField>
                 <InputField label="End Date" required>
-                  <input type="date" name="end_date" required value={formData.end_date} onChange={handleChange} className={inputCls} />
+                  <input 
+                    type="date" 
+                    name="end_date" 
+                    required 
+                    value={formData.end_date} 
+                    onChange={handleChange} 
+                    min={formData.start_date || new Date().toISOString().split('T')[0]}
+                    className={inputCls} 
+                  />
                 </InputField>
                 <InputField label="Number of Working Days" required>
                   <input type="number" name="num_days" required min="1" value={formData.num_days} onChange={handleChange} className={inputCls} placeholder="e.g. 3" />
@@ -197,7 +304,7 @@ export default function LeaveForm() {
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold shadow-lg shadow-blue-500/25 hover:from-blue-500 hover:to-blue-600 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+                className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold shadow-lg shadow-blue-500/25 hover:from-blue-500 hover:to-blue-600 transition-all disabled:opacity-60 disabled:cursor-not-allowed btn-bounce"
               >
                 {loading ? (
                   <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Submitting...</>

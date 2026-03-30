@@ -1,6 +1,6 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 import { LogOut, FileText, Plane, ChevronRight } from 'lucide-react';
 
 export default function Selection() {

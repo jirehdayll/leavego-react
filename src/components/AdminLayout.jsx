@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 import {
   LayoutDashboard, CheckSquare, Archive, CalendarDays,
   Users, BookOpen, LogOut, ChevronLeft, ChevronRight, Menu, X

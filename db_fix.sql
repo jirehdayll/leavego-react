@@ -43,14 +43,26 @@ DROP POLICY IF EXISTS "Admins can view all profiles" ON public.profiles;
 CREATE POLICY "Admins can view all profiles"
   ON public.profiles FOR SELECT
   USING (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
+    EXISTS (
+      SELECT 1 
+      FROM public.profiles 
+      WHERE id = auth.uid() 
+      AND role = 'admin'
+      LIMIT 1
+    )
   );
 
 DROP POLICY IF EXISTS "Admins can update all profiles" ON public.profiles;
 CREATE POLICY "Admins can update all profiles"
   ON public.profiles FOR UPDATE
   USING (
-    (SELECT role FROM public.profiles WHERE id = auth.uid()) = 'admin'
+    EXISTS (
+      SELECT 1 
+      FROM public.profiles 
+      WHERE id = auth.uid() 
+      AND role = 'admin'
+      LIMIT 1
+    )
   );
 
 -- 5. Final sync: ensure admin@gmail.com is admin

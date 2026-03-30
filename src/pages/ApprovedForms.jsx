@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
-import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../utils/pdfGenerator';
+import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
 import {
   Grid3X3, List, Download, Eye, Plane, FileText,
   Search, SlidersHorizontal, X, User, Mail, Calendar, Filter

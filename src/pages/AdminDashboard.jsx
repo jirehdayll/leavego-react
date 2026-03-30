@@ -1,17 +1,19 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { supabase } from '../services/supabaseClient';
-import AdminLayout from '../components/AdminLayout';
-import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../utils/pdfGenerator';
+import { supabase } from '../lib/supabaseClient';
+import { leaveRequestsAPI } from '../api/leaveRequests';
+import { emailService } from '../services/emailService';
+import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
+import { MONTHS } from '../constants';
 import {
   Clock, CheckCircle2, Plane, FileText, TrendingUp,
   Eye, Check, X, Archive, Download, User, Calendar, Mail
 } from 'lucide-react';
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+import AdminLayout from '../components/AdminLayout';
 
 function StatCard({ icon: Icon, label, value, color, bg }) {
   return (
-    <div className={`bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-4`}>
+    <div className={`bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-4 card-hover`}>
       <div className={`w-12 h-12 ${bg} rounded-2xl flex items-center justify-center flex-shrink-0`}>
         <Icon className={`w-6 h-6 ${color}`} />
       </div>
@@ -25,7 +27,7 @@ function StatCard({ icon: Icon, label, value, color, bg }) {
 
 function PDFModal({ request, onClose }) {
   const downloadPDF = async () => {
-    const details = request.details || {};
+    const details = request.details || {}; 
     if (request.request_type === 'Travel') {
       await generateTravelOrderPDF({ ...details, full_name: request.user_name, start_date: details.departure_date, end_date: details.arrival_date });
     } else {
@@ -114,24 +116,34 @@ export default function AdminDashboard() {
   const fetchRequests = useCallback(async () => {
     setLoading(true);
 
-    // Fetch active requests (non-archived)
-    const { data: activeData, error: activeErr } = await supabase
-      .from('leave_requests')
-      .select('*')
-      .eq('is_archived', false)
-      .order('submitted_at', { ascending: false });
+    try {
+      // Fetch active requests using API
+      const { data: activeData, error: activeErr } = await leaveRequestsAPI.getAll({
+        is_archived: false,
+        orderBy: 'created_at'
+      });
 
-    if (!activeErr) setRequests(activeData || []);
+      if (!activeErr) {
+        console.log('Fetched requests:', activeData?.length || 0);
+        setRequests(activeData || []);
+      } else {
+        console.error('Fetch requests error:', activeErr);
+        setRequests([]);
+      }
 
-    // Fetch archived count (matching Archive.jsx logic: is_archived OR status='Declined')
-    const { count, error: countErr } = await supabase
-      .from('leave_requests')
-      .select('*', { count: 'exact', head: true })
-      .or('is_archived.eq.true,status.eq.Declined');
+      // Fetch archived count
+      const { count, error: countErr } = await leaveRequestsAPI.getCount({
+        is_archived: true
+      });
 
-    if (!countErr) setArchiveCount(count || 0);
+      if (!countErr) setArchiveCount(count || 0);
 
-    setLoading(false);
+    } catch (error) {
+      console.error('Fetch requests error:', error);
+      setRequests([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
   useEffect(() => {
@@ -139,25 +151,93 @@ export default function AdminDashboard() {
 
     const channel = supabase
       .channel('leave_requests_realtime')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'leave_requests' }, fetchRequests)
-      .subscribe();
+      .on('postgres_changes', 
+        { 
+          event: '*', 
+          schema: 'public', 
+          table: 'leave_requests' 
+        }, 
+        (payload) => {
+          console.log('Real-time update received:', payload);
+          fetchRequests();
+        }
+      )
+      .subscribe((status) => {
+        console.log('Subscription status:', status);
+      });
 
-    return () => supabase.removeChannel(channel);
+    return () => {
+      console.log('Unsubscribing from channel');
+      supabase.removeChannel(channel);
+    };
   }, [fetchRequests]);
 
   const updateStatus = async (id, status) => {
-    await supabase.from('leave_requests').update({ status, updated_at: new Date().toISOString() }).eq('id', id);
-    fetchRequests();
+    try {
+      const request = requests.find(r => r.id === id);
+      if (request) {
+        // Mark as seen if not already seen
+        if (!request.seen_by_admin) {
+          await leaveRequestsAPI.update(id, { 
+            status, 
+            seen_by_admin: true,
+            admin_seen_at: new Date().toISOString()
+          });
+        } else {
+          await leaveRequestsAPI.update(id, { status });
+        }
+        
+        // Send email notification for status changes
+        if (status === 'Approved' || status === 'Declined') {
+          await sendEmailNotification(request, status);
+        }
+      }
+      fetchRequests();
+    } catch (error) {
+      console.error('Error updating status:', error);
+    }
+  };
+
+  const sendEmailNotification = async (request, status) => {
+    try {
+      if (status === 'Approved') {
+        await emailService.sendApprovalNotification(request);
+      } else if (status === 'Declined') {
+        await emailService.sendDeclineNotification(request);
+      }
+    } catch (error) {
+      console.error('Failed to send email notification:', error);
+    }
+  };
+
+  const markAsSeen = async (id) => {
+    const request = requests.find(r => r.id === id);
+    if (request && !request.seen_by_admin) {
+      await leaveRequestsAPI.update(id, {
+        seen_by_admin: true,
+        admin_seen_at: new Date().toISOString()
+      });
+      
+      // Send seen notification to user
+      try {
+        await emailService.sendSeenNotification(request);
+      } catch (error) {
+        console.error('Failed to send seen notification:', error);
+      }
+      
+      fetchRequests();
+    }
   };
 
   const archiveRequest = async (id) => {
-    await supabase.from('leave_requests').update({ is_archived: true, updated_at: new Date().toISOString() }).eq('id', id);
+    await leaveRequestsAPI.archive(id);
     fetchRequests();
   };
 
   const pending = requests.filter(r => r.status === 'Pending');
   const pendingLeave = pending.filter(r => r.request_type === 'Leave').length;
   const pendingTravel = pending.filter(r => r.request_type === 'Travel').length;
+  const unseenPending = pending.filter(r => !r.seen_by_admin).length;
 
   const monthStart = new Date(year, now.getMonth(), 1).toISOString();
 
@@ -170,11 +250,10 @@ export default function AdminDashboard() {
   const monthlyApproved = allApproved.filter(r => new Date(r.submitted_at || r.created_at) >= new Date(monthStart));
 
   const stats = [
-    { icon: Clock, label: 'Pending Leave Orders', value: pendingLeave, color: 'text-amber-600', bg: 'bg-amber-50' },
-    { icon: Clock, label: 'Pending Travel Orders', value: pendingTravel, color: 'text-orange-600', bg: 'bg-orange-50' },
+    { icon: Clock, label: 'Pending Applications', value: pending.length, color: 'text-amber-600', bg: 'bg-amber-50' },
+    { icon: Clock, label: 'Unseen Applications', value: unseenPending, color: 'text-red-600', bg: 'bg-red-50' },
     { icon: Plane, label: 'Approved Travel Orders', value: approvedTravelCount, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { icon: FileText, label: 'Approved Leave Orders', value: approvedLeaveCount, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { icon: Archive, label: 'Total Archives', value: archiveCount, color: 'text-slate-600', bg: 'bg-slate-50' },
     { icon: TrendingUp, label: `Approved this month`, value: monthlyApproved.length, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
@@ -206,7 +285,7 @@ export default function AdminDashboard() {
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-800">Pending Applications</h3>
-              <p className="text-xs text-slate-400 mt-0.5">{pending.length} application{pending.length !== 1 ? 's' : ''} awaiting review</p>
+              <p className="text-xs text-slate-400 mt-0.5">{pending.length} application{pending.length !== 1 ? 's' : ''} awaiting review ({unseenPending} unseen)</p>
             </div>
           </div>
 
@@ -238,13 +317,18 @@ export default function AdminDashboard() {
                   {pending.map((req) => (
                     <tr
                       key={req.id}
-                      className="hover:bg-slate-50/80 transition-colors cursor-pointer"
-                      onClick={() => setSelectedRequest(req)}
+                      className={`hover:bg-slate-50/80 transition-colors cursor-pointer ${
+                        !req.seen_by_admin ? 'bg-blue-50/30 border-l-4 border-l-blue-500' : ''
+                      }`}
+                      onClick={() => {
+                        setSelectedRequest(req);
+                        markAsSeen(req.id);
+                      }}
                     >
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${req.request_type === 'Travel' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
                           {req.request_type === 'Travel' ? <Plane className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                          {req.request_type === 'Travel' ? 'Travel Order' : 'Sick Leave'}
+                          {req.request_type === 'Travel' ? 'Travel Order' : 'Leave Application'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -255,6 +339,12 @@ export default function AdminDashboard() {
                           <div>
                             <p className="text-sm font-semibold text-slate-800">{req.user_name || 'Unknown'}</p>
                             <p className="text-xs text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" />{req.user_email || '—'}</p>
+                            {!req.seen_by_admin && (
+                              <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 mt-0.5">
+                                <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
+                                New
+                              </span>
+                            )}
                           </div>
                         </div>
                       </td>

@@ -1,7 +1,34 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../services/supabaseClient';
-import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, X } from 'lucide-react';
+import { supabase } from '../lib/supabaseClient';
+import { authAPI } from '../api/auth';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, X, AlertTriangle } from 'lucide-react';
+
+// Deactivated Account Modal
+function DeactivatedModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+        <div className="p-7 text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertTriangle className="w-8 h-8 text-red-600" />
+          </div>
+          <h3 className="text-xl font-bold text-slate-800 mb-2">Account is not Anymore Available</h3>
+          <p className="text-slate-600 text-sm mb-6">
+            This account is no longer available. Please contact an administrator for assistance.
+          </p>
+          <button
+            onClick={onClose}
+            className="w-full px-4 py-3 rounded-xl bg-red-600 text-white font-semibold text-sm hover:bg-red-700 transition-colors"
+          >
+            I Understand
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 
 function ForgotPasswordModal({ onClose }) {
@@ -122,7 +149,17 @@ export default function Login() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showForgotPassword, setShowForgotPassword] = useState(false);
+  const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
   const navigate = useNavigate();
+
+  // Check for stored auth error on component mount
+  useEffect(() => {
+    const storedError = sessionStorage.getItem('authError');
+    if (storedError) {
+      setError(storedError);
+      sessionStorage.removeItem('authError');
+    }
+  }, []);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -159,7 +196,16 @@ export default function Login() {
         // Check if account is active (if we have a profile)
         if (profile && profile.is_active === false) {
           await supabase.auth.signOut();
-          setError('This account has been deactivated. Please contact an administrator.');
+          setShowDeactivatedModal(true);
+          setLoading(false);
+          return;
+        }
+
+        // Additional check: Even if we don't have a profile, check if user should be allowed
+        // Only allow main admin without a profile
+        if (!profile && userEmail !== 'admin@denr.gov.ph') {
+          await supabase.auth.signOut();
+          setError('Account profile not found. Please contact an administrator.');
           setLoading(false);
           return;
         }
@@ -189,7 +235,7 @@ export default function Login() {
   };
 
   return (
-    <div className="min-h-screen flex">
+    <div className="min-h-screen flex fade-in-up">
       {/* Left Panel */}
       <div className="hidden lg:flex lg:w-1/2 relative overflow-hidden bg-gradient-to-br from-[#0d2b24] via-[#1a4035] to-[#0a4229]">
         {/* Decorative blobs */}
@@ -309,7 +355,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:from-emerald-500 hover:to-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed"
+              className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-lg shadow-emerald-500/25 hover:shadow-emerald-500/40 hover:from-emerald-500 hover:to-teal-500 focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:ring-offset-2 transition-all duration-200 disabled:opacity-60 disabled:cursor-not-allowed btn-bounce"
             >
               {loading ? (
                 <span className="flex items-center justify-center gap-2">
@@ -331,6 +377,17 @@ export default function Login() {
 
       {/* Forgot Password Modal */}
       {showForgotPassword && <ForgotPasswordModal onClose={() => setShowForgotPassword(false)} />}
+
+      {/* Deactivated Account Modal */}
+      {showDeactivatedModal && (
+        <DeactivatedModal onClose={() => {
+          setShowDeactivatedModal(false);
+          // Clear any stored error and reset form
+          setError(null);
+          setEmail('');
+          setPassword('');
+        }} />
+      )}
     </div>
   );
 }

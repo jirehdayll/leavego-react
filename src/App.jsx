@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { supabase } from './services/supabaseClient';
+import { supabase } from './lib/supabaseClient';
 
 import Login from './pages/Login';
 import Selection from './pages/Selection';
@@ -14,6 +14,8 @@ import Archive from './pages/Archive';
 import MonthlySummary from './pages/MonthlySummary';
 import AccountManagement from './pages/AccountManagement';
 import Records from './pages/Records';
+
+import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
 
 function App() {
   const [session, setSession] = useState(undefined);
@@ -52,25 +54,28 @@ function App() {
   return (
     <Router>
       <Routes>
-        {/* Public / Landing */}
+        {/* Public / Landing - Only show login if no session */}
         <Route 
           path="/" 
-          element={!isAuth ? <Login /> : (isAdmin ? <Navigate to="/admin/dashboard" replace /> : <Navigate to="/selection" replace />)} 
+          element={!isAuth ? <Login /> : <Navigate to="/login" replace />} 
         />
 
-        {/* Employee Routes */}
-        <Route path="/selection" element={isAuth ? <Selection /> : <Navigate to="/" replace />} />
-        <Route path="/forms/leave" element={isAuth ? <LeaveForm /> : <Navigate to="/" replace />} />
-        <Route path="/forms/travel" element={isAuth ? <TravelForm /> : <Navigate to="/" replace />} />
-        <Route path="/success" element={isAuth ? <FormSuccessful /> : <Navigate to="/" replace />} />
+        {/* Login route - for explicit login access */}
+        <Route path="/login" element={<Login />} />
+
+        {/* Employee Routes - Protected by ProtectedRoute component */}
+        <Route path="/selection" element={<ProtectedRoute><Selection /></ProtectedRoute>} />
+        <Route path="/forms/leave" element={<ProtectedRoute><LeaveForm /></ProtectedRoute>} />
+        <Route path="/forms/travel" element={<ProtectedRoute><TravelForm /></ProtectedRoute>} />
+        <Route path="/success" element={<ProtectedRoute><FormSuccessful /></ProtectedRoute>} />
 
         {/* Admin Routes - Strictly protected */}
-        <Route path="/admin/dashboard" element={isAdmin ? <AdminDashboard /> : <Navigate to="/" replace />} />
-        <Route path="/admin/approved" element={isAdmin ? <ApprovedForms /> : <Navigate to="/" replace />} />
-        <Route path="/admin/archive" element={isAdmin ? <Archive /> : <Navigate to="/" replace />} />
-        <Route path="/admin/monthly-summary" element={isAdmin ? <MonthlySummary /> : <Navigate to="/" replace />} />
-        <Route path="/admin/account-management" element={isAdmin ? <AccountManagement /> : <Navigate to="/" replace />} />
-        <Route path="/admin/records" element={isAdmin ? <Records /> : <Navigate to="/" replace />} />
+        <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+        <Route path="/admin/approved" element={<AdminRoute><ApprovedForms /></AdminRoute>} />
+        <Route path="/admin/archive" element={<AdminRoute><Archive /></AdminRoute>} />
+        <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
+        <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
+        <Route path="/admin/records" element={<AdminRoute><Records /></AdminRoute>} />
 
         {/* Fallback */}
         <Route path="*" element={<Navigate to="/" replace />} />

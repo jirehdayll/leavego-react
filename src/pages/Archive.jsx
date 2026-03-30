@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { supabase } from '../services/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
-import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../utils/pdfGenerator';
+import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
 import { Plane, FileText, Eye, Download, RotateCcw, User, X } from 'lucide-react';
 
 function PDFViewModal({ request, onClose }) {
