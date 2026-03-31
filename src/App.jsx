@@ -11,6 +11,7 @@ import DebugConnection from './pages/DebugConnection';
 import SimpleTestForm from './pages/SimpleTestForm';
 import LiveTestForm from './pages/LiveTestForm';
 import FullWorkflowTest from './pages/FullWorkflowTest';
+import RealUserTest from './pages/RealUserTest';
 
 import AdminDashboard from './pages/AdminDashboard';
 import ApprovedForms from './pages/ApprovedForms';
@@ -81,6 +82,7 @@ function App() {
         <Route path="/test" element={<SimpleTestForm />} />
         <Route path="/live" element={<LiveTestForm />} />
         <Route path="/workflow" element={<FullWorkflowTest />} />
+        <Route path="/realtest" element={<RealUserTest />} />
         <Route path="/admin/archive" element={<AdminRoute><Archive /></AdminRoute>} />
         <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
         <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
