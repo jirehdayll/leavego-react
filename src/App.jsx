@@ -9,6 +9,7 @@ import TravelForm from './pages/TravelForm';
 import FormSuccessful from './pages/FormSuccessful';
 import DebugConnection from './pages/DebugConnection';
 import SimpleTestForm from './pages/SimpleTestForm';
+import LiveTestForm from './pages/LiveTestForm';
 
 import AdminDashboard from './pages/AdminDashboard';
 import ApprovedForms from './pages/ApprovedForms';
@@ -77,6 +78,7 @@ function App() {
         {/* Debug Route */}
         <Route path="/debug" element={<DebugConnection />} />
         <Route path="/test" element={<SimpleTestForm />} />
+        <Route path="/live" element={<LiveTestForm />} />
         <Route path="/admin/archive" element={<AdminRoute><Archive /></AdminRoute>} />
         <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
         <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
