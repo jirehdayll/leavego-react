@@ -8,6 +8,7 @@ import LeaveForm from './pages/LeaveForm';
 import TravelForm from './pages/TravelForm';
 import FormSuccessful from './pages/FormSuccessful';
 import DebugConnection from './pages/DebugConnection';
+import SimpleTestForm from './pages/SimpleTestForm';
 
 import AdminDashboard from './pages/AdminDashboard';
 import ApprovedForms from './pages/ApprovedForms';
@@ -75,6 +76,7 @@ function App() {
         <Route path="/admin/approved" element={<AdminRoute><ApprovedForms /></AdminRoute>} />
         {/* Debug Route */}
         <Route path="/debug" element={<DebugConnection />} />
+        <Route path="/test" element={<SimpleTestForm />} />
         <Route path="/admin/archive" element={<AdminRoute><Archive /></AdminRoute>} />
         <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
         <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
