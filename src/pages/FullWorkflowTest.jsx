@@ -172,7 +172,7 @@ export default function FullWorkflowTest() {
     await new Promise(resolve => setTimeout(resolve, 1000));
     
     await submitLeaveForm();
-    await new Promise(resolve => setTimeout(resolve, 3000);
+    await new Promise(resolve => setTimeout(resolve, 3000));
     
     await testAdminLogin();
     await new Promise(resolve => setTimeout(resolve, 1000));
