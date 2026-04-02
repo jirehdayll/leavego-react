@@ -14,7 +14,7 @@ export default function Selection() {
     });
   }, []);
 
-  const isAdmin = userEmail === 'admin@denr.gov.ph';
+  const isAdmin = userEmail === 'jdbjirehdb@gmail.com';
 
   const handleLogout = async () => {
     await supabase.auth.signOut();

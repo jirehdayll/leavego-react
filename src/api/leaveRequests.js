@@ -56,10 +56,24 @@ export const leaveRequestsAPI = {
           ...requestData,
           submitted_at: new Date().toISOString(),
           is_archived: false,
-          status: 'Pending'
+          status: 'Pending',
+          seen_by_admin: false
         }])
-        .select();
+        .select()
+        .single();
+      
       console.log('create result:', result);
+      
+      // Validate the result
+      if (result.error) {
+        console.error('Database error during create:', result.error);
+        throw new Error(result.error.message || 'Failed to create request');
+      }
+      
+      if (!result.data) {
+        throw new Error('No data returned from database');
+      }
+      
       return result;
     } catch (error) {
       console.error('create error:', error);

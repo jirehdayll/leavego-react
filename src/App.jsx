@@ -53,8 +53,8 @@ function App() {
   const isAuth = !!session;
   const userEmail = session?.user?.email;
 
-  // Strict Admin Check - for routing protection
-  const isAdmin = isAuth && userEmail === 'admin@denr.gov.ph';
+  // Temporary admin check - use existing user for testing
+  const isAdmin = isAuth && userEmail === 'jdbjirehdb@gmail.com';
 
   return (
     <Router>

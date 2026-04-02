@@ -109,6 +109,7 @@ export default function AdminDashboard() {
   const [archiveCount, setArchiveCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
   const now = new Date();
   const monthName = MONTHS[now.getMonth()];
   const year = now.getFullYear();
@@ -159,15 +160,34 @@ export default function AdminDashboard() {
         }, 
         (payload) => {
           console.log('Real-time update received:', payload);
+          
+          // Handle different event types
+          if (payload.eventType === 'INSERT') {
+            console.log('New request submitted:', payload.new);
+          } else if (payload.eventType === 'UPDATE') {
+            console.log('Request updated:', payload.new);
+          } else if (payload.eventType === 'DELETE') {
+            console.log('Request deleted:', payload.old);
+          }
+          
           fetchRequests();
         }
       )
       .subscribe((status) => {
-        console.log('Subscription status:', status);
+        console.log('Real-time subscription status:', status);
+        setConnectionStatus(status);
+        if (status === 'SUBSCRIBED') {
+          console.log('Successfully connected to real-time updates');
+        } else if (status === 'CHANNEL_ERROR') {
+          console.error('Real-time subscription error - retrying...');
+          setTimeout(() => {
+            fetchRequests();
+          }, 2000);
+        }
       });
 
     return () => {
-      console.log('Unsubscribing from channel');
+      console.log('Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, [fetchRequests]);
@@ -269,9 +289,21 @@ export default function AdminDashboard() {
               {monthName} {year} — Real-time overview
             </p>
           </div>
-          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold px-3 py-1.5 rounded-full">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
-            Live
+          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
+            connectionStatus === 'SUBSCRIBED' 
+              ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' 
+              : connectionStatus === 'CHANNEL_ERROR'
+              ? 'bg-red-50 border border-red-200 text-red-700'
+              : 'bg-amber-50 border border-amber-200 text-amber-700'
+          }`}>
+            <span className={`w-1.5 h-1.5 rounded-full ${
+              connectionStatus === 'SUBSCRIBED' 
+                ? 'bg-emerald-500 animate-pulse' 
+                : connectionStatus === 'CHANNEL_ERROR'
+                ? 'bg-red-500'
+                : 'bg-amber-500 animate-pulse'
+            }`}></span>
+            {connectionStatus === 'SUBSCRIBED' ? 'Live' : connectionStatus === 'CHANNEL_ERROR' ? 'Error' : 'Connecting...'}
           </div>
         </div>
 
