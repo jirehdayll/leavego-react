@@ -121,7 +121,7 @@ export default function AdminDashboard() {
       // Fetch active requests using API
       const { data: activeData, error: activeErr } = await leaveRequestsAPI.getAll({
         is_archived: false,
-        orderBy: 'created_at'
+        orderBy: 'submitted_at'
       });
 
       if (!activeErr) {
