@@ -23,7 +23,7 @@ export default function AdminLayout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
 
   const { user, loading: authLoading } = useAuth();
-  const adminEmail = user?.email || 'admin@denr.gov.ph';
+  const adminEmail = user?.email || '—';
 
   if (authLoading) return null; // or a smaller spinner
 

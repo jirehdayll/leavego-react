@@ -2,32 +2,23 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { LogOut, FileText, Plane, ChevronRight } from 'lucide-react';
+import { useAuth } from '../hooks/useAuth';
+import { APP_ROUTES } from '../constants/app';
 
 export default function Selection() {
   const navigate = useNavigate();
-
-  // Get current user email for admin check
-  const [userEmail, setUserEmail] = React.useState(null);
-  React.useEffect(() => {
-    supabase.auth.getUser().then(({ data: { user } }) => {
-      setUserEmail(user?.email);
-    });
-  }, []);
-
-  const isAdmin = userEmail === 'jdbjirehdb@gmail.com';
+  const { isAdmin, loading } = useAuth();
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/');
+    navigate(APP_ROUTES.ROOT);
   };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f0fdf8] via-white to-[#eff6ff] relative overflow-hidden">
-      {/* Background decorations */}
       <div className="absolute top-0 right-0 w-[600px] h-[600px] bg-emerald-100/40 rounded-full blur-[100px] -translate-y-1/2 translate-x-1/2" />
       <div className="absolute bottom-0 left-0 w-[500px] h-[500px] bg-blue-100/30 rounded-full blur-[100px] translate-y-1/2 -translate-x-1/2" />
 
-      {/* Header */}
       <header className="relative z-10 flex items-center justify-between px-6 sm:px-10 py-5">
         <div className="flex items-center gap-3">
           <img src="/denr-logo.png" alt="DENR" className="w-10 h-10 object-contain rounded-full" />
@@ -37,9 +28,9 @@ export default function Selection() {
           </div>
         </div>
         <div className="flex items-center gap-3">
-          {isAdmin && (
+          {!loading && isAdmin && (
             <button
-              onClick={() => navigate('/admin/dashboard')}
+              onClick={() => navigate(APP_ROUTES.ADMIN_DASHBOARD)}
               className="flex items-center gap-2 text-sm text-emerald-700 hover:text-emerald-800 transition-colors bg-emerald-50 backdrop-blur-sm px-4 py-2 rounded-full shadow-sm hover:shadow border border-emerald-200/80 font-bold"
             >
               Admin Dashboard
@@ -55,7 +46,6 @@ export default function Selection() {
         </div>
       </header>
 
-      {/* Main Content */}
       <main className="relative z-10 flex flex-col items-center justify-center min-h-[calc(100vh-80px)] px-6 py-8">
         <div className="text-center mb-12 max-w-xl">
           <span className="inline-block bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold px-3 py-1 rounded-full mb-4 uppercase tracking-wide">
@@ -70,7 +60,6 @@ export default function Selection() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 w-full max-w-2xl">
-          {/* Sick Leave Card */}
           <button
             onClick={() => navigate('/forms/leave')}
             className="group relative bg-white rounded-3xl p-8 shadow-lg hover:shadow-2xl border border-slate-100 hover:border-blue-200 transition-all duration-300 hover:-translate-y-1 text-left overflow-hidden"
@@ -91,7 +80,6 @@ export default function Selection() {
             </div>
           </button>
 
-          {/* Travel Order Card */}
           <button
             onClick={() => navigate('/forms/travel')}
             className="group relative bg-white rounded-3xl p-8 shadow-lg hover:shadow-2xl border border-slate-100 hover:border-emerald-200 transition-all duration-300 hover:-translate-y-1 text-left overflow-hidden"
@@ -113,7 +101,6 @@ export default function Selection() {
           </button>
         </div>
 
-        {/* Status Cards */}
         <div className="mt-10 flex items-center gap-4 flex-wrap justify-center">
           <div className="flex items-center gap-1.5 bg-white px-4 py-2 rounded-full shadow-sm border border-slate-100 text-xs text-slate-500">
             <span className="w-2 h-2 rounded-full bg-amber-400"></span>

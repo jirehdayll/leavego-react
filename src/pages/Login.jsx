@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { authAPI } from '../api/auth';
+import { getDefaultRouteForRole, isBootstrapAdminEmail, resolveRoleFromProfile } from '../utils/auth';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, X, AlertTriangle } from 'lucide-react';
 
 // Deactivated Account Modal
@@ -201,25 +202,16 @@ export default function Login() {
           return;
         }
 
-        // Additional check: Even if we don't have a profile, check if user should be allowed
-        // Only allow main admin without a profile
-        if (!profile && userEmail !== 'admin@denr.gov.ph') {
+        // Only allow bootstrap fallback for the real admin account when the profile row is missing.
+        if (!profile && !isBootstrapAdminEmail(userEmail)) {
           await supabase.auth.signOut();
           setError('Account profile not found. Please contact an administrator.');
           setLoading(false);
           return;
         }
 
-        const role = profile?.role || 'employee';
-
-        // Strict redirect for main admin (always allow if email matches)
-        if (userEmail === 'admin@denr.gov.ph') {
-          navigate('/admin/dashboard');
-        } else if (role === 'admin') {
-          navigate('/admin/dashboard');
-        } else {
-          navigate('/selection');
-        }
+        const role = resolveRoleFromProfile(profile, userEmail);
+        navigate(getDefaultRouteForRole(role));
       }
     } catch (err) {
       if (err.message?.toLowerCase().includes('invalid login')) {

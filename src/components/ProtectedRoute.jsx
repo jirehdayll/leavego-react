@@ -1,6 +1,7 @@
-import React, { useEffect } from 'react';
+import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import { APP_ROUTES } from '../constants/app';
 
 export function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, loading, isActive, isAdmin } = useAuth();
@@ -16,24 +17,17 @@ export function ProtectedRoute({ children, requireAdmin = false }) {
     );
   }
 
-  // If no user, redirect to login
-  if (!user) {
-    return <Navigate to="/login" replace />;
+  if (!user || !isActive) {
+    return <Navigate to={APP_ROUTES.LOGIN} replace />;
   }
 
-  // If user is not active, redirect to login (Login component will handle the modal)
-  if (!isActive) {
-    return <Navigate to="/login" replace />;
-  }
-
-  // If admin is required but user is not admin
   if (requireAdmin && !isAdmin) {
-    return <Navigate to="/selection" replace />;
+    return <Navigate to={APP_ROUTES.SELECTION} replace />;
   }
 
   return children;
 }
 
 export function AdminRoute({ children }) {
-  return <ProtectedRoute requireAdmin={true}>{children}</ProtectedRoute>;
+  return <ProtectedRoute requireAdmin>{children}</ProtectedRoute>;
 }

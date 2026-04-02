@@ -21,6 +21,7 @@ import AccountManagement from './pages/AccountManagement';
 import Records from './pages/Records';
 
 import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
+import { APP_ROUTES } from './constants/app';
 
 function App() {
   const [session, setSession] = useState(undefined);
@@ -32,8 +33,8 @@ function App() {
       setLoading(false);
     });
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
     });
 
     return () => subscription.unsubscribe();
@@ -50,34 +51,25 @@ function App() {
     );
   }
 
-  const isAuth = !!session;
-  const userEmail = session?.user?.email;
-
-  // Temporary admin check - use existing user for testing
-  const isAdmin = isAuth && userEmail === 'jdbjirehdb@gmail.com';
+  const isAuthenticated = Boolean(session);
 
   return (
     <Router>
       <Routes>
-        {/* Public / Landing - Only show login if no session */}
-        <Route 
-          path="/" 
-          element={!isAuth ? <Login /> : <Navigate to="/login" replace />} 
+        <Route
+          path={APP_ROUTES.ROOT}
+          element={!isAuthenticated ? <Login /> : <Navigate to={APP_ROUTES.LOGIN} replace />}
         />
 
-        {/* Login route - for explicit login access */}
-        <Route path="/login" element={<Login />} />
+        <Route path={APP_ROUTES.LOGIN} element={<Login />} />
 
-        {/* Employee Routes - Protected by ProtectedRoute component */}
-        <Route path="/selection" element={<ProtectedRoute><Selection /></ProtectedRoute>} />
+        <Route path={APP_ROUTES.SELECTION} element={<ProtectedRoute><Selection /></ProtectedRoute>} />
         <Route path="/forms/leave" element={<ProtectedRoute><LeaveForm /></ProtectedRoute>} />
         <Route path="/forms/travel" element={<ProtectedRoute><TravelForm /></ProtectedRoute>} />
         <Route path="/success" element={<ProtectedRoute><FormSuccessful /></ProtectedRoute>} />
 
-        {/* Admin Routes - Strictly protected */}
-        <Route path="/admin/dashboard" element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+        <Route path={APP_ROUTES.ADMIN_DASHBOARD} element={<AdminRoute><AdminDashboard /></AdminRoute>} />
         <Route path="/admin/approved" element={<AdminRoute><ApprovedForms /></AdminRoute>} />
-        {/* Debug Route */}
         <Route path="/debug" element={<DebugConnection />} />
         <Route path="/test" element={<SimpleTestForm />} />
         <Route path="/live" element={<LiveTestForm />} />
@@ -88,8 +80,7 @@ function App() {
         <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
         <Route path="/admin/records" element={<AdminRoute><Records /></AdminRoute>} />
 
-        {/* Fallback */}
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="*" element={<Navigate to={APP_ROUTES.ROOT} replace />} />
       </Routes>
     </Router>
   );

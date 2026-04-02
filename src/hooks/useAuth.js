@@ -1,85 +1,97 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
+import { canAccessAdmin, resolveRoleFromProfile } from '../utils/auth';
+import { USER_ROLES } from '../constants/app';
+
+const defaultAuthState = {
+  role: null,
+  isActive: true,
+  profile: null,
+};
 
 export function useAuth() {
   const [user, setUser] = useState(null);
-  const [role, setRole] = useState(null);
-  const [isActive, setIsActive] = useState(true);
+  const [role, setRole] = useState(defaultAuthState.role);
+  const [profile, setProfile] = useState(defaultAuthState.profile);
+  const [isActive, setIsActive] = useState(defaultAuthState.isActive);
   const [loading, setLoading] = useState(true);
 
-  const fetchProfile = async (userId) => {
+  const resetAuthState = useCallback(() => {
+    setUser(null);
+    setRole(defaultAuthState.role);
+    setProfile(defaultAuthState.profile);
+    setIsActive(defaultAuthState.isActive);
+  }, []);
+
+  const fetchProfile = useCallback(async (currentUser) => {
     try {
-      const { data: profile, error } = await supabase
+      const { data: profileData, error } = await supabase
         .from('profiles')
-        .select('role, is_active')
-        .eq('id', userId)
-        .single();
-      
-      if (error && error.code !== 'PGRST116') {
-        console.error('Error fetching profile:', error);
-        return { role: 'employee', isActive: true };
+        .select('id, email, denr_email, full_name, role, is_active')
+        .eq('id', currentUser.id)
+        .maybeSingle();
+
+      if (error) {
+        console.error('[useAuth.fetchProfile]', error);
       }
-      
-      // If no profile found, check if main admin
-      if (!profile) {
-        const { data: { user: currentUser } } = await supabase.auth.getUser();
-        if (currentUser?.email === 'admin@denr.gov.ph') {
-          return { role: 'admin', isActive: true };
-        }
-        return { role: 'employee', isActive: true }; // Default to employee for safety
-      }
-      
-      const profileData = {
-        role: profile?.role || 'employee',
-        isActive: profile?.is_active !== false
+
+      const isProfileActive = profileData?.is_active !== false;
+      const resolvedRole = resolveRoleFromProfile(profileData, currentUser?.email);
+
+      return {
+        profile: profileData,
+        role: resolvedRole,
+        isActive: isProfileActive,
       };
-
-      if (profileData.isActive === false) {
-        console.log('User is deactivated, signing out...');
-        await supabase.auth.signOut();
-        return { role: null, isActive: false };
-      }
-
-      return profileData;
     } catch (err) {
-      console.error('Profile fetch error:', err);
-      return { role: 'employee', isActive: true };
+      console.error('[useAuth.fetchProfile] unexpected error', err);
+      return {
+        profile: null,
+        role: resolveRoleFromProfile(null, currentUser?.email),
+        isActive: true,
+      };
     }
-  };
+  }, []);
+
+  const applyUserState = useCallback(async (currentUser) => {
+    if (!currentUser) {
+      resetAuthState();
+      return;
+    }
+
+    setUser(currentUser);
+
+    const profileState = await fetchProfile(currentUser);
+
+    if (profileState.isActive === false) {
+      await supabase.auth.signOut();
+      resetAuthState();
+      return;
+    }
+
+    setProfile(profileState.profile);
+    setRole(profileState.role);
+    setIsActive(profileState.isActive);
+  }, [fetchProfile, resetAuthState]);
 
   useEffect(() => {
     let mounted = true;
-    
+
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
-        
         if (!mounted) return;
-        
-        if (session?.user) {
-          setUser(session.user);
-          const profileData = await fetchProfile(session.user.id);
-          setRole(profileData.role);
-          setIsActive(profileData.isActive);
-          
-          if (!profileData.isActive) {
-            setUser(null);
-            setRole(null);
-          }
-        } else {
-          setUser(null);
-          setRole(null);
-          setIsActive(true);
-        }
+
+        await applyUserState(session?.user ?? null);
       } catch (err) {
-        console.error('Auth init error:', err);
+        console.error('[useAuth.initAuth]', err);
         if (mounted) {
-          setUser(null);
-          setRole(null);
-          setIsActive(true);
+          resetAuthState();
         }
       } finally {
-        if (mounted) setLoading(false);
+        if (mounted) {
+          setLoading(false);
+        }
       }
     };
 
@@ -87,21 +99,9 @@ export function useAuth() {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
       if (!mounted) return;
-      
-      if (session?.user) {
-        setUser(session.user);
-        const profileData = await fetchProfile(session.user.id);
-        setRole(profileData.role);
-        setIsActive(profileData.isActive);
-        
-        if (!profileData.isActive) {
-          setUser(null);
-          setRole(null);
-        }
-      } else {
-        setUser(null);
-        setRole(null);
-        setIsActive(true);
+      await applyUserState(session?.user ?? null);
+      if (mounted) {
+        setLoading(false);
       }
     });
 
@@ -109,14 +109,15 @@ export function useAuth() {
       mounted = false;
       subscription.unsubscribe();
     };
-  }, []);
+  }, [applyUserState, resetAuthState]);
 
   return {
     user,
     role,
+    profile,
     isActive,
-    isAdmin: role === 'admin' && isActive,
-    isEmployee: role === 'employee' && isActive,
+    isAdmin: canAccessAdmin(role, isActive),
+    isEmployee: isActive && role === USER_ROLES.EMPLOYEE,
     loading,
   };
 }
