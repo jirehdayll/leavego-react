@@ -1,9 +1,9 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { LEAVE_TYPES, DEPARTMENTS, POSITIONS, SALARY_RANGES } from '../constants';
-import { ArrowLeft, Send, ChevronDown } from 'lucide-react';
+import { ArrowLeft, Send, ChevronDown, Edit } from 'lucide-react';
 
 const InputField = ({ label, required, children }) => (
   <div>
@@ -18,7 +18,9 @@ const inputCls = "w-full px-4 py-3 rounded-xl border border-slate-200 bg-white t
 
 export default function LeaveForm() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [loading, setLoading] = useState(false);
+  const [viewMode, setViewMode] = useState(false);
   const [formData, setFormData] = useState({
     office_department: '',
     last_name: '',
@@ -33,6 +35,27 @@ export default function LeaveForm() {
     start_date: '',
     end_date: '',
   });
+
+  useEffect(() => {
+    if (location.state?.viewMode && location.state?.requestData) {
+      setViewMode(true);
+      const requestData = location.state.requestData.details;
+      setFormData({
+        office_department: requestData.office_department || '',
+        last_name: requestData.last_name || '',
+        first_name: requestData.first_name || '',
+        middle_name: requestData.middle_name || '',
+        date_of_filing: requestData.date_of_filing || new Date().toISOString().split('T')[0],
+        position: requestData.position || '',
+        salary: requestData.salary || '',
+        leave_type: requestData.leave_type || '',
+        details_of_leave: requestData.details_of_leave || '',
+        num_days: requestData.num_days || '',
+        start_date: requestData.start_date || '',
+        end_date: requestData.end_date || ''
+      });
+    }
+  }, [location.state]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -130,20 +153,24 @@ export default function LeaveForm() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50/50 via-white to-slate-50 py-10 px-4 sm:px-6 fade-in-up">
       <div className="max-w-3xl mx-auto">
-        <button onClick={() => navigate('/selection')} className="mb-6 flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors group">
+        <button onClick={() => navigate('/dashboard')} className="mb-6 flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-slate-800 transition-colors group">
           <ArrowLeft className="h-4 w-4 group-hover:-translate-x-0.5 transition-transform" />
-          Back to Selection
+          Back to Dashboard
         </button>
 
         <div className="bg-white rounded-3xl shadow-xl border border-slate-100 overflow-hidden scale-in">
           {/* Header */}
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 px-8 py-7 flex items-start gap-4">
             <div className="w-10 h-10 bg-white/20 rounded-xl flex items-center justify-center flex-shrink-0 mt-0.5">
-              <Send className="w-5 h-5 text-white" />
+              {viewMode ? <Edit className="w-5 h-5 text-white" /> : <Send className="w-5 h-5 text-white" />}
             </div>
             <div>
-              <h2 className="text-2xl font-black text-white">Application for Leave</h2>
-              <p className="text-blue-100/80 text-sm mt-1">Civil Service Form No. 6 — Please fill out all required fields.</p>
+              <h2 className="text-2xl font-black text-white">
+                {viewMode ? 'View Leave Application' : 'Application for Leave'}
+              </h2>
+              <p className="text-blue-100/80 text-sm mt-1">
+                {viewMode ? 'Viewing submitted application details.' : 'Civil Service Form No. 6 — Please fill out all required fields.'}
+              </p>
             </div>
             <div className="ml-auto flex-shrink-0">
               <img src="/denr-logo.png" alt="DENR" className="w-12 h-12 object-contain opacity-100 rounded-full" />
@@ -165,7 +192,8 @@ export default function LeaveForm() {
                       required
                       value={formData.office_department}
                       onChange={handleChange}
-                      className={`${inputCls} appearance-none pr-10`}
+                      disabled={viewMode}
+                      className={`${inputCls} appearance-none pr-10 ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`}
                     >
                       <option value="">Select Department...</option>
                       {DEPARTMENTS.map(dept => <option key={dept} value={dept}>{dept}</option>)}
@@ -300,19 +328,21 @@ export default function LeaveForm() {
             </div>
 
             {/* Submit */}
-            <div className="pt-2">
-              <button
-                type="submit"
-                disabled={loading}
-                className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold shadow-lg shadow-blue-500/25 hover:from-blue-500 hover:to-blue-600 transition-all disabled:opacity-60 disabled:cursor-not-allowed btn-bounce"
-              >
-                {loading ? (
-                  <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Submitting...</>
-                ) : (
-                  <><Send className="w-4 h-4" /> Submit Leave Application</>
-                )}
-              </button>
-            </div>
+            {!viewMode && (
+              <div className="pt-2">
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold shadow-lg shadow-blue-500/25 hover:from-blue-500 hover:to-blue-600 transition-all disabled:opacity-60 disabled:cursor-not-allowed btn-bounce"
+                >
+                  {loading ? (
+                    <><svg className="animate-spin w-4 h-4" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" /><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" /></svg> Submitting...</>
+                  ) : (
+                    <><Send className="w-4 h-4" /> Submit Leave Application</>
+                  )}
+                </button>
+              </div>
+            )}
           </form>
         </div>
       </div>

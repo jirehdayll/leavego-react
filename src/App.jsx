@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { supabase } from './lib/supabaseClient';
 
 import Login from './pages/Login';
+import EmployeeDashboard from './pages/EmployeeDashboard';
 import Selection from './pages/Selection';
 import LeaveForm from './pages/LeaveForm';
 import TravelForm from './pages/TravelForm';
@@ -56,14 +57,18 @@ function App() {
   return (
     <Router>
       <Routes>
-        <Route
-          path={APP_ROUTES.ROOT}
-          element={!isAuthenticated ? <Login /> : <Navigate to={APP_ROUTES.LOGIN} replace />}
+        {/* Public / Landing - Only show login if no session */}
+        <Route 
+          path={APP_ROUTES.ROOT} 
+          element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" replace />} 
         />
 
+        {/* Login route - for explicit login access */}
         <Route path={APP_ROUTES.LOGIN} element={<Login />} />
 
-        <Route path={APP_ROUTES.SELECTION} element={<ProtectedRoute><Selection /></ProtectedRoute>} />
+        {/* Employee Routes - Protected by ProtectedRoute component */}
+        <Route path="/dashboard" element={<ProtectedRoute><EmployeeDashboard /></ProtectedRoute>} />
+        <Route path="/selection" element={<ProtectedRoute><Selection /></ProtectedRoute>} />
         <Route path="/forms/leave" element={<ProtectedRoute><LeaveForm /></ProtectedRoute>} />
         <Route path="/forms/travel" element={<ProtectedRoute><TravelForm /></ProtectedRoute>} />
         <Route path="/success" element={<ProtectedRoute><FormSuccessful /></ProtectedRoute>} />

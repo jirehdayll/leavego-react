@@ -25,6 +25,14 @@ export const leaveRequestsAPI = {
         query = query.eq('is_archived', filters.is_archived);
       }
 
+      if (filters.user_email) {
+        query = query.eq('user_email', filters.user_email);
+      }
+
+      if (filters.user_id) {
+        query = query.eq('user_id', filters.user_id);
+      }
+
       const orderBy = normalizeLeaveRequestOrderBy(filters.orderBy);
       const result = await query.order(orderBy, { ascending: false });
 
