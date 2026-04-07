@@ -45,11 +45,11 @@ export default function FormSuccessful() {
         </div>
 
         <button
-          onClick={() => navigate('/selection')}
+          onClick={() => navigate('/dashboard')}
           className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/25 hover:from-emerald-500 hover:to-teal-500 transition-all duration-200"
         >
           <Home className="w-4 h-4" />
-          Go Back to Home
+          Back to Dashboard
         </button>
       </div>
     </div>
