@@ -1,21 +1,21 @@
 import React, { useEffect, useState } from 'react';
+import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 
-const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
 
 const TYPE_COLORS = {
-  Travel: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200', label: 'Travel Order' },
-  Leave: { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200', label: 'Sick Leave' },
+  [REQUEST_TYPES.TRAVEL]: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200', label: 'Travel Order' },
+  [REQUEST_TYPES.LEAVE]: { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200', label: 'Leave Application' },
   Maternity: { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200', label: 'Maternity Leave' },
 };
 
 function getLeaveColor(req) {
-  if (req.request_type === 'Travel') return TYPE_COLORS.Travel;
+  if (req.request_type === REQUEST_TYPES.TRAVEL) return TYPE_COLORS[REQUEST_TYPES.TRAVEL];
   const leavType = (req.details?.leave_type || '').toLowerCase();
   if (leavType.includes('maternity') || leavType.includes('paternity')) return TYPE_COLORS.Maternity;
-  return TYPE_COLORS.Leave;
+  return TYPE_COLORS[REQUEST_TYPES.LEAVE];
 }
 
 export default function MonthlySummary() {
@@ -31,7 +31,7 @@ export default function MonthlySummary() {
       const { data } = await supabase
         .from('leave_requests')
         .select('*')
-        .eq('status', 'Approved')
+        .eq('status', REQUEST_STATUS.APPROVED)
         .order('submitted_at', { ascending: true });
       setForms(data || []);
       setLoading(false);

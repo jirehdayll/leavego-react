@@ -1,11 +1,13 @@
-import { APP_ROUTES, BOOTSTRAP_ADMIN_EMAILS, USER_ROLES } from '../constants/app';
+import { APP_ROUTES, USER_ROLES } from '../constants';
+import { emailValidationService } from '../services/emailValidationService';
 
 export function normalizeRole(role) {
   return role === USER_ROLES.ADMIN ? USER_ROLES.ADMIN : USER_ROLES.EMPLOYEE;
 }
 
 export function isBootstrapAdminEmail(email) {
-  return BOOTSTRAP_ADMIN_EMAILS.has(email || '');
+  // Use dynamic email validation service instead of static set
+  return emailValidationService.isAdminEmail(email);
 }
 
 export function resolveRoleFromProfile(profile, userEmail) {
@@ -27,5 +29,5 @@ export function canAccessAdmin(role, isActive = true) {
 export function getDefaultRouteForRole(role) {
   return role === USER_ROLES.ADMIN
     ? APP_ROUTES.ADMIN_DASHBOARD
-    : APP_ROUTES.SELECTION;
+    : '/dashboard';
 }

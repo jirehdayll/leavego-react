@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { authAPI } from '../api/auth';
 import { profilesAPI } from '../api/profiles';
-import { POSITIONS } from '../constants';
+import { POSITIONS, USER_ROLES } from '../constants';
 import AdminLayout from '../components/AdminLayout';
 import {
   UserPlus, Search, Shield, User,
@@ -72,7 +72,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
   const [formData, setFormData] = useState({
-    fullName: '', email: '', password: '', position: '', role: 'employee'
+    fullName: '', email: '', password: '', position: '', role: USER_ROLES.EMPLOYEE
   });
 
   const set = (k, v) => setFormData(p => ({ ...p, [k]: v }));
@@ -176,8 +176,8 @@ function CreateAccountModal({ onClose, onSuccess }) {
         <Field label="Role">
           <select className={inputCls} value={formData.role}
             onChange={e => set('role', e.target.value)}>
-            <option value="employee">Employee</option>
-            <option value="admin">Administrator</option>
+            <option value={USER_ROLES.EMPLOYEE}>Employee</option>
+            <option value={USER_ROLES.ADMIN}>Administrator</option>
           </select>
         </Field>
         <SubmitButton loading={loading} label="Create Account" loadingLabel="Creating…"
@@ -200,7 +200,7 @@ function EditAccountModal({ account, onClose, onSuccess }) {
     full_name: account.full_name  || '',
     email:     account.denr_email || account.email || '',
     position:  account.position   || '',
-    role:      account.role       || 'employee'
+    role:      account.role       || USER_ROLES.EMPLOYEE
   });
 
   const set = (k, v) => setFormData(p => ({ ...p, [k]: v }));
@@ -293,8 +293,8 @@ function EditAccountModal({ account, onClose, onSuccess }) {
           <Field label="Role">
             <select className={inputCls} value={formData.role}
               onChange={e => set('role', e.target.value)}>
-              <option value="employee">Employee</option>
-              <option value="admin">Administrator</option>
+              <option value={USER_ROLES.EMPLOYEE}>Employee</option>
+              <option value={USER_ROLES.ADMIN}>Administrator</option>
             </select>
           </Field>
           <SubmitButton loading={loading} label="Save Changes" loadingLabel="Saving…"
@@ -588,8 +588,8 @@ export default function AccountManagement() {
     acc.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const admins    = filtered.filter(a => a.role === 'admin');
-  const employees = filtered.filter(a => a.role !== 'admin');
+  const admins    = filtered.filter(a => a.role === USER_ROLES.ADMIN);
+  const employees = filtered.filter(a => a.role !== USER_ROLES.ADMIN);
 
   return (
     <AdminLayout>

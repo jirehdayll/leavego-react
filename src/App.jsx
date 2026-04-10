@@ -1,18 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { supabase } from './lib/supabaseClient';
+import { useAuth } from './hooks/useAuth';
 
 import Login from './pages/Login';
 import EmployeeDashboard from './pages/EmployeeDashboard';
-import Selection from './pages/Selection';
 import LeaveForm from './pages/LeaveForm';
 import TravelForm from './pages/TravelForm';
 import FormSuccessful from './pages/FormSuccessful';
-import DebugConnection from './pages/DebugConnection';
-import SimpleTestForm from './pages/SimpleTestForm';
-import LiveTestForm from './pages/LiveTestForm';
-import FullWorkflowTest from './pages/FullWorkflowTest';
-import RealUserTest from './pages/RealUserTest';
 
 import AdminDashboard from './pages/AdminDashboard';
 import ApprovedForms from './pages/ApprovedForms';
@@ -22,24 +16,11 @@ import AccountManagement from './pages/AccountManagement';
 import Records from './pages/Records';
 
 import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
-import { APP_ROUTES } from './constants/app';
+import { APP_ROUTES } from './constants';
 
 function App() {
-  const [session, setSession] = useState(undefined);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, nextSession) => {
-      setSession(nextSession);
-    });
-
-    return () => subscription.unsubscribe();
-  }, []);
+  const { user, loading } = useAuth();
+  const isAuthenticated = Boolean(user);
 
   if (loading) {
     return (
@@ -52,7 +33,6 @@ function App() {
     );
   }
 
-  const isAuthenticated = Boolean(session);
 
   return (
     <Router>
@@ -68,19 +48,13 @@ function App() {
 
         {/* Employee Routes - Protected by ProtectedRoute component */}
         <Route path="/dashboard" element={<ProtectedRoute><EmployeeDashboard /></ProtectedRoute>} />
-        <Route path="/selection" element={<ProtectedRoute><Selection /></ProtectedRoute>} />
-        <Route path="/forms/leave" element={<ProtectedRoute><LeaveForm /></ProtectedRoute>} />
+                <Route path="/forms/leave" element={<ProtectedRoute><LeaveForm /></ProtectedRoute>} />
         <Route path="/forms/travel" element={<ProtectedRoute><TravelForm /></ProtectedRoute>} />
         <Route path="/success" element={<ProtectedRoute><FormSuccessful /></ProtectedRoute>} />
 
         <Route path={APP_ROUTES.ADMIN_DASHBOARD} element={<AdminRoute><AdminDashboard /></AdminRoute>} />
         <Route path="/admin/approved" element={<AdminRoute><ApprovedForms /></AdminRoute>} />
-        <Route path="/debug" element={<DebugConnection />} />
-        <Route path="/test" element={<SimpleTestForm />} />
-        <Route path="/live" element={<LiveTestForm />} />
-        <Route path="/workflow" element={<FullWorkflowTest />} />
-        <Route path="/realtest" element={<RealUserTest />} />
-        <Route path="/admin/archive" element={<AdminRoute><Archive /></AdminRoute>} />
+                <Route path="/admin/archive" element={<AdminRoute><Archive /></AdminRoute>} />
         <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
         <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
         <Route path="/admin/records" element={<AdminRoute><Records /></AdminRoute>} />

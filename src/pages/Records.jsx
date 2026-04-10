@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
 import {
@@ -6,15 +7,14 @@ import {
 } from 'recharts';
 import { X, TrendingUp, TrendingDown, Minus, ChevronDown, User } from 'lucide-react';
 
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 
 function EmployeeModal({ employee, allForms, onClose }) {
   const [period, setPeriod] = useState('monthly');
   const forms = allForms.filter(f => f.user_email === employee.denr_email || f.user_name === employee.full_name);
 
-  const approved = forms.filter(f => f.status === 'Approved').length;
-  const declined = forms.filter(f => f.status === 'Declined').length;
-  const pending = forms.filter(f => f.status === 'Pending').length;
+  const approved = forms.filter(f => f.status === REQUEST_STATUS.APPROVED).length;
+  const declined = forms.filter(f => f.status === REQUEST_STATUS.DECLINED).length;
+  const pending = forms.filter(f => f.status === REQUEST_STATUS.PENDING).length;
   const total = forms.length;
 
   // Build chart data
@@ -24,20 +24,20 @@ function EmployeeModal({ employee, allForms, onClose }) {
   if (period === 'monthly') {
     chartData = MONTHS.map((month, i) => {
       const monthForms = forms.filter(f => new Date(f.submitted_at || f.created_at).getMonth() === i && new Date(f.submitted_at || f.created_at).getFullYear() === now.getFullYear());
-      return { name: month, Approved: monthForms.filter(f => f.status === 'Approved').length, Declined: monthForms.filter(f => f.status === 'Declined').length };
+      return { name: month, Approved: monthForms.filter(f => f.status === REQUEST_STATUS.APPROVED).length, Declined: monthForms.filter(f => f.status === REQUEST_STATUS.DECLINED).length };
     });
   } else if (period === 'weekly') {
     for (let w = 3; w >= 0; w--) {
       const weekStart = new Date(now); weekStart.setDate(now.getDate() - (w + 1) * 7);
       const weekEnd = new Date(now); weekEnd.setDate(now.getDate() - w * 7);
       const weekForms = forms.filter(f => { const d = new Date(f.submitted_at || f.created_at); return d >= weekStart && d < weekEnd; });
-      chartData.push({ name: `Week ${4 - w}`, Approved: weekForms.filter(f => f.status === 'Approved').length, Declined: weekForms.filter(f => f.status === 'Declined').length });
+      chartData.push({ name: `Week ${4 - w}`, Approved: weekForms.filter(f => f.status === REQUEST_STATUS.APPROVED).length, Declined: weekForms.filter(f => f.status === REQUEST_STATUS.DECLINED).length });
     }
   } else {
     for (let y = 2; y >= 0; y--) {
       const yr = now.getFullYear() - y;
       const yrForms = forms.filter(f => new Date(f.submitted_at || f.created_at).getFullYear() === yr);
-      chartData.push({ name: String(yr), Approved: yrForms.filter(f => f.status === 'Approved').length, Declined: yrForms.filter(f => f.status === 'Declined').length });
+      chartData.push({ name: String(yr), Approved: yrForms.filter(f => f.status === REQUEST_STATUS.APPROVED).length, Declined: yrForms.filter(f => f.status === REQUEST_STATUS.DECLINED).length });
     }
   }
 
@@ -131,10 +131,10 @@ function EmployeeModal({ employee, allForms, onClose }) {
                 {forms.slice(0, 5).map(f => (
                   <div key={f.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-2.5">
                     <div>
-                      <span className={`text-xs font-bold ${f.request_type === 'Travel' ? 'text-emerald-600' : 'text-blue-600'}`}>{f.request_type === 'Travel' ? 'Travel Order' : 'Sick Leave'}</span>
+                      <span className={`text-xs font-bold ${f.request_type === REQUEST_TYPES.TRAVEL ? 'text-emerald-600' : 'text-blue-600'}`}>{f.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'}</span>
                       <p className="text-xs text-slate-500 mt-0.5">{new Date(f.submitted_at || f.created_at).toLocaleDateString('en-PH', { dateStyle: 'medium' })}</p>
                     </div>
-                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${f.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : f.status === 'Declined' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{f.status}</span>
+                    <span className={`text-xs font-bold px-2 py-0.5 rounded-full ${f.status === REQUEST_STATUS.APPROVED ? 'bg-emerald-100 text-emerald-700' : f.status === REQUEST_STATUS.DECLINED ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{f.status}</span>
                   </div>
                 ))}
               </div>
@@ -203,7 +203,7 @@ export default function Records() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map(acc => {
               const empForms = allForms.filter(f => f.user_email === acc.denr_email || f.user_name === acc.full_name);
-              const approved = empForms.filter(f => f.status === 'Approved').length;
+              const approved = empForms.filter(f => f.status === REQUEST_STATUS.APPROVED).length;
               return (
                 <button
                   key={acc.id}
@@ -229,7 +229,7 @@ export default function Records() {
                       <p className="text-[10px] text-emerald-500 font-medium">Approved</p>
                     </div>
                     <div className="bg-red-50 rounded-xl p-2">
-                      <p className="text-lg font-black text-red-700">{empForms.filter(f => f.status === 'Declined').length}</p>
+                      <p className="text-lg font-black text-red-700">{empForms.filter(f => f.status === REQUEST_STATUS.DECLINED).length}</p>
                       <p className="text-[10px] text-red-400 font-medium">Declined</p>
                     </div>
                   </div>

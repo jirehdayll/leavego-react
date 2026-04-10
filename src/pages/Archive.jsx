@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
 import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
@@ -6,7 +7,7 @@ import { Plane, FileText, Eye, Download, RotateCcw, User, X } from 'lucide-react
 
 function PDFViewModal({ request, onClose }) {
   const d = request.details || {};
-  const isTravel = request.request_type === 'Travel';
+  const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
   const downloadPDF = async () => {
     if (isTravel) await generateTravelOrderPDF({ ...d, full_name: request.user_name });
     else await generateLeaveApplicationPDF({ ...d, full_name: request.user_name });
@@ -68,7 +69,7 @@ export default function Archive() {
     const { data } = await supabase
       .from('leave_requests')
       .select('*')
-      .or('is_archived.eq.true,status.eq.Declined')
+      .or(`is_archived.eq.true,status.eq.${REQUEST_STATUS.DECLINED}`)
       .order('submitted_at', { ascending: false });
     setForms(data || []);
     setLoading(false);
@@ -77,13 +78,13 @@ export default function Archive() {
   useEffect(() => { fetch(); }, []);
 
   const restore = async (id) => {
-    await supabase.from('leave_requests').update({ is_archived: false, status: 'Pending', updated_at: new Date().toISOString() }).eq('id', id);
+    await supabase.from('leave_requests').update({ is_archived: false, status: REQUEST_STATUS.PENDING, updated_at: new Date().toISOString() }).eq('id', id);
     fetch();
   };
 
   const downloadPDF = async (req) => {
     const d = req.details || {};
-    if (req.request_type === 'Travel') await generateTravelOrderPDF({ ...d, full_name: req.user_name });
+    if (req.request_type === REQUEST_TYPES.TRAVEL) await generateTravelOrderPDF({ ...d, full_name: req.user_name });
     else await generateLeaveApplicationPDF({ ...d, full_name: req.user_name });
   };
 
@@ -114,7 +115,7 @@ export default function Archive() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {forms.map(req => {
-                  const isTravel = req.request_type === 'Travel';
+                  const isTravel = req.request_type === REQUEST_TYPES.TRAVEL;
                   return (
                     <tr key={req.id} className="hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={() => setSelected(req)}>
                       <td className="px-6 py-4">
@@ -139,8 +140,8 @@ export default function Archive() {
                         {isTravel ? req.details?.destination : req.details?.leave_type}
                       </td>
                       <td className="px-6 py-4">
-                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${req.status === 'Declined' ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
-                          {req.is_archived && req.status !== 'Declined' ? 'Archived' : req.status}
+                        <span className={`inline-block px-2 py-0.5 rounded-full text-xs font-bold ${req.status === REQUEST_STATUS.DECLINED ? 'bg-red-100 text-red-700' : 'bg-orange-100 text-orange-700'}`}>
+                          {req.is_archived && req.status !== REQUEST_STATUS.DECLINED ? 'Archived' : req.status}
                         </span>
                       </td>
                       <td className="px-6 py-4">

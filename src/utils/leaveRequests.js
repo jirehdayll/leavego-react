@@ -1,7 +1,7 @@
 import {
   DEFAULT_LEAVE_REQUEST_ORDER_BY,
   LEAVE_REQUEST_ORDER_COLUMNS,
-} from '../constants/app';
+} from '../constants';
 
 const VALID_ORDER_COLUMNS = new Set(LEAVE_REQUEST_ORDER_COLUMNS);
 

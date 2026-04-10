@@ -1,7 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import { authAPI } from '../api/auth';
 import { getDefaultRouteForRole, isBootstrapAdminEmail, resolveRoleFromProfile } from '../utils/auth';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, X, AlertTriangle } from 'lucide-react';
 

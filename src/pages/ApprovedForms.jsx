@@ -1,4 +1,5 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState } from 'react';
+import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
 import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
@@ -8,7 +9,7 @@ import {
 } from 'lucide-react';
 
 function FileCard({ req, view, onClick, onDownload }) {
-  const isTravel = req.request_type === 'Travel';
+  const isTravel = req.request_type === REQUEST_TYPES.TRAVEL;
   const dateStr = new Date(req.submitted_at || req.created_at).toLocaleDateString('en-PH');
 
   if (view === 'grid') {
@@ -40,7 +41,7 @@ function FileCard({ req, view, onClick, onDownload }) {
       <td className="px-6 py-4">
         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${isTravel ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
           {isTravel ? <Plane className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-          {isTravel ? 'Travel Order' : 'Sick Leave'}
+          {isTravel ? 'Travel Order' : 'Leave Application'}
         </span>
       </td>
       <td className="px-6 py-4">
@@ -70,7 +71,7 @@ function FileCard({ req, view, onClick, onDownload }) {
 
 function PDFViewModal({ request, onClose }) {
   const d = request.details || {};
-  const isTravel = request.request_type === 'Travel';
+  const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
 
   const downloadPDF = async () => {
     if (isTravel) await generateTravelOrderPDF({ ...d, full_name: request.user_name });
@@ -101,7 +102,7 @@ function PDFViewModal({ request, onClose }) {
             <div><p className="text-xs text-slate-400">Email</p><p className="text-sm font-semibold text-slate-800">{request.user_email}</p></div>
             <div><p className="text-xs text-slate-400">Department</p><p className="text-sm font-semibold text-slate-800">{request.department || d.office_department || '—'}</p></div>
             <div><p className="text-xs text-slate-400">Status</p>
-              <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">{request.status}</span>
+              <span className="inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">{REQUEST_STATUS.APPROVED}</span>
             </div>
           </div>
           {isTravel ? (
@@ -124,7 +125,6 @@ function PDFViewModal({ request, onClose }) {
   );
 }
 
-const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
 export default function ApprovedForms() {
   const [forms, setForms] = useState([]);
@@ -141,7 +141,7 @@ export default function ApprovedForms() {
   useEffect(() => {
     const fetch = async () => {
       setLoading(true);
-      const { data } = await supabase.from('leave_requests').select('*').eq('status', 'Approved').eq('is_archived', false).order('submitted_at', { ascending: false });
+      const { data } = await supabase.from('leave_requests').select('*').eq('status', REQUEST_STATUS.APPROVED).eq('is_archived', false).order('submitted_at', { ascending: false });
       setForms(data || []);
       setLoading(false);
     };
@@ -150,7 +150,7 @@ export default function ApprovedForms() {
 
   const downloadPDF = async (req) => {
     const d = req.details || {};
-    if (req.request_type === 'Travel') await generateTravelOrderPDF({ ...d, full_name: req.user_name });
+    if (req.request_type === REQUEST_TYPES.TRAVEL) await generateTravelOrderPDF({ ...d, full_name: req.user_name });
     else await generateLeaveApplicationPDF({ ...d, full_name: req.user_name });
   };
 
@@ -192,8 +192,8 @@ export default function ApprovedForms() {
           </div>
           <select value={filterType} onChange={e => setFilterType(e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
             <option value="All">All Types</option>
-            <option value="Leave">Sick Leave</option>
-            <option value="Travel">Travel Order</option>
+            <option value={REQUEST_TYPES.LEAVE}>Leave Application</option>
+            <option value={REQUEST_TYPES.TRAVEL}>Travel Order</option>
           </select>
           <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
             <option value="">All Months</option>

@@ -128,7 +128,7 @@ export default function AdminLayout({ children }) {
           <span className="text-white font-bold text-sm">LeaveGo Admin</span>
         </header>
 
-        <main className="flex-1 overflow-y-auto">
+        <main className="flex-1">
           {children}
         </main>
       </div>

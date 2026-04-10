@@ -3,7 +3,7 @@ import { supabase } from '../lib/supabaseClient';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { emailService } from '../services/emailService';
 import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
-import { MONTHS } from '../constants';
+import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import {
   Clock, CheckCircle2, Plane, FileText, TrendingUp,
   Eye, Check, X, Archive, Download, User, Calendar, Mail
@@ -28,7 +28,7 @@ function StatCard({ icon: Icon, label, value, color, bg }) {
 function PDFModal({ request, onClose }) {
   const downloadPDF = async () => {
     const details = request.details || {}; 
-    if (request.request_type === 'Travel') {
+    if (request.request_type === REQUEST_TYPES.TRAVEL) {
       await generateTravelOrderPDF({ ...details, full_name: request.user_name, start_date: details.departure_date, end_date: details.arrival_date });
     } else {
       await generateLeaveApplicationPDF({ ...details, full_name: request.user_name });
@@ -36,7 +36,7 @@ function PDFModal({ request, onClose }) {
   };
 
   const d = request.details || {};
-  const isTravel = request.request_type === 'Travel';
+  const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -46,7 +46,7 @@ function PDFModal({ request, onClose }) {
           <div>
             <div className="flex items-center gap-2 mb-1">
               {isTravel ? <Plane className="w-4 h-4 text-white/80" /> : <FileText className="w-4 h-4 text-white/80" />}
-              <span className="text-white/80 text-xs font-semibold uppercase tracking-wide">{request.request_type === 'Travel' ? 'Travel Order' : 'Leave Application'}</span>
+              <span className="text-white/80 text-xs font-semibold uppercase tracking-wide">{request.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'}</span>
             </div>
             <h3 className="text-xl font-black text-white">{request.user_name || request.user_email}</h3>
           </div>
@@ -69,7 +69,7 @@ function PDFModal({ request, onClose }) {
               <div><p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Position</p><p className="text-sm font-semibold text-slate-800 mt-0.5">{d.position || '—'}</p></div>
               <div><p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Submitted</p><p className="text-sm font-semibold text-slate-800 mt-0.5">{new Date(request.submitted_at || request.created_at).toLocaleDateString('en-PH', { dateStyle: 'long' })}</p></div>
               <div><p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Status</p>
-                <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-bold ${request.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' : request.status === 'Declined' ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{request.status}</span>
+                <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-bold ${request.status === REQUEST_STATUS.APPROVED ? 'bg-emerald-100 text-emerald-700' : request.status === REQUEST_STATUS.DECLINED ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{request.status}</span>
               </div>
             </div>
           </div>
@@ -208,7 +208,7 @@ export default function AdminDashboard() {
         }
         
         // Send email notification for status changes
-        if (status === 'Approved' || status === 'Declined') {
+        if (status === REQUEST_STATUS.APPROVED || status === REQUEST_STATUS.DECLINED) {
           await sendEmailNotification(request, status);
         }
       }
@@ -220,9 +220,9 @@ export default function AdminDashboard() {
 
   const sendEmailNotification = async (request, status) => {
     try {
-      if (status === 'Approved') {
+      if (status === REQUEST_STATUS.APPROVED) {
         await emailService.sendApprovalNotification(request);
-      } else if (status === 'Declined') {
+      } else if (status === REQUEST_STATUS.DECLINED) {
         await emailService.sendDeclineNotification(request);
       }
     } catch (error) {
@@ -254,17 +254,17 @@ export default function AdminDashboard() {
     fetchRequests();
   };
 
-  const pending = requests.filter(r => r.status === 'Pending');
-  const pendingLeave = pending.filter(r => r.request_type === 'Leave').length;
-  const pendingTravel = pending.filter(r => r.request_type === 'Travel').length;
+  const pending = requests.filter(r => r.status === REQUEST_STATUS.PENDING);
+  const pendingLeave = pending.filter(r => r.request_type === REQUEST_TYPES.LEAVE).length;
+  const pendingTravel = pending.filter(r => r.request_type === REQUEST_TYPES.TRAVEL).length;
   const unseenPending = pending.filter(r => !r.seen_by_admin).length;
 
   const monthStart = new Date(year, now.getMonth(), 1).toISOString();
 
   // All approved (non-archived)
-  const allApproved = requests.filter(r => r.status === 'Approved');
-  const approvedLeaveCount = allApproved.filter(r => r.request_type === 'Leave').length;
-  const approvedTravelCount = allApproved.filter(r => r.request_type === 'Travel').length;
+  const allApproved = requests.filter(r => r.status === REQUEST_STATUS.APPROVED);
+  const approvedLeaveCount = allApproved.filter(r => r.request_type === REQUEST_TYPES.LEAVE).length;
+  const approvedTravelCount = allApproved.filter(r => r.request_type === REQUEST_TYPES.TRAVEL).length;
 
   // Specific monthly approved for the trending stat
   const monthlyApproved = allApproved.filter(r => new Date(r.submitted_at || r.created_at) >= new Date(monthStart));
@@ -313,7 +313,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Pending Table */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 320px)', minHeight: '400px' }}>
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-800">Pending Applications</h3>
@@ -322,11 +322,11 @@ export default function AdminDashboard() {
           </div>
 
           {loading ? (
-            <div className="flex justify-center py-16">
+            <div className="flex justify-center py-16 flex-1">
               <div className="animate-spin rounded-full h-8 w-8 border-2 border-emerald-500 border-t-transparent"></div>
             </div>
           ) : pending.length === 0 ? (
-            <div className="py-16 text-center">
+            <div className="py-16 text-center flex-1">
               <div className="w-14 h-14 bg-slate-50 rounded-2xl flex items-center justify-center mx-auto mb-3">
                 <CheckCircle2 className="w-7 h-7 text-emerald-400" />
               </div>
@@ -334,7 +334,7 @@ export default function AdminDashboard() {
               <p className="text-slate-400 text-xs mt-1">No pending applications at the moment.</p>
             </div>
           ) : (
-            <div className="overflow-x-auto">
+            <div className="overflow-auto flex-1">
               <table className="w-full">
                 <thead>
                   <tr className="bg-slate-50">
@@ -358,9 +358,9 @@ export default function AdminDashboard() {
                       }}
                     >
                       <td className="px-6 py-4">
-                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${req.request_type === 'Travel' ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {req.request_type === 'Travel' ? <Plane className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                          {req.request_type === 'Travel' ? 'Travel Order' : 'Leave Application'}
+                        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${req.request_type === REQUEST_TYPES.TRAVEL ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
+                          {req.request_type === REQUEST_TYPES.TRAVEL ? <Plane className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+                          {req.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'}
                         </span>
                       </td>
                       <td className="px-6 py-4">
@@ -384,7 +384,7 @@ export default function AdminDashboard() {
                         {new Date(req.submitted_at || req.created_at).toLocaleDateString('en-PH')}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600 max-w-[200px] truncate">
-                        {req.request_type === 'Travel' ? (req.details?.destination || '—') : (req.details?.leave_type || '—')}
+                        {req.request_type === REQUEST_TYPES.TRAVEL ? (req.details?.destination || '—') : (req.details?.leave_type || '—')}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
@@ -396,14 +396,14 @@ export default function AdminDashboard() {
                             <Eye className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => updateStatus(req.id, 'Approved')}
+                            onClick={() => updateStatus(req.id, REQUEST_STATUS.APPROVED)}
                             className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition-all"
                             title="Approve"
                           >
                             <Check className="w-3.5 h-3.5" /> Approve
                           </button>
                           <button
-                            onClick={() => updateStatus(req.id, 'Declined')}
+                            onClick={() => updateStatus(req.id, REQUEST_STATUS.DECLINED)}
                             className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl transition-all"
                             title="Decline"
                           >

@@ -1,42 +1,59 @@
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { canAccessAdmin, resolveRoleFromProfile } from '../utils/auth';
-import { USER_ROLES } from '../constants/app';
+import { USER_ROLES, UserRole } from '../constants';
 
-const defaultAuthState = {
+interface AuthState {
+  user: any | null;
+  role: UserRole | null;
+  profile: any | null;
+  isActive: boolean;
+  loading: boolean;
+}
+
+const defaultAuthState: AuthState = {
+  user: null,
   role: null,
-  isActive: true,
   profile: null,
+  isActive: true,
+  loading: true,
 };
 
 export function useAuth() {
-  const [user, setUser] = useState(null);
-  const [role, setRole] = useState(defaultAuthState.role);
-  const [profile, setProfile] = useState(defaultAuthState.profile);
-  const [isActive, setIsActive] = useState(defaultAuthState.isActive);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<any | null>(null);
+  const [role, setRole] = useState<UserRole | null>(null);
+  const [profile, setProfile] = useState<any | null>(null);
+  const [isActive, setIsActive] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(true);
 
   const resetAuthState = useCallback(() => {
     setUser(null);
-    setRole(defaultAuthState.role);
-    setProfile(defaultAuthState.profile);
-    setIsActive(defaultAuthState.isActive);
+    setRole(null);
+    setProfile(null);
+    setIsActive(true);
   }, []);
 
-  const fetchProfile = useCallback(async (currentUser) => {
+  const fetchProfile = useCallback(async (currentUser: any) => {
     try {
-      const { data: profileData, error } = await supabase
+      // Use a timeout to prevent hanging indefinitely due to RLS recursion
+      const timeoutPromise = new Promise((_, reject) => 
+        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
+      );
+      
+      const queryPromise = supabase
         .from('profiles')
         .select('id, email, denr_email, full_name, role, is_active')
         .eq('id', currentUser.id)
         .maybeSingle();
+
+      const { data: profileData, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
 
       if (error) {
         console.error('[useAuth.fetchProfile]', error);
       }
 
       const isProfileActive = profileData?.is_active !== false;
-      const resolvedRole = resolveRoleFromProfile(profileData, currentUser?.email);
+      const resolvedRole = resolveRoleFromProfile(profileData, currentUser?.email) as UserRole;
 
       return {
         profile: profileData,
@@ -47,13 +64,13 @@ export function useAuth() {
       console.error('[useAuth.fetchProfile] unexpected error', err);
       return {
         profile: null,
-        role: resolveRoleFromProfile(null, currentUser?.email),
+        role: resolveRoleFromProfile(null, currentUser?.email) as UserRole,
         isActive: true,
       };
     }
   }, []);
 
-  const applyUserState = useCallback(async (currentUser) => {
+  const applyUserState = useCallback(async (currentUser: any) => {
     if (!currentUser) {
       resetAuthState();
       return;
@@ -97,7 +114,7 @@ export function useAuth() {
 
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
       await applyUserState(session?.user ?? null);
       if (mounted) {

@@ -1,7 +1,7 @@
 import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { APP_ROUTES } from '../constants/app';
+import { APP_ROUTES } from '../constants';
 
 export function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, loading, isActive, isAdmin } = useAuth();
@@ -22,7 +22,7 @@ export function ProtectedRoute({ children, requireAdmin = false }) {
   }
 
   if (requireAdmin && !isAdmin) {
-    return <Navigate to={APP_ROUTES.SELECTION} replace />;
+    return <Navigate to="/dashboard" replace />;
   }
 
   return children;
