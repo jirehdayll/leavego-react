@@ -44,6 +44,17 @@ export default function FormSuccessful() {
           </ul>
         </div>
 
+        {/* Sent to Admin Dashboard Indicator */}
+        <div className="mb-8 relative py-4 px-6 border-2 border-dashed border-emerald-500/30 rounded-2xl bg-emerald-50/30">
+          <div className="absolute -top-3 left-1/2 -translate-x-1/2 bg-white px-3 py-0.5 rounded-full border border-emerald-500/30">
+             <span className="text-[10px] font-bold text-emerald-600 uppercase tracking-widest">Live Status</span>
+          </div>
+          <div className="flex items-center justify-center gap-3">
+            <div className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse" />
+            <p className="text-sm font-bold text-emerald-700">Sent to Admin Dashboard</p>
+          </div>
+        </div>
+
         <button
           onClick={() => navigate('/dashboard')}
           className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold shadow-lg shadow-emerald-500/25 hover:from-emerald-500 hover:to-teal-500 transition-all duration-200"

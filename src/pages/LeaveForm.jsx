@@ -54,6 +54,8 @@ export default function LeaveForm() {
         start_date: requestData.start_date || '',
         end_date: requestData.end_date || ''
       });
+    } else if (location.state?.defaultLeaveType) {
+      setFormData(prev => ({ ...prev, leave_type: location.state.defaultLeaveType }));
     }
   }, [location.state]);
 
@@ -166,10 +168,10 @@ export default function LeaveForm() {
             </div>
             <div>
               <h2 className="text-2xl font-black text-white">
-                {viewMode ? 'View Leave Application' : 'Application for Leave'}
+                {viewMode ? 'View Sick Leave Form' : 'Sick Leave Form'}
               </h2>
               <p className="text-blue-100/80 text-sm mt-1">
-                {viewMode ? 'Viewing submitted application details.' : 'Civil Service Form No. 6 — Please fill out all required fields.'}
+                {viewMode ? 'Viewing submitted application details.' : 'Civil Service Form No. 6 — Official Sick Leave Application.'}
               </p>
             </div>
             <div className="ml-auto flex-shrink-0">

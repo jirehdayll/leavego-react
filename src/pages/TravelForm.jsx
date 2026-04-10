@@ -151,10 +151,10 @@ export default function TravelForm() {
             </div>
             <div>
               <h2 className="text-2xl font-black text-white">
-                {viewMode ? 'View Travel Order' : 'Travel Order Application'}
+                {viewMode ? 'View Travel Form' : 'Travel Form'}
               </h2>
               <p className="text-emerald-100/80 text-sm mt-1">
-                {viewMode ? 'Viewing submitted travel order details.' : 'Official Travel Order — DENR CENRO Olongapo City'}
+                {viewMode ? 'Viewing submitted travel order details.' : 'Official Travel Order — DENR CENRO Olongapo City.'}
               </p>
             </div>
             <div className="ml-auto flex-shrink-0 flex items-center gap-2">

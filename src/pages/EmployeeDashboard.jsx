@@ -5,7 +5,7 @@ import { leaveRequestsAPI } from '../api/leaveRequests';
 import { useAuth } from '../hooks/useAuth';
 import { 
   FileText, Plane, Calendar, Clock, CheckCircle2, 
-  TrendingUp, User, Plus, Eye,
+  TrendingUp, User, LogOut, Plus, Eye,
   AlertCircle, BarChart3, Activity
 } from 'lucide-react';
 import { 
@@ -200,6 +200,11 @@ export default function EmployeeDashboard() {
     }
   };
 
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate('/login');
+  };
+
 
 
   if (loading) {
@@ -234,21 +239,29 @@ export default function EmployeeDashboard() {
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <button
-                onClick={() => navigate('/forms/leave')}
+                onClick={() => navigate('/forms/leave', { state: { defaultLeaveType: 'Sick Leave' } })}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all hover:shadow-lg transform hover:scale-105"
               >
                 <FileText className="w-4 h-4" />
-                Leave Form
+                Sick Leave
               </button>
               <button
                 onClick={() => navigate('/forms/travel')}
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-all hover:shadow-lg transform hover:scale-105"
               >
                 <Plane className="w-4 h-4" />
-                Travel Form
+                Travel Application
               </button>
             </div>
             
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 hover:bg-red-50 hover:text-red-600 hover:border-red-100 text-slate-600 text-sm font-semibold rounded-xl transition-all hover:shadow-md"
+            >
+              <LogOut className="w-4 h-4" />
+              Logout
+            </button>
+
             {isAdmin && (
               <button
                 onClick={() => navigate('/admin/dashboard')}
@@ -340,18 +353,18 @@ export default function EmployeeDashboard() {
             <h3 className="font-bold text-slate-800 mb-4">Quick Actions</h3>
             <div className="grid grid-cols-2 gap-3">
               <button
-                onClick={() => navigate('/forms/leave')}
+                onClick={() => navigate('/forms/leave', { state: { defaultLeaveType: 'Sick Leave' } })}
                 className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all hover:shadow-lg transform hover:scale-105"
               >
                 <FileText className="w-4 h-4" />
-                Leave Form
+                Sick Leave
               </button>
               <button
                 onClick={() => navigate('/forms/travel')}
                 className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-all hover:shadow-lg transform hover:scale-105"
               >
                 <Plane className="w-4 h-4" />
-                Travel Form
+                Travel Application
               </button>
             </div>
           </div>
