@@ -1,14 +1,15 @@
 import React, { useEffect, useState } from 'react';
 import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
+import { leaveRequestsAPI } from '../api/leaveRequests';
 import AdminLayout from '../components/AdminLayout';
 import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
 import {
   Grid3X3, List, Download, Eye, Plane, FileText,
-  Search, SlidersHorizontal, X, User, Mail, Calendar, Filter
+  Search, SlidersHorizontal, X, User, Mail, Calendar, Filter, Archive
 } from 'lucide-react';
 
-function FileCard({ req, view, onClick, onDownload }) {
+function FileCard({ req, view, onClick, onDownload, onArchive }) {
   const isTravel = req.request_type === REQUEST_TYPES.TRAVEL;
   const dateStr = new Date(req.submitted_at || req.created_at).toLocaleDateString('en-PH');
 
@@ -30,6 +31,9 @@ function FileCard({ req, view, onClick, onDownload }) {
           </button>
           <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="flex-1 text-xs py-1.5 rounded-lg bg-emerald-100 hover:bg-emerald-200 text-emerald-700 font-medium transition-colors flex items-center justify-center gap-1">
             <Download className="w-3 h-3" /> PDF
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); onArchive(); }} className="flex-1 text-xs py-1.5 rounded-lg bg-orange-100 hover:bg-orange-200 text-orange-700 font-medium transition-colors flex items-center justify-center gap-1">
+            <Archive className="w-3 h-3" /> Archive
           </button>
         </div>
       </div>
@@ -63,6 +67,9 @@ function FileCard({ req, view, onClick, onDownload }) {
         <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
           <button onClick={(e) => { e.stopPropagation(); onClick(); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Eye className="w-4 h-4" /></button>
           <button onClick={(e) => { e.stopPropagation(); onDownload(); }} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"><Download className="w-4 h-4" /></button>
+          <button onClick={(e) => { e.stopPropagation(); onArchive(); }} className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all" title="Archive">
+            <Archive className="w-4 h-4" />
+          </button>
         </div>
       </td>
     </tr>
@@ -141,9 +148,19 @@ export default function ApprovedForms() {
   useEffect(() => {
     const fetch = async () => {
       setLoading(true);
-      const { data } = await supabase.from('leave_requests').select('*').eq('status', REQUEST_STATUS.APPROVED).eq('is_archived', false).order('submitted_at', { ascending: false });
-      setForms(data || []);
-      setLoading(false);
+      try {
+        const result = await leaveRequestsAPI.getAll({
+          status: REQUEST_STATUS.APPROVED,
+          is_archived: false,
+          orderBy: 'submitted_at'
+        });
+        setForms(result.data || []);
+      } catch (error) {
+        console.error('Error fetching approved forms:', error);
+        setForms([]);
+      } finally {
+        setLoading(false);
+      }
     };
     fetch();
   }, []);
@@ -152,6 +169,25 @@ export default function ApprovedForms() {
     const d = req.details || {};
     if (req.request_type === REQUEST_TYPES.TRAVEL) await generateTravelOrderPDF({ ...d, full_name: req.user_name });
     else await generateLeaveApplicationPDF({ ...d, full_name: req.user_name });
+  };
+
+  const archiveForm = async (req) => {
+    if (window.confirm(`Are you sure you want to archive this approved form from ${req.user_name || req.user_email}?`)) {
+      try {
+        await leaveRequestsAPI.archive(req.id);
+        
+        // Refresh the forms list
+        const result = await leaveRequestsAPI.getAll({
+          status: REQUEST_STATUS.APPROVED,
+          is_archived: false,
+          orderBy: 'submitted_at'
+        });
+        setForms(result.data || []);
+      } catch (error) {
+        console.error('Error archiving form:', error);
+        alert('Failed to archive form. Please try again.');
+      }
+    }
   };
 
   let filtered = forms.filter(f => {
@@ -214,7 +250,7 @@ export default function ApprovedForms() {
         ) : view === 'grid' ? (
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
             {filtered.map(req => (
-              <FileCard key={req.id} req={req} view="grid" onClick={() => setSelected(req)} onDownload={() => downloadPDF(req)} />
+              <FileCard key={req.id} req={req} view="grid" onClick={() => setSelected(req)} onDownload={() => downloadPDF(req)} onArchive={() => archiveForm(req)} />
             ))}
           </div>
         ) : (
@@ -231,7 +267,7 @@ export default function ApprovedForms() {
               </thead>
               <tbody className="divide-y divide-slate-50">
                 {filtered.map(req => (
-                  <FileCard key={req.id} req={req} view="list" onClick={() => setSelected(req)} onDownload={() => downloadPDF(req)} />
+                  <FileCard key={req.id} req={req} view="list" onClick={() => setSelected(req)} onDownload={() => downloadPDF(req)} onArchive={() => archiveForm(req)} />
                 ))}
               </tbody>
             </table>

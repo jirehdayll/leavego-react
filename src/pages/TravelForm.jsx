@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { leaveRequestsAPI } from '../api/leaveRequests';
+import { useAuth } from '../hooks/useAuth';
 import { OFFICES, APPROPRIATIONS, DEPARTMENTS, POSITIONS, SALARY_RANGES } from '../constants';
 import { ArrowLeft, Send, ChevronDown, Edit } from 'lucide-react';
 
@@ -19,6 +20,7 @@ const inputCls = "w-full px-4 py-3 rounded-xl border border-slate-200 bg-white t
 export default function TravelForm() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState(false);
   const [formData, setFormData] = useState({
@@ -38,6 +40,16 @@ export default function TravelForm() {
   });
 
   useEffect(() => {
+    // Auto-fill profile data if not in view mode
+    if (!location.state?.viewMode && profile) {
+      setFormData(prev => ({
+        ...prev,
+        full_name: profile.full_name || '',
+        position: profile.position || '',
+        office_department: profile.office_department || ''
+      }));
+    }
+    
     if (location.state?.viewMode && location.state?.requestData) {
       setViewMode(true);
       const requestData = location.state.requestData.details;

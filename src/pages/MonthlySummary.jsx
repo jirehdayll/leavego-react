@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
 
 
 const TYPE_COLORS = {
@@ -24,6 +24,7 @@ export default function MonthlySummary() {
   const now = new Date();
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [viewYear, setViewYear] = useState(now.getFullYear());
+  const [showCalendar, setShowCalendar] = useState(false);
 
   useEffect(() => {
     const fetch = async () => {
@@ -47,6 +48,12 @@ export default function MonthlySummary() {
   const nextMonth = () => {
     if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); }
     else setViewMonth(m => m + 1);
+  };
+
+  const handleMonthSelect = (month, year) => {
+    setViewMonth(month);
+    setViewYear(year);
+    setShowCalendar(false);
   };
 
   const monthForms = forms.filter(f => {
@@ -105,9 +112,13 @@ export default function MonthlySummary() {
             <button onClick={prevMonth} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm">
               <ChevronLeft className="w-4 h-4 text-slate-600" />
             </button>
-            <span className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 min-w-[150px] text-center shadow-sm">
+            <button 
+              onClick={() => setShowCalendar(true)}
+              className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 min-w-[150px] text-center shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+            >
+              <Calendar className="w-4 h-4" />
               {MONTHS[viewMonth]} {viewYear}
-            </span>
+            </button>
             <button onClick={nextMonth} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm">
               <ChevronRight className="w-4 h-4 text-slate-600" />
             </button>
@@ -211,6 +222,91 @@ export default function MonthlySummary() {
           </>
         )}
       </div>
+
+      {/* Calendar Pop-up Modal */}
+      {showCalendar && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setShowCalendar(false)} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
+            <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-slate-800">Select Month</h3>
+              <button 
+                onClick={() => setShowCalendar(false)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all"
+              >
+                <X className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+            
+            <div className="p-6">
+              {/* Year Selection */}
+              <div className="mb-6">
+                <label className="block text-sm font-semibold text-slate-700 mb-2">Year</label>
+                <div className="flex items-center gap-2">
+                  <button 
+                    onClick={() => setViewYear(viewYear - 1)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all"
+                  >
+                    <ChevronLeft className="w-4 h-4 text-slate-600" />
+                  </button>
+                  <span className="flex-1 text-center font-bold text-slate-800">{viewYear}</span>
+                  <button 
+                    onClick={() => setViewYear(viewYear + 1)}
+                    className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all"
+                  >
+                    <ChevronRight className="w-4 h-4 text-slate-600" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Month Grid */}
+              <div>
+                <label className="block text-sm font-semibold text-slate-700 mb-3">Month</label>
+                <div className="grid grid-cols-3 gap-2">
+                  {MONTHS.map((month, index) => (
+                    <button
+                      key={month}
+                      onClick={() => handleMonthSelect(index, viewYear)}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                        index === viewMonth
+                          ? 'bg-emerald-600 text-white'
+                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                      }`}
+                    >
+                      {month}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Quick Navigation */}
+              <div className="mt-6 pt-6 border-t border-slate-100">
+                <p className="text-xs font-semibold text-slate-500 mb-3">Quick Navigation</p>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleMonthSelect(now.getMonth(), now.getFullYear())}
+                    className="flex-1 px-3 py-2 bg-blue-100 hover:bg-blue-200 text-blue-700 text-xs font-semibold rounded-lg transition-all"
+                  >
+                    Current Month
+                  </button>
+                  <button
+                    onClick={() => handleMonthSelect(0, viewYear)}
+                    className="flex-1 px-3 py-2 bg-purple-100 hover:bg-purple-200 text-purple-700 text-xs font-semibold rounded-lg transition-all"
+                  >
+                    January {viewYear}
+                  </button>
+                  <button
+                    onClick={() => handleMonthSelect(11, viewYear)}
+                    className="flex-1 px-3 py-2 bg-orange-100 hover:bg-orange-200 text-orange-700 text-xs font-semibold rounded-lg transition-all"
+                  >
+                    December {viewYear}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

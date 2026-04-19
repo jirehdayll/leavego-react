@@ -1,104 +1,23 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { leaveRequestsAPI } from '../api/leaveRequests';
-import { emailService } from '../services/emailService';
-import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
 import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import {
   Clock, CheckCircle2, Plane, FileText, TrendingUp,
-  Eye, Check, X, Archive, Download, User, Calendar, Mail
+  Eye, Check, X, Archive, Download, User, Calendar, Mail,
+  Search, Filter, ChevronDown
 } from 'lucide-react';
-
 import AdminLayout from '../components/AdminLayout';
 
 function StatCard({ icon: Icon, label, value, color, bg }) {
   return (
     <div className={`bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-4 card-hover`}>
       <div className={`w-12 h-12 ${bg} rounded-2xl flex items-center justify-center flex-shrink-0`}>
-        <Icon className={`w-6 h-6 ${color}`} />
+        {Icon && <Icon className={`w-6 h-6 ${color}`} />}
       </div>
       <div>
-        <p className="text-2xl font-black text-slate-800">{value ?? '–'}</p>
+        <p className="text-2xl font-black text-slate-800">{value ?? '-'}</p>
         <p className="text-xs font-medium text-slate-500 mt-0.5 leading-tight">{label}</p>
-      </div>
-    </div>
-  );
-}
-
-function PDFModal({ request, onClose }) {
-  const downloadPDF = async () => {
-    const details = request.details || {}; 
-    if (request.request_type === REQUEST_TYPES.TRAVEL) {
-      await generateTravelOrderPDF({ ...details, full_name: request.user_name, start_date: details.departure_date, end_date: details.arrival_date });
-    } else {
-      await generateLeaveApplicationPDF({ ...details, full_name: request.user_name });
-    }
-  };
-
-  const d = request.details || {};
-  const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col animate-[slideUp_0.2s_ease-out]">
-        <div className={`px-7 py-5 flex items-center justify-between flex-shrink-0 ${isTravel ? 'bg-gradient-to-r from-emerald-600 to-teal-700' : 'bg-gradient-to-r from-blue-600 to-blue-700'}`}>
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              {isTravel ? <Plane className="w-4 h-4 text-white/80" /> : <FileText className="w-4 h-4 text-white/80" />}
-              <span className="text-white/80 text-xs font-semibold uppercase tracking-wide">{request.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'}</span>
-            </div>
-            <h3 className="text-xl font-black text-white">{request.user_name || request.user_email}</h3>
-          </div>
-          <div className="flex items-center gap-2">
-            <button onClick={downloadPDF} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-all">
-              <Download className="w-3.5 h-3.5" /> Download PDF
-            </button>
-            <button onClick={onClose} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all">
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        <div className="overflow-y-auto flex-1 p-7">
-          <div className="bg-slate-50 rounded-2xl p-5 mb-4">
-            <div className="grid grid-cols-2 gap-y-3 gap-x-6">
-              <div><p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Name</p><p className="text-sm font-semibold text-slate-800 mt-0.5">{request.user_name || '—'}</p></div>
-              <div><p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Email</p><p className="text-sm font-semibold text-slate-800 mt-0.5">{request.user_email || '—'}</p></div>
-              <div><p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Department</p><p className="text-sm font-semibold text-slate-800 mt-0.5">{request.department || d.office_department || '—'}</p></div>
-              <div><p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Position</p><p className="text-sm font-semibold text-slate-800 mt-0.5">{d.position || '—'}</p></div>
-              <div><p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Submitted</p><p className="text-sm font-semibold text-slate-800 mt-0.5">{new Date(request.submitted_at || request.created_at).toLocaleDateString('en-PH', { dateStyle: 'long' })}</p></div>
-              <div><p className="text-xs text-slate-400 font-medium uppercase tracking-wide">Status</p>
-                <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-bold ${request.status === REQUEST_STATUS.APPROVED ? 'bg-emerald-100 text-emerald-700' : request.status === REQUEST_STATUS.DECLINED ? 'bg-red-100 text-red-700' : 'bg-amber-100 text-amber-700'}`}>{request.status}</span>
-              </div>
-            </div>
-          </div>
-
-          {isTravel ? (
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Travel Details</h4>
-              <div className="grid grid-cols-2 gap-y-3 gap-x-6">
-                <div><p className="text-xs text-slate-400">Destination</p><p className="text-sm font-medium text-slate-800">{d.destination || '—'}</p></div>
-                <div><p className="text-xs text-slate-400">Departure → Arrival</p><p className="text-sm font-medium text-slate-800">{d.departure_date || '—'} → {d.arrival_date || '—'}</p></div>
-                <div className="col-span-2"><p className="text-xs text-slate-400">Purpose</p><p className="text-sm font-medium text-slate-800">{d.purpose || '—'}</p></div>
-                <div><p className="text-xs text-slate-400">Per Diems Allowed</p><p className="text-sm font-medium text-slate-800">{d.per_diems ? 'YES' : 'NO'}</p></div>
-                <div><p className="text-xs text-slate-400">Appropriations</p><p className="text-sm font-medium text-slate-800">{d.appropriations || 'CDS'}</p></div>
-                {d.remarks && <div className="col-span-2"><p className="text-xs text-slate-400">Remarks</p><p className="text-sm font-medium text-slate-800">{d.remarks}</p></div>}
-              </div>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              <h4 className="text-xs font-bold text-slate-500 uppercase tracking-widest">Leave Details</h4>
-              <div className="grid grid-cols-2 gap-y-3 gap-x-6">
-                <div><p className="text-xs text-slate-400">Leave Type</p><p className="text-sm font-medium text-slate-800">{d.leave_type || '—'}</p></div>
-                <div><p className="text-xs text-slate-400">Working Days</p><p className="text-sm font-medium text-slate-800">{d.num_days || '—'} days</p></div>
-                <div><p className="text-xs text-slate-400">Inclusive Dates</p><p className="text-sm font-medium text-slate-800">{d.start_date || '—'} to {d.end_date || '—'}</p></div>
-                <div><p className="text-xs text-slate-400">Filing Date</p><p className="text-sm font-medium text-slate-800">{d.date_of_filing || '—'}</p></div>
-                {d.details_of_leave && <div className="col-span-2"><p className="text-xs text-slate-400">Details</p><p className="text-sm font-medium text-slate-800">{d.details_of_leave}</p></div>}
-              </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
@@ -106,10 +25,10 @@ function PDFModal({ request, onClose }) {
 
 export default function AdminDashboard() {
   const [requests, setRequests] = useState([]);
-  const [archiveCount, setArchiveCount] = useState(0);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
   const [connectionStatus, setConnectionStatus] = useState('connecting');
+  
   const now = new Date();
   const monthName = MONTHS[now.getMonth()];
   const year = now.getFullYear();
@@ -132,13 +51,6 @@ export default function AdminDashboard() {
         setRequests([]);
       }
 
-      // Fetch archived count
-      const { count, error: countErr } = await leaveRequestsAPI.getCount({
-        is_archived: true
-      });
-
-      if (!countErr) setArchiveCount(count || 0);
-
     } catch (error) {
       console.error('Fetch requests error:', error);
       setRequests([]);
@@ -160,30 +72,12 @@ export default function AdminDashboard() {
         }, 
         (payload) => {
           console.log('Real-time update received:', payload);
-          
-          // Handle different event types
-          if (payload.eventType === 'INSERT') {
-            console.log('New request submitted:', payload.new);
-          } else if (payload.eventType === 'UPDATE') {
-            console.log('Request updated:', payload.new);
-          } else if (payload.eventType === 'DELETE') {
-            console.log('Request deleted:', payload.old);
-          }
-          
           fetchRequests();
         }
       )
       .subscribe((status) => {
         console.log('Real-time subscription status:', status);
         setConnectionStatus(status);
-        if (status === 'SUBSCRIBED') {
-          console.log('Successfully connected to real-time updates');
-        } else if (status === 'CHANNEL_ERROR') {
-          console.error('Real-time subscription error - retrying...');
-          setTimeout(() => {
-            fetchRequests();
-          }, 2000);
-        }
       });
 
     return () => {
@@ -206,27 +100,10 @@ export default function AdminDashboard() {
         } else {
           await leaveRequestsAPI.update(id, { status });
         }
-        
-        // Send email notification for status changes
-        if (status === REQUEST_STATUS.APPROVED || status === REQUEST_STATUS.DECLINED) {
-          await sendEmailNotification(request, status);
-        }
       }
       fetchRequests();
     } catch (error) {
       console.error('Error updating status:', error);
-    }
-  };
-
-  const sendEmailNotification = async (request, status) => {
-    try {
-      if (status === REQUEST_STATUS.APPROVED) {
-        await emailService.sendApprovalNotification(request);
-      } else if (status === REQUEST_STATUS.DECLINED) {
-        await emailService.sendDeclineNotification(request);
-      }
-    } catch (error) {
-      console.error('Failed to send email notification:', error);
     }
   };
 
@@ -237,14 +114,6 @@ export default function AdminDashboard() {
         seen_by_admin: true,
         admin_seen_at: new Date().toISOString()
       });
-      
-      // Send seen notification to user
-      try {
-        await emailService.sendSeenNotification(request);
-      } catch (error) {
-        console.error('Failed to send seen notification:', error);
-      }
-      
       fetchRequests();
     }
   };
@@ -254,9 +123,44 @@ export default function AdminDashboard() {
     fetchRequests();
   };
 
-  const pending = requests.filter(r => r.status === REQUEST_STATUS.PENDING);
-  const pendingLeave = pending.filter(r => r.request_type === REQUEST_TYPES.LEAVE).length;
-  const pendingTravel = pending.filter(r => r.request_type === REQUEST_TYPES.TRAVEL).length;
+  const restoreRequest = async (request) => {
+    // Check if application has already been processed (approved/declined)
+    if (request.status === REQUEST_STATUS.APPROVED || request.status === REQUEST_STATUS.DECLINED) {
+      alert(`Application has already been ${request.status.toLowerCase()}.`);
+      return;
+    }
+    
+    // Confirm restoration for pending applications
+    if (!window.confirm(`Are you sure you want to restore this pending application from ${request.user_name || request.user_email}?`)) {
+      return;
+    }
+    
+    // Restore the request by updating is_archived to false
+    try {
+      await leaveRequestsAPI.update(request.id, {
+        is_archived: false
+      });
+      fetchRequests();
+    } catch (error) {
+      console.error('Error restoring request:', error);
+      alert('Failed to restore application. Please try again.');
+    }
+  };
+
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    window.location.href = '/';
+  };
+
+  
+  // Sort pending applications by newest first for notifications
+  const pending = requests
+    .filter(r => r.status === REQUEST_STATUS.PENDING)
+    .sort((a, b) => {
+      const dateA = new Date(a.submitted_at || a.created_at);
+      const dateB = new Date(b.submitted_at || b.created_at);
+      return dateB.getTime() - dateA.getTime(); // Newest first (descending order)
+    });
   const unseenPending = pending.filter(r => !r.seen_by_admin).length;
 
   const monthStart = new Date(year, now.getMonth(), 1).toISOString();
@@ -266,7 +170,7 @@ export default function AdminDashboard() {
   const approvedLeaveCount = allApproved.filter(r => r.request_type === REQUEST_TYPES.LEAVE).length;
   const approvedTravelCount = allApproved.filter(r => r.request_type === REQUEST_TYPES.TRAVEL).length;
 
-  // Specific monthly approved for the trending stat
+  // Specific monthly approved for trending stat
   const monthlyApproved = allApproved.filter(r => new Date(r.submitted_at || r.created_at) >= new Date(monthStart));
 
   const stats = [
@@ -274,7 +178,7 @@ export default function AdminDashboard() {
     { icon: Clock, label: 'Unseen Applications', value: unseenPending, color: 'text-red-600', bg: 'bg-red-50' },
     { icon: Plane, label: 'Approved Travel Orders', value: approvedTravelCount, color: 'text-emerald-600', bg: 'bg-emerald-50' },
     { icon: FileText, label: 'Approved Leave Orders', value: approvedLeaveCount, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { icon: TrendingUp, label: `Approved this month`, value: monthlyApproved.length, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { icon: TrendingUp, label: 'Approved this month', value: monthlyApproved.length, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
   return (
@@ -286,7 +190,7 @@ export default function AdminDashboard() {
             <h2 className="text-2xl font-black text-slate-800">Dashboard</h2>
             <p className="text-slate-500 text-sm mt-0.5 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5" />
-              {monthName} {year} — Real-time overview
+              {monthName} {year} - Real-time overview
             </p>
           </div>
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
@@ -313,7 +217,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Pending Table */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 320px)', minHeight: '400px' }}>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style={{ height: '400px', minHeight: '400px' }}>
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-800">Pending Applications</h3>
@@ -359,9 +263,9 @@ export default function AdminDashboard() {
                     >
                       <td className="px-6 py-4">
                         <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${req.request_type === REQUEST_TYPES.TRAVEL ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-                          {req.request_type === REQUEST_TYPES.TRAVEL ? <Plane className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-                          {req.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'}
-                        </span>
+                              {req.request_type === REQUEST_TYPES.TRAVEL ? <Plane className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
+                              {req.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'}
+                            </span>
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center gap-2.5">
@@ -370,7 +274,7 @@ export default function AdminDashboard() {
                           </div>
                           <div>
                             <p className="text-sm font-semibold text-slate-800">{req.user_name || 'Unknown'}</p>
-                            <p className="text-xs text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" />{req.user_email || '—'}</p>
+                            <p className="text-xs text-slate-400 flex items-center gap-1"><Mail className="w-3 h-3" />{req.user_email || '-'}</p>
                             {!req.seen_by_admin && (
                               <span className="inline-flex items-center gap-1 text-xs font-semibold text-blue-600 mt-0.5">
                                 <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse"></span>
@@ -384,7 +288,7 @@ export default function AdminDashboard() {
                         {new Date(req.submitted_at || req.created_at).toLocaleDateString('en-PH')}
                       </td>
                       <td className="px-6 py-4 text-sm text-slate-600 max-w-[200px] truncate">
-                        {req.request_type === REQUEST_TYPES.TRAVEL ? (req.details?.destination || '—') : (req.details?.leave_type || '—')}
+                        {req.request_type === REQUEST_TYPES.TRAVEL ? (req.details?.destination || '-') : (req.details?.leave_type || '-')}
                       </td>
                       <td className="px-6 py-4">
                         <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
@@ -426,8 +330,6 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
-
-      {selectedRequest && <PDFModal request={selectedRequest} onClose={() => setSelectedRequest(null)} />}
     </AdminLayout>
   );
 }

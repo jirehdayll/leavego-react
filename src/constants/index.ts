@@ -27,7 +27,8 @@ export const APP_ROUTES = {
   ADMIN_ARCHIVE: '/admin/archive',
   ADMIN_MONTHLY_SUMMARY: '/admin/monthly-summary',
   ADMIN_ACCOUNT_MANAGEMENT: '/admin/account-management',
-  ADMIN_RECORDS: '/admin/records'
+  ADMIN_RECORDS: '/admin/records',
+  PROFILE_VIEW: '/profile/view/:id'
 } as const;
 
 export const REQUEST_STATUS = {

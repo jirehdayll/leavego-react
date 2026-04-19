@@ -14,6 +14,7 @@ import Archive from './pages/Archive';
 import MonthlySummary from './pages/MonthlySummary';
 import AccountManagement from './pages/AccountManagement';
 import Records from './pages/Records';
+import ScannedProfileView from './pages/ScannedProfileView';
 
 import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
 import { APP_ROUTES } from './constants';
@@ -58,6 +59,7 @@ function App() {
         <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
         <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
         <Route path="/admin/records" element={<AdminRoute><Records /></AdminRoute>} />
+        <Route path="/profile/view/:id" element={<AdminRoute><ScannedProfileView /></AdminRoute>} />
 
         <Route path="*" element={<Navigate to={APP_ROUTES.ROOT} replace />} />
       </Routes>

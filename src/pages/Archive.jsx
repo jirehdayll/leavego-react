@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
+import { leaveRequestsAPI } from '../api/leaveRequests';
 import AdminLayout from '../components/AdminLayout';
 import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
-import { Plane, FileText, Eye, Download, RotateCcw, User, X } from 'lucide-react';
+import { Plane, FileText, Eye, Download, RotateCcw, User, X, Search, Filter, Calendar } from 'lucide-react';
 
 function PDFViewModal({ request, onClose }) {
   const d = request.details || {};
@@ -63,23 +64,56 @@ export default function Archive() {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [search, setSearch] = useState('');
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [sortBy, setSortBy] = useState('date-desc');
+  const [selectedMonth, setSelectedMonth] = useState('');
 
   const fetch = async () => {
     setLoading(true);
-    const { data } = await supabase
-      .from('leave_requests')
-      .select('*')
-      .or(`is_archived.eq.true,status.eq.${REQUEST_STATUS.DECLINED}`)
-      .order('submitted_at', { ascending: false });
-    setForms(data || []);
-    setLoading(false);
+    try {
+      // Fetch archived requests
+      const archivedResult = await leaveRequestsAPI.getAll({
+        is_archived: true,
+        orderBy: 'submitted_at'
+      });
+      
+      // Fetch declined requests (that might not be archived)
+      const declinedResult = await leaveRequestsAPI.getAll({
+        status: REQUEST_STATUS.DECLINED,
+        is_archived: false,
+        orderBy: 'submitted_at'
+      });
+      
+      // Combine both datasets
+      const allForms = [
+        ...(archivedResult.data || []),
+        ...(declinedResult.data || [])
+      ].sort((a, b) => new Date(b.submitted_at || b.created_at) - new Date(a.submitted_at || a.created_at));
+      
+      setForms(allForms);
+    } catch (error) {
+      console.error('Error fetching archive data:', error);
+      setForms([]);
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetch(); }, []);
 
   const restore = async (id) => {
-    await supabase.from('leave_requests').update({ is_archived: false, status: REQUEST_STATUS.PENDING, updated_at: new Date().toISOString() }).eq('id', id);
-    fetch();
+    try {
+      await leaveRequestsAPI.update(id, { 
+        is_archived: false, 
+        status: REQUEST_STATUS.PENDING 
+      });
+      fetch();
+    } catch (error) {
+      console.error('Error restoring request:', error);
+      alert('Failed to restore request. Please try again.');
+    }
   };
 
   const downloadPDF = async (req) => {
@@ -87,6 +121,27 @@ export default function Archive() {
     if (req.request_type === REQUEST_TYPES.TRAVEL) await generateTravelOrderPDF({ ...d, full_name: req.user_name });
     else await generateLeaveApplicationPDF({ ...d, full_name: req.user_name });
   };
+
+  // Apply filters and search
+  let filtered = forms.filter(f => {
+    const matchesSearch = !search || 
+      (f.user_name || '').toLowerCase().includes(search.toLowerCase()) || 
+      (f.user_email || '').toLowerCase().includes(search.toLowerCase()) ||
+      (f.details?.leave_type || '').toLowerCase().includes(search.toLowerCase()) ||
+      (f.details?.destination || '').toLowerCase().includes(search.toLowerCase());
+    
+    const matchesStatus = filterStatus === 'all' || f.status === filterStatus;
+    const matchesType = filterType === 'all' || f.request_type === filterType;
+    const matchesMonth = !selectedMonth || new Date(f.submitted_at || f.created_at).getMonth() === parseInt(selectedMonth);
+    
+    return matchesSearch && matchesStatus && matchesType && matchesMonth;
+  });
+
+  // Apply sorting
+  if (sortBy === 'date-desc') filtered.sort((a, b) => new Date(b.submitted_at || b.created_at) - new Date(a.submitted_at || a.created_at));
+  else if (sortBy === 'date-asc') filtered.sort((a, b) => new Date(a.submitted_at || a.created_at) - new Date(b.submitted_at || b.created_at));
+  else if (sortBy === 'alphabetical') filtered.sort((a, b) => (a.user_name || '').localeCompare(b.user_name || ''));
+  else if (sortBy === 'status') filtered.sort((a, b) => a.status.localeCompare(b.status));
 
   return (
     <AdminLayout>
@@ -96,11 +151,47 @@ export default function Archive() {
           <p className="text-slate-500 text-sm mt-0.5">Declined or hidden forms — {forms.length} total</p>
         </div>
 
+        {/* Search and Filters */}
+        <div className="flex flex-wrap gap-3 mb-6">
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
+            <input 
+              type="text" 
+              value={search} 
+              onChange={e => setSearch(e.target.value)} 
+              placeholder="Search by name, email, or details..." 
+              className="pl-9 pr-4 py-2 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 w-64" 
+            />
+          </div>
+          
+          <select value={filterStatus} onChange={e => setFilterStatus(e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
+            <option value="all">All Status</option>
+            <option value={REQUEST_STATUS.APPROVED}>Approved</option>
+            <option value={REQUEST_STATUS.DECLINED}>Declined</option>
+            <option value={REQUEST_STATUS.PENDING}>Pending</option>
+          </select>
+          
+          <select value={filterType} onChange={e => setFilterType(e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
+            <option value="all">All Types</option>
+            <option value={REQUEST_TYPES.LEAVE}>Leave Application</option>
+            <option value={REQUEST_TYPES.TRAVEL}>Travel Order</option>
+          </select>
+          
+          <select value={sortBy} onChange={e => setSortBy(e.target.value)} className="px-3 py-2 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400">
+            <option value="date-desc">Newest First</option>
+            <option value="date-asc">Oldest First</option>
+            <option value="alphabetical">A-Z</option>
+            <option value="status">By Status</option>
+          </select>
+        </div>
+
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
           {loading ? (
             <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-2 border-slate-300 border-t-transparent"></div></div>
-          ) : forms.length === 0 ? (
-            <div className="py-16 text-center text-slate-400 text-sm">Archive is empty.</div>
+          ) : filtered.length === 0 ? (
+            <div className="py-16 text-center text-slate-400 text-sm">
+              {forms.length === 0 ? 'Archive is empty.' : 'No forms match your search criteria.'}
+            </div>
           ) : (
             <table className="w-full">
               <thead>
@@ -114,7 +205,7 @@ export default function Archive() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {forms.map(req => {
+                {filtered.map(req => {
                   const isTravel = req.request_type === REQUEST_TYPES.TRAVEL;
                   return (
                     <tr key={req.id} className="hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={() => setSelected(req)}>
