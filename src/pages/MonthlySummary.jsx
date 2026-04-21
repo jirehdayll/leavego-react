@@ -50,7 +50,9 @@ export default function MonthlySummary() {
       await new Promise(resolve => setTimeout(resolve, 200));
       
       console.log('Starting html2canvas...');
-      const canvas = await html2canvas(element, {
+      let canvas;
+      try {
+        canvas = await html2canvas(element, {
         scale: 2,
         useCORS: true,
         allowTaint: true,
@@ -60,8 +62,41 @@ export default function MonthlySummary() {
         scrollX: 0,
         scrollY: 0,
         logging: false,
-        removeContainer: false
+        removeContainer: false,
+        ignoreElements: (element) => {
+          // Ignore elements that might cause color issues
+          return element.tagName === 'STYLE' || element.tagName === 'SCRIPT';
+        },
+        onclone: (clonedDoc) => {
+          // Replace problematic CSS colors in cloned document
+          const allElements = clonedDoc.querySelectorAll('*');
+          allElements.forEach(el => {
+            const computedStyle = window.getComputedStyle(el);
+            if (computedStyle.color && computedStyle.color.includes('oklch')) {
+              el.style.color = '#000000';
+            }
+            if (computedStyle.backgroundColor && computedStyle.backgroundColor.includes('oklch')) {
+              el.style.backgroundColor = '#ffffff';
+            }
+          });
+        }
       });
+      } catch (canvasError) {
+        console.error('html2canvas error:', canvasError);
+        // Fallback to simpler canvas configuration
+        console.log('Trying fallback canvas configuration...');
+        canvas = await html2canvas(element, {
+          scale: 1.5,
+          useCORS: true,
+          allowTaint: false,
+          backgroundColor: '#ffffff',
+          width: element.scrollWidth,
+          height: element.scrollHeight,
+          scrollX: 0,
+          scrollY: 0,
+          logging: false
+        });
+      }
       
       console.log('Canvas created, dimensions:', canvas.width, 'x', canvas.height);
       
