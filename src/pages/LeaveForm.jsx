@@ -39,7 +39,7 @@ export default function LeaveForm() {
   });
 
   useEffect(() => {
-    // Auto-fill profile data if not in view mode
+    // Auto-fill profile data if not in view mode and profile is available
     if (!location.state?.viewMode && profile) {
       const nameParts = (profile.full_name || '').split(' ');
       setFormData(prev => ({
@@ -48,7 +48,8 @@ export default function LeaveForm() {
         last_name: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
         middle_name: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
         position: profile.position || '',
-        office_department: profile.office_department || ''
+        office_department: profile.office_department || '',
+        salary: profile.salary || ''
       }));
     }
     
@@ -72,7 +73,7 @@ export default function LeaveForm() {
     } else if (location.state?.defaultLeaveType) {
       setFormData(prev => ({ ...prev, leave_type: location.state.defaultLeaveType }));
     }
-  }, [location.state]);
+  }, [location.state, profile]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;

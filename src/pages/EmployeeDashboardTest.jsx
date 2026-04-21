@@ -3,7 +3,8 @@ import { useAuth } from '../hooks/useAuth.ts';
 import QRCode from 'qrcode.react';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
-import { QrCode, FileText, Plane, LogOut, Clock, CheckCircle2, XCircle } from 'lucide-react';
+import { QrCode, FileText, Plane, LogOut, Clock, CheckCircle2, XCircle, BarChart3 } from 'lucide-react';
+import { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function EmployeeDashboardTest() {
   const { user, signOut } = useAuth();
@@ -15,6 +16,8 @@ export default function EmployeeDashboardTest() {
     total: 0
   });
   const [statsLoading, setStatsLoading] = useState(true);
+  const [userApplications, setUserApplications] = useState([]);
+  const [analyticsLoading, setAnalyticsLoading] = useState(false);
 
   useEffect(() => {
     // Check if user is authenticated
@@ -47,6 +50,23 @@ export default function EmployeeDashboardTest() {
       console.error('Error fetching application stats:', error);
     } finally {
       setStatsLoading(false);
+    }
+  };
+
+  const fetchUserApplications = async () => {
+    if (!user?.id) return;
+    
+    setAnalyticsLoading(true);
+    try {
+      const { data } = await leaveRequestsAPI.getAll({ 
+        user_id: user.id, 
+        is_archived: false 
+      });
+      setUserApplications(data || []);
+    } catch (error) {
+      console.error('Error fetching user applications:', error);
+    } finally {
+      setAnalyticsLoading(false);
     }
   };
 
@@ -218,6 +238,93 @@ export default function EmployeeDashboardTest() {
                 </div>
               )}
             </div>
+          </div>
+        </div>
+
+        {/* User Analytics */}
+        <div className="lg:col-span-3">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+                <BarChart3 className="w-5 h-5 text-purple-700" />
+              </div>
+              <div>
+                <h3 className="font-semibold text-slate-800">Application Analytics</h3>
+                <p className="text-sm text-slate-500">Your application history and trends</p>
+              </div>
+            </div>
+            
+            {analyticsLoading ? (
+              <div className="flex justify-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-600 border-t-transparent"></div>
+              </div>
+            ) : (
+              <>
+                {/* Chart Data */}
+                {(() => {
+                  const approvedData = userApplications.filter(app => app.status === REQUEST_STATUS.APPROVED);
+                  const declinedData = userApplications.filter(app => app.status === REQUEST_STATUS.DECLINED);
+                  const pendingData = userApplications.filter(app => app.status === REQUEST_STATUS.PENDING);
+                  
+                  const statusData = [
+                    { name: 'Approved', value: approvedData.length, color: '#10b981' },
+                    { name: 'Declined', value: declinedData.length, color: '#ef4444' },
+                    { name: 'Pending', value: pendingData.length, color: '#f59e0b' }
+                  ];
+                  
+                  const typeData = [
+                    { name: 'Leave', value: userApplications.filter(app => app.request_type === REQUEST_TYPES.LEAVE).length, color: '#3b82f6' },
+                    { name: 'Travel', value: userApplications.filter(app => app.request_type === REQUEST_TYPES.TRAVEL).length, color: '#10b981' }
+                  ];
+                  
+                  return { statusData, typeData };
+                })()}
+                
+                {/* Charts */}
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                  {/* Status Distribution Pie Chart */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-700 mb-4">Status Distribution</h4>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <PieChart>
+                        <Pie
+                          data={statusData}
+                          cx="50%"
+                          cy="50%"
+                          labelLine={false}
+                          label={({ name, value }) => `${name}: ${value}`}
+                          outerRadius={80}
+                          fill="#8884d8"
+                        >
+                          {statusData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Pie>
+                        <Tooltip />
+                      </PieChart>
+                    </ResponsiveContainer>
+                  </div>
+                  
+                  {/* Application Types Bar Chart */}
+                  <div>
+                    <h4 className="text-sm font-semibold text-slate-700 mb-4">Application Types</h4>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <BarChart data={typeData}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="name" />
+                        <YAxis />
+                        <Tooltip />
+                        <Bar dataKey="value" fill="#8884d8">
+                          {typeData.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={entry.color} />
+                          ))}
+                        </Bar>
+                      </BarChart>
+                    </ResponsiveContainer>
+                  </div>
+                </div>
+              </>
+            )}
           </div>
         </div>
 

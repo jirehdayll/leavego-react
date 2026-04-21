@@ -155,15 +155,11 @@ export default function AdminLayout({ children }) {
         {/* Static Footer - User Info & Logout */}
         <div className="px-3 pt-4 pb-4 border-t border-white/10">
           {!collapsed && (
-            <div className="px-3 py-2 mb-2 rounded-xl bg-white/5">
+            <div className="px-3 py-3 rounded-xl bg-white/5 mb-3">
               <p className="text-xs text-emerald-300 font-medium truncate">{adminEmail}</p>
-              <p className="text-xs text-emerald-100/40 mt-0.5">Administrator</p>
+              <p className="text-xs text-emerald-100/40 mt-1">Administrator</p>
             </div>
           )}
-        </div>
-        
-        {/* Viewport-Fixed Logout Button */}
-        <div className="absolute bottom-0 left-0 right-0 px-3 pb-4 pt-2 border-t border-white/10 bg-gradient-to-b from-transparent to-[#0f211d]">
           <button
             onClick={handleLogout}
             title={collapsed ? 'Logout' : undefined}
@@ -184,9 +180,9 @@ export default function AdminLayout({ children }) {
       </aside>
 
       {/* Main Content */}
-      <div className="flex-1 flex flex-col min-w-0">
+      <div className="flex-1 flex flex-col min-w-0 h-screen overflow-hidden">
         {/* Mobile Topbar */}
-        <header className="lg:hidden flex items-center gap-4 px-4 py-3 bg-[#1a3530] shadow-md">
+        <header className="lg:hidden flex items-center gap-4 px-4 py-3 bg-[#1a3530] shadow-md flex-shrink-0">
           <button onClick={() => setMobileOpen(true)} className="text-white">
             <Menu className="w-6 h-6" />
           </button>
@@ -194,7 +190,7 @@ export default function AdminLayout({ children }) {
           <span className="text-white font-bold text-sm">LeaveGo Admin</span>
         </header>
 
-        <main className="flex-1">
+        <main className="flex-1 overflow-y-auto">
           {children}
         </main>
       </div>

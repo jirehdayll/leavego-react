@@ -40,13 +40,14 @@ export default function TravelForm() {
   });
 
   useEffect(() => {
-    // Auto-fill profile data if not in view mode
+    // Auto-fill profile data if not in view mode and profile is available
     if (!location.state?.viewMode && profile) {
       setFormData(prev => ({
         ...prev,
         full_name: profile.full_name || '',
         position: profile.position || '',
-        office_department: profile.office_department || ''
+        office_department: profile.office_department || '',
+        salary: profile.salary || ''
       }));
     }
     
@@ -69,7 +70,7 @@ export default function TravelForm() {
         remarks: requestData.remarks || ''
       });
     }
-  }, [location.state]);
+  }, [location.state, profile]);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;

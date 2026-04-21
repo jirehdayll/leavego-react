@@ -1,8 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
-import { ChevronLeft, ChevronRight, Calendar, X } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, X, Download } from 'lucide-react';
+import jsPDF from 'jspdf';
+import html2canvas from 'html2canvas';
 
 
 const TYPE_COLORS = {
@@ -21,10 +23,77 @@ function getLeaveColor(req) {
 export default function MonthlySummary() {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
   const now = new Date();
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [viewYear, setViewYear] = useState(now.getFullYear());
   const [showCalendar, setShowCalendar] = useState(false);
+  const summaryRef = useRef(null);
+
+  const downloadPDF = async () => {
+    if (!summaryRef.current) {
+      console.error('Summary reference is not attached to any element.');
+      alert('Cannot generate PDF: Content not found.');
+      return;
+    }
+    
+    setIsGeneratingPDF(true);
+    
+    try {
+      const element = summaryRef.current;
+      
+      // Wait a bit for any pending renders to complete
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      const canvas = await html2canvas(element, {
+        scale: 1.5,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        width: element.scrollWidth,
+        height: element.scrollHeight,
+        scrollX: 0,
+        scrollY: 0
+      });
+      
+      const imgData = canvas.toDataURL('image/png', 1.0);
+      const pdf = new jsPDF({
+        orientation: 'landscape',
+        unit: 'mm',
+        format: 'a4'
+      });
+      
+      const imgWidth = 297; // A4 width in mm (landscape)
+      const pageHeight = 210; // A4 height in mm (landscape)
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      let heightLeft = imgHeight;
+      let position = 0;
+      
+      // Add first page
+      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+      heightLeft -= pageHeight;
+      
+      // Add additional pages if content is longer than one page
+      while (heightLeft > 0) {
+        position = heightLeft - imgHeight;
+        pdf.addPage();
+        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
+        heightLeft -= pageHeight;
+      }
+      
+      const fileName = `Monthly_Summary_${MONTHS[viewMonth]}_${viewYear}.pdf`;
+      pdf.save(fileName);
+      
+      console.log('PDF generated successfully:', fileName);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Failed to generate PDF. Please try again.\n\nError: ' + error.message);
+    } finally {
+      setIsGeneratingPDF(false);
+    }
+  };
 
   useEffect(() => {
     const fetch = async () => {
@@ -102,13 +171,35 @@ export default function MonthlySummary() {
 
   return (
     <AdminLayout>
-      <div className="p-6 sm:p-8">
-        <div className="flex items-center justify-between mb-6">
+      <div className="p-2 sm:p-4 lg:p-8">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
           <div>
-            <h2 className="text-2xl font-black text-slate-800">Monthly Summary</h2>
-            <p className="text-slate-500 text-sm mt-0.5">Color-coded leave calendar for approved applications</p>
+            <h2 className="text-xl sm:text-2xl font-black text-slate-800">Monthly Summary</h2>
+            <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Color-coded leave calendar for approved applications</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+            <button
+              onClick={downloadPDF}
+              disabled={isGeneratingPDF}
+              className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl transition-all shadow-sm ${
+                isGeneratingPDF 
+                  ? 'bg-gray-400 text-white cursor-not-allowed' 
+                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+              }`}
+              title="Download as PDF"
+            >
+              {isGeneratingPDF ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  Generating...
+                </>
+              ) : (
+                <>
+                  <Download className="w-4 h-4" />
+                  Download PDF
+                </>
+              )}
+            </button>
             <button onClick={prevMonth} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm">
               <ChevronLeft className="w-4 h-4 text-slate-600" />
             </button>
@@ -138,36 +229,39 @@ export default function MonthlySummary() {
         {loading ? (
           <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-2 border-emerald-500 border-t-transparent"></div></div>
         ) : (
-          <>
+          <div ref={summaryRef}>
             {/* Calendar Grid */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-6">
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-4 sm:mb-6 mobile-compact-card">
               <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100">
-                {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d => (
-                  <div key={d} className="px-2 py-3 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">{d}</div>
+                {['S','M','T','W','T','F','S'].map(d => (
+                  <div key={d} className="px-1 py-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">{d}</div>
                 ))}
               </div>
-              <div className="grid grid-cols-7">
+              <div className="grid grid-cols-7 overflow-x-auto">
                 {Array.from({ length: firstDayOfMonth }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-24 border-b border-r border-slate-50 bg-slate-50/50" />
+                  <div key={`empty-${i}`} className="h-16 sm:h-24 border-b border-r border-slate-50 bg-slate-50/50" />
                 ))}
                 {Array.from({ length: daysInMonth }, (_, i) => {
                   const day = i + 1;
                   const weekend = isWeekend(day);
-                  const dayForms = dateMap[day] || [];
+                  const dayForms = monthForms.filter(f => {
+                    const d = new Date(f.submitted_at || f.created_at);
+                    return d.getDate() === day && d.getMonth() === viewMonth && d.getFullYear() === viewYear;
+                  });
                   return (
-                    <div key={day} className={`h-24 border-b border-r border-slate-100 p-1.5 overflow-hidden ${weekend ? 'bg-purple-50/60' : 'bg-white'}`}>
-                      <span className={`text-xs font-bold block mb-1 ${weekend ? 'text-purple-500' : 'text-slate-600'} ${day === now.getDate() && viewMonth === now.getMonth() && viewYear === now.getFullYear() ? 'bg-emerald-500 text-white w-5 h-5 rounded-full flex items-center justify-center' : ''}`}>
-                        {day}
-                      </span>
-                      {dayForms.slice(0, 2).map((f, fi) => {
-                        const col = getLeaveColor(f);
-                        return (
-                          <div key={fi} className={`${col.bg} ${col.text} text-[9px] font-semibold px-1 py-0.5 rounded truncate mb-0.5`}>
-                            {f.user_name?.split(' ')[0] || 'User'}
-                          </div>
-                        );
-                      })}
-                      {dayForms.length > 2 && <div className="text-[9px] text-slate-400 font-medium">+{dayForms.length - 2} more</div>}
+                    <div key={day} className={`h-16 sm:h-24 border-b border-r border-slate-50 ${weekend ? 'bg-slate-50/30' : 'bg-white'} relative group`}>
+                      <div className="text-xs font-medium text-slate-600 p-0.5 sm:p-1">{day}</div>
+                      <div className="space-y-0.5 p-0.5 sm:p-1 overflow-y-auto max-h-12 sm:max-h-16">
+                        {dayForms.slice(0, 2).map((req, i) => {
+                          const col = getLeaveColor(req);
+                          return (
+                            <div key={i} className={`text-[8px] sm:text-[10px] leading-none px-0.5 py-0.5 rounded truncate ${col.bg} ${col.text} ${col.border}`}>
+                              {col.label}
+                            </div>
+                          );
+                        })}
+                        {dayForms.length > 2 && <div className="text-[8px] sm:text-[9px] text-slate-400 font-medium">+{dayForms.length - 2}</div>}
+                      </div>
                     </div>
                   );
                 })}
@@ -175,21 +269,22 @@ export default function MonthlySummary() {
             </div>
 
             {/* Employee Table */}
-            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-              <div className="px-6 py-4 border-b border-slate-100">
-                <h3 className="font-bold text-slate-800">Employee Summary — {MONTHS[viewMonth]} {viewYear}</h3>
+            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mobile-compact-card">
+              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100">
+                <h3 className="font-bold text-slate-800 text-sm sm:text-base">Employee Summary — {MONTHS[viewMonth]} {viewYear}</h3>
                 <p className="text-xs text-slate-400 mt-0.5">{monthForms.length} application{monthForms.length !== 1 ? 's' : ''} approved this month</p>
               </div>
               {Object.keys(byEmployee).length === 0 ? (
-                <div className="py-12 text-center text-slate-400 text-sm">No approved applications for this month.</div>
+                <div className="py-8 sm:py-12 text-center text-slate-400 text-xs sm:text-sm">No approved applications for this month.</div>
               ) : (
-                <table className="w-full">
+                <div className="mobile-scroll-table">
+                  <table className="w-full mobile-compact-table text-xs sm:text-sm">
                   <thead>
                     <tr className="bg-slate-50">
-                      <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
-                      <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Forms</th>
-                      <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Types</th>
-                      <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Days</th>
+                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
+                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Forms</th>
+                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Types</th>
+                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Days</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -197,29 +292,39 @@ export default function MonthlySummary() {
                       const totalDays = reqs.reduce((sum, r) => sum + parseInt(r.details?.num_days || 1), 0);
                       return (
                         <tr key={name} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="px-6 py-4 text-sm font-semibold text-slate-800">{name}</td>
-                          <td className="px-6 py-4 text-sm text-slate-600">{reqs.length}</td>
-                          <td className="px-6 py-4">
-                            <div className="flex flex-wrap gap-1">
-                              {reqs.map((r, i) => {
-                                const col = getLeaveColor(r);
-                                return (
-                                  <span key={i} className={`px-2 py-0.5 rounded-full text-xs font-bold border ${col.bg} ${col.text} ${col.border}`}>
-                                    {col.label}
+                          <td className="px-2 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-semibold text-slate-800 truncate">{name}</td>
+                          <td className="px-2 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-slate-600">{reqs.length}</td>
+                          <td className="px-2 sm:px-6 py-2 sm:py-4">
+                            <div className="flex flex-wrap gap-0.5 sm:gap-1">
+                              {(() => {
+                                const typeGroups = {};
+                                reqs.forEach(r => {
+                                  const col = getLeaveColor(r);
+                                  const key = col.label;
+                                  if (!typeGroups[key]) {
+                                    typeGroups[key] = { count: 0, color: col };
+                                  }
+                                  typeGroups[key].count++;
+                                });
+                                
+                                return Object.entries(typeGroups).map(([label, { count, color }]) => (
+                                  <span key={label} className={`px-1 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-xs font-bold border ${color.bg} ${color.text} ${color.border}`}>
+                                    {count > 1 ? `${count} ${label}` : label}
                                   </span>
-                                );
-                              })}
+                                ));
+                              })()}
                             </div>
                           </td>
-                          <td className="px-6 py-4 text-sm text-slate-600">{totalDays} day{totalDays !== 1 ? 's' : ''}</td>
+                          <td className="px-2 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-slate-600">{totalDays} day{totalDays !== 1 ? 's' : ''}</td>
                         </tr>
                       );
                     })}
                   </tbody>
                 </table>
+                </div>
               )}
             </div>
-          </>
+          </div>
         )}
       </div>
 

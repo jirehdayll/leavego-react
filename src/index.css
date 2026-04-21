@@ -126,3 +126,109 @@ body {
     opacity: 0.5;
   }
 }
+
+/* Mobile Responsive Compact Design */
+@media (max-width: 768px) {
+  /* Compact cards and containers */
+  .mobile-compact {
+    padding: 0.75rem !important;
+    margin: 0.25rem !important;
+  }
+  
+  .mobile-compact-card {
+    padding: 1rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  
+  /* Compact tables */
+  .mobile-compact-table {
+    font-size: 0.75rem !important;
+  }
+  
+  .mobile-compact-table th,
+  .mobile-compact-table td {
+    padding: 0.5rem 0.25rem !important;
+  }
+  
+  /* Compact buttons */
+  .mobile-compact-btn {
+    padding: 0.375rem 0.5rem !important;
+    font-size: 0.75rem !important;
+    min-height: 2rem !important;
+  }
+  
+  .mobile-compact-icon-btn {
+    padding: 0.25rem !important;
+    min-width: 2rem !important;
+    min-height: 2rem !important;
+  }
+  
+  /* Compact stats */
+  .mobile-compact-stats {
+    padding: 0.75rem !important;
+  }
+  
+  .mobile-compact-stats .text-2xl {
+    font-size: 1.25rem !important;
+  }
+  
+  .mobile-compact-stats .text-xs {
+    font-size: 0.625rem !important;
+  }
+  
+  /* Horizontal scroll for tables */
+  .mobile-scroll-table {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+  
+  .mobile-scroll-table table {
+    min-width: 600px !important;
+  }
+  
+  /* Stacked card view for mobile */
+  .mobile-stacked-card {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0.5rem !important;
+    padding: 0.75rem !important;
+    border: 1px solid #e2e8f0 !important;
+    border-radius: 0.5rem !important;
+    margin-bottom: 0.5rem !important;
+  }
+  
+  /* Sticky logout button */
+  .mobile-sticky-logout {
+    position: fixed !important;
+    bottom: 1rem !important;
+    right: 1rem !important;
+    z-index: 50 !important;
+  }
+  
+  /* Compact form inputs */
+  .mobile-compact-input {
+    padding: 0.5rem !important;
+    font-size: 0.875rem !important;
+  }
+  
+  /* Compact modal */
+  .mobile-compact-modal {
+    margin: 0.5rem !important;
+    max-height: calc(100vh - 1rem) !important;
+  }
+}
+
+/* Ensure buttons remain visible and clickable */
+@media (max-width: 640px) {
+  .mobile-action-buttons {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 0.25rem !important;
+    justify-content: flex-end !important;
+  }
+  
+  .mobile-action-buttons button {
+    flex-shrink: 0 !important;
+    min-width: 2rem !important;
+  }
+}

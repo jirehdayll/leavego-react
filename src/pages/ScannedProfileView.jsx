@@ -5,9 +5,10 @@ import { useAuth } from '../hooks/useAuth';
 import { 
   User, Mail, Building, Briefcase, Calendar, 
   FileText, Plane, ArrowLeft, CheckCircle, XCircle, 
-  Clock, AlertCircle, Download, Eye
+  Clock, AlertCircle, Download, Eye, BarChart3, PieChart as PieChartIcon
 } from 'lucide-react';
 import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export default function ScannedProfileView() {
   const { id } = useParams();
@@ -100,6 +101,49 @@ export default function ScannedProfileView() {
     }
   };
 
+  // Calculate statistics
+  const allRequests = [...leaveRequests, ...travelOrders];
+  const stats = {
+    total: allRequests.length,
+    approved: allRequests.filter(r => r.status === REQUEST_STATUS.APPROVED).length,
+    declined: allRequests.filter(r => r.status === REQUEST_STATUS.DECLINED).length,
+    pending: allRequests.filter(r => r.status === REQUEST_STATUS.PENDING).length,
+    leave: leaveRequests.length,
+    travel: travelOrders.length
+  };
+
+  // Prepare data for charts
+  const statusData = [
+    { name: 'Approved', value: stats.approved, color: '#10b981' },
+    { name: 'Declined', value: stats.declined, color: '#ef4444' },
+    { name: 'Pending', value: stats.pending, color: '#f59e0b' }
+  ];
+
+  const typeData = [
+    { name: 'Leave', count: stats.leave, color: '#3b82f6' },
+    { name: 'Travel', count: stats.travel, color: '#10b981' }
+  ];
+
+  // Monthly data (last 6 months)
+  const monthlyData = (() => {
+    const months = [];
+    const now = new Date();
+    for (let i = 5; i >= 0; i--) {
+      const month = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const monthName = month.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
+      const monthRequests = allRequests.filter(r => {
+        const reqDate = new Date(r.submitted_at || r.created_at);
+        return reqDate.getMonth() === month.getMonth() && reqDate.getFullYear() === month.getFullYear();
+      });
+      months.push({
+        month: monthName,
+        leave: monthRequests.filter(r => r.request_type === REQUEST_TYPES.LEAVE).length,
+        travel: monthRequests.filter(r => r.request_type === REQUEST_TYPES.TRAVEL).length
+      });
+    }
+    return months;
+  })();
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-[#f0fdf8] to-white flex items-center justify-center">
@@ -179,6 +223,100 @@ export default function ScannedProfileView() {
                 </div>
               </div>
             </div>
+          </div>
+        </div>
+
+        {/* Statistical Records */}
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 mb-8">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-10 h-10 bg-purple-100 rounded-lg flex items-center justify-center">
+              <BarChart3 className="w-5 h-5 text-purple-700" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-slate-800">Application Statistics</h3>
+              <p className="text-sm text-slate-500">Overview of all applications and their status</p>
+            </div>
+          </div>
+
+          {/* Summary Cards */}
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+            <div className="bg-slate-50 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-slate-800">{stats.total}</div>
+              <div className="text-xs text-slate-500 mt-1">Total Applications</div>
+            </div>
+            <div className="bg-emerald-50 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-emerald-700">{stats.approved}</div>
+              <div className="text-xs text-emerald-600 mt-1">Approved</div>
+            </div>
+            <div className="bg-red-50 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-red-700">{stats.declined}</div>
+              <div className="text-xs text-red-600 mt-1">Declined</div>
+            </div>
+            <div className="bg-amber-50 rounded-lg p-4 text-center">
+              <div className="text-2xl font-bold text-amber-700">{stats.pending}</div>
+              <div className="text-xs text-amber-600 mt-1">Pending</div>
+            </div>
+          </div>
+
+          {/* Charts */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Status Distribution Pie Chart */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-4">Status Distribution</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <PieChart>
+                  <Pie
+                    data={statusData}
+                    cx="50%"
+                    cy="50%"
+                    labelLine={false}
+                    label={({ name, value }) => `${name}: ${value}`}
+                    outerRadius={80}
+                    fill="#8884d8"
+                    dataKey="value"
+                  >
+                    {statusData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip />
+                </PieChart>
+              </ResponsiveContainer>
+            </div>
+
+            {/* Type Distribution Bar Chart */}
+            <div>
+              <h4 className="text-sm font-semibold text-slate-700 mb-4">Application Types</h4>
+              <ResponsiveContainer width="100%" height={250}>
+                <BarChart data={typeData}>
+                  <CartesianGrid strokeDasharray="3 3" />
+                  <XAxis dataKey="name" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="count" fill="#3b82f6">
+                    {typeData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Bar>
+                </BarChart>
+              </ResponsiveContainer>
+            </div>
+          </div>
+
+          {/* Monthly Trend */}
+          <div className="mt-8">
+            <h4 className="text-sm font-semibold text-slate-700 mb-4">6-Month Application Trend</h4>
+            <ResponsiveContainer width="100%" height={300}>
+              <BarChart data={monthlyData}>
+                <CartesianGrid strokeDasharray="3 3" />
+                <XAxis dataKey="month" />
+                <YAxis />
+                <Tooltip />
+                <Legend />
+                <Bar dataKey="leave" fill="#3b82f6" name="Leave Applications" />
+                <Bar dataKey="travel" fill="#10b981" name="Travel Orders" />
+              </BarChart>
+            </ResponsiveContainer>
           </div>
         </div>
 

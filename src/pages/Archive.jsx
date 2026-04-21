@@ -145,7 +145,7 @@ export default function Archive() {
 
   return (
     <AdminLayout>
-      <div className="p-6 sm:p-8">
+      <div className="p-4 sm:p-6 lg:p-8">
         <div className="mb-6">
           <h2 className="text-2xl font-black text-slate-800">Archive</h2>
           <p className="text-slate-500 text-sm mt-0.5">Declined or hidden forms — {forms.length} total</p>
@@ -185,7 +185,7 @@ export default function Archive() {
           </select>
         </div>
 
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mobile-compact-card">
           {loading ? (
             <div className="flex justify-center py-16"><div className="animate-spin rounded-full h-8 w-8 border-2 border-slate-300 border-t-transparent"></div></div>
           ) : filtered.length === 0 ? (
@@ -193,7 +193,8 @@ export default function Archive() {
               {forms.length === 0 ? 'Archive is empty.' : 'No forms match your search criteria.'}
             </div>
           ) : (
-            <table className="w-full">
+            <div className="mobile-scroll-table">
+              <table className="w-full mobile-compact-table">
               <thead>
                 <tr className="bg-slate-50">
                   <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Type</th>
@@ -236,17 +237,18 @@ export default function Archive() {
                         </span>
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2" onClick={e => e.stopPropagation()}>
-                          <button onClick={e => { e.stopPropagation(); setSelected(req); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"><Eye className="w-4 h-4" /></button>
-                          <button onClick={e => { e.stopPropagation(); downloadPDF(req); }} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all"><Download className="w-4 h-4" /></button>
-                          <button onClick={e => { e.stopPropagation(); restore(req.id); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all" title="Restore to Pending"><RotateCcw className="w-4 h-4" /></button>
+                        <div className="flex items-center justify-end gap-2 mobile-action-buttons" onClick={e => e.stopPropagation()}>
+                          <button onClick={e => { e.stopPropagation(); setSelected(req); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all mobile-compact-icon-btn"><Eye className="w-4 h-4" /></button>
+                          <button onClick={e => { e.stopPropagation(); downloadPDF(req); }} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all mobile-compact-icon-btn"><Download className="w-4 h-4" /></button>
+                          <button onClick={e => { e.stopPropagation(); restore(req.id); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all mobile-compact-icon-btn" title="Restore to Pending"><RotateCcw className="w-4 h-4" /></button>
                         </div>
                       </td>
                     </tr>
                   );
                 })}
               </tbody>
-            </table>
+                </table>
+                </div>
           )}
         </div>
       </div>

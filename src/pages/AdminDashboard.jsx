@@ -9,9 +9,78 @@ import {
 } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 
+function ViewRequestModal({ request, onClose }) {
+  if (!request) return null;
+  
+  const d = request.details || {};
+  const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
+  
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col mobile-compact-modal">
+        <div className={`px-7 py-5 flex items-center justify-between flex-shrink-0 ${isTravel ? 'bg-gradient-to-r from-emerald-600 to-teal-700' : 'bg-gradient-to-r from-blue-600 to-blue-700'}`}>
+          <div>
+            <p className="text-white/70 text-xs font-semibold mb-1">{isTravel ? 'Travel Order' : 'Leave Application'}</p>
+            <h3 className="text-xl font-black text-white">{request.user_name || request.user_email}</h3>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+        
+        <div className="overflow-y-auto flex-1 p-7 space-y-4">
+          {/* Basic Information */}
+          <div className="bg-slate-50 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><p className="text-xs text-slate-400">Name</p><p className="text-sm font-semibold text-slate-800">{request.user_name}</p></div>
+            <div><p className="text-xs text-slate-400">Email</p><p className="text-sm font-semibold text-slate-800">{request.user_email}</p></div>
+            <div><p className="text-xs text-slate-400">Status</p>
+              <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-bold ${
+                request.status === REQUEST_STATUS.PENDING ? 'bg-amber-100 text-amber-700' :
+                request.status === REQUEST_STATUS.APPROVED ? 'bg-emerald-100 text-emerald-700' :
+                'bg-red-100 text-red-700'
+              }`}>{request.status}</span>
+            </div>
+            <div><p className="text-xs text-slate-400">Submitted</p><p className="text-sm font-semibold text-slate-800">{new Date(request.submitted_at || request.created_at).toLocaleDateString('en-PH')}</p></div>
+            <div><p className="text-xs text-slate-400">Position</p><p className="text-sm font-semibold text-slate-800">{d.position || 'N/A'}</p></div>
+            <div><p className="text-xs text-slate-400">Department</p><p className="text-sm font-semibold text-slate-800">{d.office_department || 'N/A'}</p></div>
+          </div>
+          
+          {/* Request Details */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <h4 className="font-semibold text-slate-800 mb-3">Request Details</h4>
+            {isTravel ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div><p className="text-xs text-slate-400">Destination</p><p className="text-sm font-medium text-slate-800">{d.destination || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">Official Station</p><p className="text-sm font-medium text-slate-800">{d.official_station || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">Departure Date</p><p className="text-sm font-medium text-slate-800">{d.departure_date || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">Arrival Date</p><p className="text-sm font-medium text-slate-800">{d.arrival_date || '—'}</p></div>
+                </div>
+                <div><p className="text-xs text-slate-400">Purpose</p><p className="text-sm font-medium text-slate-800">{d.purpose || '—'}</p></div>
+                <div><p className="text-xs text-slate-400">Remarks</p><p className="text-sm font-medium text-slate-800">{d.remarks || '—'}</p></div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div><p className="text-xs text-slate-400">Leave Type</p><p className="text-sm font-medium text-slate-800">{d.leave_type || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">Number of Days</p><p className="text-sm font-medium text-slate-800">{d.num_days || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">Start Date</p><p className="text-sm font-medium text-slate-800">{d.start_date || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">End Date</p><p className="text-sm font-medium text-slate-800">{d.end_date || '—'}</p></div>
+                </div>
+                <div><p className="text-xs text-slate-400">Details of Leave</p><p className="text-sm font-medium text-slate-800">{d.details_of_leave || '—'}</p></div>
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function StatCard({ icon: Icon, label, value, color, bg }) {
   return (
-    <div className={`bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-4 card-hover`}>
+    <div className={`bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-4 card-hover mobile-compact-stats`}>
       <div className={`w-12 h-12 ${bg} rounded-2xl flex items-center justify-center flex-shrink-0`}>
         {Icon && <Icon className={`w-6 h-6 ${color}`} />}
       </div>
@@ -238,8 +307,8 @@ export default function AdminDashboard() {
               <p className="text-slate-400 text-xs mt-1">No pending applications at the moment.</p>
             </div>
           ) : (
-            <div className="overflow-auto flex-1">
-              <table className="w-full">
+            <div className="overflow-auto flex-1 mobile-scroll-table">
+              <table className="w-full mobile-compact-table">
                 <thead>
                   <tr className="bg-slate-50">
                     <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Type</th>
@@ -291,31 +360,31 @@ export default function AdminDashboard() {
                         {req.request_type === REQUEST_TYPES.TRAVEL ? (req.details?.destination || '-') : (req.details?.leave_type || '-')}
                       </td>
                       <td className="px-6 py-4">
-                        <div className="flex items-center justify-end gap-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center justify-end gap-2 mobile-action-buttons" onClick={(e) => e.stopPropagation()}>
                           <button
                             onClick={() => setSelectedRequest(req)}
-                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                            className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all mobile-compact-icon-btn"
                             title="View"
                           >
                             <Eye className="w-4 h-4" />
                           </button>
                           <button
                             onClick={() => updateStatus(req.id, REQUEST_STATUS.APPROVED)}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition-all"
+                            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
                             title="Approve"
                           >
                             <Check className="w-3.5 h-3.5" /> Approve
                           </button>
                           <button
                             onClick={() => updateStatus(req.id, REQUEST_STATUS.DECLINED)}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl transition-all"
+                            className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
                             title="Decline"
                           >
                             <X className="w-3.5 h-3.5" /> Decline
                           </button>
                           <button
                             onClick={() => archiveRequest(req.id)}
-                            className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all"
+                            className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all mobile-compact-icon-btn"
                             title="Archive"
                           >
                             <Archive className="w-4 h-4" />
@@ -330,6 +399,7 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
+      {selectedRequest && <ViewRequestModal request={selectedRequest} onClose={() => setSelectedRequest(null)} />}
     </AdminLayout>
   );
 }
