@@ -31,32 +31,43 @@ export default function MonthlySummary() {
   const summaryRef = useRef(null);
 
   const downloadPDF = async () => {
+    console.log('PDF download triggered');
+    
     if (!summaryRef.current) {
       console.error('Summary reference is not attached to any element.');
       alert('Cannot generate PDF: Content not found.');
       return;
     }
     
+    console.log('Starting PDF generation...');
     setIsGeneratingPDF(true);
     
     try {
       const element = summaryRef.current;
+      console.log('Element found:', element);
       
       // Wait a bit for any pending renders to complete
-      await new Promise(resolve => setTimeout(resolve, 100));
+      await new Promise(resolve => setTimeout(resolve, 200));
       
+      console.log('Starting html2canvas...');
       const canvas = await html2canvas(element, {
-        scale: 1.5,
+        scale: 2,
         useCORS: true,
         allowTaint: true,
         backgroundColor: '#ffffff',
         width: element.scrollWidth,
         height: element.scrollHeight,
         scrollX: 0,
-        scrollY: 0
+        scrollY: 0,
+        logging: false,
+        removeContainer: false
       });
       
+      console.log('Canvas created, dimensions:', canvas.width, 'x', canvas.height);
+      
       const imgData = canvas.toDataURL('image/png', 1.0);
+      console.log('Image data created');
+      
       const pdf = new jsPDF({
         orientation: 'landscape',
         unit: 'mm',
@@ -66,6 +77,8 @@ export default function MonthlySummary() {
       const imgWidth = 297; // A4 width in mm (landscape)
       const pageHeight = 210; // A4 height in mm (landscape)
       const imgHeight = (canvas.height * imgWidth) / canvas.width;
+      
+      console.log('PDF dimensions calculated, imgHeight:', imgHeight);
       
       let heightLeft = imgHeight;
       let position = 0;
@@ -89,9 +102,11 @@ export default function MonthlySummary() {
       
     } catch (error) {
       console.error('Error generating PDF:', error);
+      console.error('Full error details:', error.stack);
       alert('Failed to generate PDF. Please try again.\n\nError: ' + error.message);
     } finally {
       setIsGeneratingPDF(false);
+      console.log('PDF generation completed');
     }
   };
 
@@ -254,13 +269,15 @@ export default function MonthlySummary() {
                       <div className="space-y-0.5 p-0.5 sm:p-1 overflow-y-auto max-h-12 sm:max-h-16">
                         {dayForms.slice(0, 2).map((req, i) => {
                           const col = getLeaveColor(req);
+                          const applicantName = req.user_name || req.user_email?.split('@')[0] || 'Unknown';
+                          const displayName = applicantName.length > 12 ? applicantName.substring(0, 12) + '...' : applicantName;
                           return (
                             <div key={i} className={`text-[8px] sm:text-[10px] leading-none px-0.5 py-0.5 rounded truncate ${col.bg} ${col.text} ${col.border}`}>
-                              {col.label}
+                              {displayName} - {col.label}
                             </div>
                           );
                         })}
-                        {dayForms.length > 2 && <div className="text-[8px] sm:text-[9px] text-slate-400 font-medium">+{dayForms.length - 2}</div>}
+                        {dayForms.length > 2 && <div className="text-[8px] sm:text-[9px] text-slate-400 font-medium">+{dayForms.length - 2} more</div>}
                       </div>
                     </div>
                   );

@@ -36,9 +36,9 @@ export default function AdminLayout({ children }) {
   };
 
   const SidebarContent = () => (
-    <div className="flex flex-col h-full">
-      {/* Brand Header */}
-      <div className={`flex items-center gap-3 px-5 py-5 border-b border-white/10 ${collapsed ? 'justify-center' : ''}`}>
+    <div className="flex flex-col h-screen">
+      {/* Brand Header - Fixed */}
+      <div className={`flex items-center gap-3 px-5 py-5 border-b border-white/10 flex-shrink-0 ${collapsed ? 'justify-center' : ''}`}>
         <img src="/logo.png" alt="LeaveGo" className="w-9 h-9 object-contain flex-shrink-0" />
         {!collapsed && (
           <div>
@@ -49,7 +49,7 @@ export default function AdminLayout({ children }) {
       </div>
 
       {/* Navigation - Scrollable */}
-      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto">
+      <nav className="flex-1 px-3 py-4 space-y-1 overflow-y-auto min-h-0">
         {navItems.map(({ label, path, icon: Icon, action }) => {
           const active = location.pathname === path;
           return (
@@ -79,14 +79,29 @@ export default function AdminLayout({ children }) {
         })}
       </nav>
 
-      {/* User Info - Static */}
-      <div className="px-3 pt-4 border-t border-white/10">
+      {/* User Info & Logout - Fixed at Bottom */}
+      <div className="flex-shrink-0 border-t border-white/10">
+        {/* Account Section */}
         {!collapsed && (
-          <div className="px-3 py-2 rounded-xl bg-white/5">
-            <p className="text-xs text-emerald-300 font-medium truncate">{adminEmail}</p>
-            <p className="text-xs text-emerald-100/40 mt-0.5">Administrator</p>
+          <div className="px-3 py-3">
+            <div className="px-3 py-3 rounded-xl bg-white/5 mb-3">
+              <p className="text-xs text-emerald-300 font-medium truncate">{adminEmail}</p>
+              <p className="text-xs text-emerald-100/40 mt-1">Administrator</p>
+            </div>
           </div>
         )}
+        
+        {/* Logout Button - Always Visible */}
+        <div className="px-3 py-4">
+          <button
+            onClick={handleLogout}
+            title={collapsed ? 'Logout' : undefined}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-red-300/70 hover:bg-red-500/10 hover:text-red-300 transition-all duration-200 ${collapsed ? 'justify-center' : ''}`}
+          >
+            <LogOut className="flex-shrink-0 w-5 h-5" />
+            {!collapsed && <span>Logout</span>}
+          </button>
+        </div>
       </div>
     </div>
   );
