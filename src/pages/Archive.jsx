@@ -130,24 +130,25 @@ export default function Archive() {
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
       
-      const { data: approvedRequests } = await supabase
+      const { data: allRequests } = await supabase
         .from('leave_requests')
         .select('*')
         .in('status', [REQUEST_STATUS.APPROVED])
-        .or(`is_archived.eq.true,is_archived.eq.false`)
         .eq('request_type', REQUEST_TYPES.LEAVE);
       
-      // Filter requests for current month
-      const monthlyRequests = approvedRequests.filter(req => {
+      // Filter requests for current month (both archived and non-archived)
+      const monthlyRequests = allRequests.filter(req => {
         const reqDate = new Date(req.submitted_at || req.created_at);
         return reqDate.getMonth() === currentMonth && reqDate.getFullYear() === currentYear;
       });
+      
+      console.log(`Found ${monthlyRequests.length} requests for ${currentDate.toLocaleString('default', { month: 'long' })} ${currentYear}`);
       
       // Generate the PDF
       await generateAttendanceReportPDF(monthlyRequests, currentDate.toLocaleString('default', { month: 'long' }), currentYear);
       
     } catch (error) {
-      console.error('Error generating monthly summary PDF:', error);
+      console.error('Error generating attendance report:', error);
       alert('Failed to generate attendance report. Please try again.');
     }
   };

@@ -49,10 +49,17 @@ export const generateAttendanceReportPDF = async (data, month, year) => {
     const endDate = new Date(request.details?.end_date);
     const leaveType = getLeaveTypeAbbreviation(request.details?.leave_type);
     
-    // Add all dates in the range
+    // Generate control number/code (use request ID or create a formatted code)
+    const controlNumber = request.id ? `#${request.id.toString().slice(-6)}` : `#${Math.random().toString(36).substr(2, 6).toUpperCase()}`;
+    
+    // Add all dates in the range with control numbers
     for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
       const dateStr = date.getDate();
-      employeeData[employeeName].leaves[dateStr] = leaveType;
+      // Store both leave type and control number
+      employeeData[employeeName].leaves[dateStr] = {
+        type: leaveType,
+        controlNumber: controlNumber
+      };
     }
   });
   
@@ -119,7 +126,7 @@ export const generateAttendanceReportPDF = async (data, month, year) => {
     
     // Day columns (1-31)
     for (let day = 1; day <= 31; day++) {
-      const leaveType = employee.leaves[day];
+      const leaveData = employee.leaves[day];
       
       // Check if weekend
       if (isWeekendOrHoliday(day, reportMonth, reportYear)) {
@@ -127,16 +134,17 @@ export const generateAttendanceReportPDF = async (data, month, year) => {
         pdf.rect(cellX, currentY, colWidths[day + 1], cellHeight, 'F');
       }
       
-      // Draw leave type if present
-      if (leaveType && LEAVE_COLORS[leaveType]) {
-        const color = LEAVE_COLORS[leaveType].color;
+      // Draw leave type with control number if present
+      if (leaveData && leaveData.type && LEAVE_COLORS[leaveData.type]) {
+        const color = LEAVE_COLORS[leaveData.type].color;
         pdf.setFillColor(...color);
         pdf.rect(cellX, currentY, colWidths[day + 1], cellHeight, 'F');
         
-        // Add text
-        pdf.setTextColor(leaveType === 'OB' ? [0, 0, 0] : [255, 255, 255]);
-        pdf.setFontSize(5);
-        pdf.text(leaveType, cellX + colWidths[day + 1] / 2, currentY + cellHeight / 2 + 1, { align: 'center' });
+        // Add text with control number
+        pdf.setTextColor(leaveData.type === 'OB' ? [0, 0, 0] : [255, 255, 255]);
+        pdf.setFontSize(4);
+        const displayText = leaveData.controlNumber || leaveData.type;
+        pdf.text(displayText, cellX + colWidths[day + 1] / 2, currentY + cellHeight / 2 + 1, { align: 'center' });
         pdf.setTextColor(0, 0, 0); // Reset text color
       }
       
