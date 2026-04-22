@@ -1,5 +1,5 @@
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { autoTable } from 'jspdf-autotable';
 
 // Color mappings for different leave types
 const LEAVE_COLORS = {
@@ -89,7 +89,7 @@ export const generateAttendanceReportPDF = async (data, month, year) => {
   ];
   
   // Generate the table
-  pdf.autoTable({
+  autoTable(pdf, {
     head: [headers],
     body: tableData,
     startY: 40,
@@ -141,7 +141,7 @@ export const generateAttendanceReportPDF = async (data, month, year) => {
   });
   
   // Add legend
-  const legendY = pdf.lastAutoTable.finalY + 10;
+  const legendY = pdf.previousAutoTable.finalY + 10;
   pdf.setFontSize(8);
   pdf.setFont('helvetica', 'bold');
   pdf.text('Legend:', 15, legendY);
