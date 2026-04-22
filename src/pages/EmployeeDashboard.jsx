@@ -381,7 +381,7 @@ export default function EmployeeDashboard() {
         <div className="space-y-6">
 
           {/* QR Code Display */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col h-[380px]">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col h-[643px]">
             <div className="text-center h-full flex flex-col">
               <div className="mb-4">
                 <h3 className="font-bold text-slate-800 text-lg">Your ID Pass</h3>
@@ -392,10 +392,10 @@ export default function EmployeeDashboard() {
                 <div className="bg-white p-4 rounded-xl shadow-sm border border-emerald-200 inline-block transition-transform hover:scale-105 duration-300">
                   <QRCodeSVG 
                     value={`${window.location.origin}/profile/view/${user?.id}`}
-                    size={160}
+                    size={380}
                     level="H"
                     includeMargin={false}
-                    fgColor="#1a3530"
+                    fgColor="#022720"
                   />
                 </div>
               </div>

@@ -4,6 +4,7 @@ import { supabase } from '../lib/supabaseClient';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import AdminLayout from '../components/AdminLayout';
 import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
+import { generateAttendanceReportPDF } from '../lib/attendanceReportPDF';
 import { Plane, FileText, Eye, Download, RotateCcw, User, X, Search, Filter, Calendar } from 'lucide-react';
 
 function PDFViewModal({ request, onClose }) {
@@ -122,6 +123,35 @@ export default function Archive() {
     else await generateLeaveApplicationPDF({ ...d, full_name: req.user_name });
   };
 
+  const generateMonthlySummaryPDF = async () => {
+    try {
+      // Fetch all approved and archived requests for the current month
+      const currentDate = new Date();
+      const currentMonth = currentDate.getMonth();
+      const currentYear = currentDate.getFullYear();
+      
+      const { data: approvedRequests } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .in('status', [REQUEST_STATUS.APPROVED])
+        .or(`is_archived.eq.true,is_archived.eq.false`)
+        .eq('request_type', REQUEST_TYPES.LEAVE);
+      
+      // Filter requests for current month
+      const monthlyRequests = approvedRequests.filter(req => {
+        const reqDate = new Date(req.submitted_at || req.created_at);
+        return reqDate.getMonth() === currentMonth && reqDate.getFullYear() === currentYear;
+      });
+      
+      // Generate the PDF
+      await generateAttendanceReportPDF(monthlyRequests, currentDate.toLocaleString('default', { month: 'long' }), currentYear);
+      
+    } catch (error) {
+      console.error('Error generating monthly summary PDF:', error);
+      alert('Failed to generate attendance report. Please try again.');
+    }
+  };
+
   // Apply filters and search
   let filtered = forms.filter(f => {
     const matchesSearch = !search || 
@@ -147,8 +177,19 @@ export default function Archive() {
     <AdminLayout>
       <div className="p-4 sm:p-6 lg:p-8">
         <div className="mb-6">
-          <h2 className="text-2xl font-black text-slate-800">Archive</h2>
-          <p className="text-slate-500 text-sm mt-0.5">Declined or hidden forms — {forms.length} total</p>
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-black text-slate-800">Archive</h2>
+              <p className="text-slate-500 text-sm mt-0.5">Declined or hidden forms - {forms.length} total</p>
+            </div>
+            <button
+              onClick={() => generateMonthlySummaryPDF()}
+              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-all shadow-sm"
+            >
+              <Download className="w-4 h-4" />
+              Download Attendance Report
+            </button>
+          </div>
         </div>
 
         {/* Search and Filters */}
