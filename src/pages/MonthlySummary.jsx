@@ -3,9 +3,8 @@ import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
 import { ChevronLeft, ChevronRight, Calendar, X, Download } from 'lucide-react';
-import jsPDF from 'jspdf';
+import { generateMonthlySummaryPDF } from '../lib/monthlySummaryPDF';
 import html2canvas from 'html2canvas';
-
 
 const TYPE_COLORS = {
   [REQUEST_TYPES.TRAVEL]: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200', label: 'Travel Order' },
@@ -32,108 +31,15 @@ export default function MonthlySummary() {
 
   const downloadPDF = async () => {
     console.log('PDF download triggered');
-    
-    if (!summaryRef.current) {
-      console.error('Summary reference is not attached to any element.');
-      alert('Cannot generate PDF: Content not found.');
-      return;
-    }
-    
-    console.log('Starting PDF generation...');
     setIsGeneratingPDF(true);
     
     try {
-      const element = summaryRef.current;
-      console.log('Element found:', element);
+      console.log('Starting professional PDF generation...');
       
-      // Wait a bit for any pending renders to complete
-      await new Promise(resolve => setTimeout(resolve, 200));
+      // Generate PDF using the new professional format
+      await generateMonthlySummaryPDF(monthForms, MONTHS[viewMonth], viewYear);
       
-      console.log('Starting html2canvas...');
-      let canvas;
-      try {
-        canvas = await html2canvas(element, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        width: element.scrollWidth,
-        height: element.scrollHeight,
-        scrollX: 0,
-        scrollY: 0,
-        logging: false,
-        removeContainer: false,
-        ignoreElements: (element) => {
-          // Ignore elements that might cause color issues
-          return element.tagName === 'STYLE' || element.tagName === 'SCRIPT';
-        },
-        onclone: (clonedDoc) => {
-          // Replace problematic CSS colors in cloned document
-          const allElements = clonedDoc.querySelectorAll('*');
-          allElements.forEach(el => {
-            const computedStyle = window.getComputedStyle(el);
-            if (computedStyle.color && computedStyle.color.includes('oklch')) {
-              el.style.color = '#000000';
-            }
-            if (computedStyle.backgroundColor && computedStyle.backgroundColor.includes('oklch')) {
-              el.style.backgroundColor = '#ffffff';
-            }
-          });
-        }
-      });
-      } catch (canvasError) {
-        console.error('html2canvas error:', canvasError);
-        // Fallback to simpler canvas configuration
-        console.log('Trying fallback canvas configuration...');
-        canvas = await html2canvas(element, {
-          scale: 1.5,
-          useCORS: true,
-          allowTaint: false,
-          backgroundColor: '#ffffff',
-          width: element.scrollWidth,
-          height: element.scrollHeight,
-          scrollX: 0,
-          scrollY: 0,
-          logging: false
-        });
-      }
-      
-      console.log('Canvas created, dimensions:', canvas.width, 'x', canvas.height);
-      
-      const imgData = canvas.toDataURL('image/png', 1.0);
-      console.log('Image data created');
-      
-      const pdf = new jsPDF({
-        orientation: 'landscape',
-        unit: 'mm',
-        format: 'a4'
-      });
-      
-      const imgWidth = 297; // A4 width in mm (landscape)
-      const pageHeight = 210; // A4 height in mm (landscape)
-      const imgHeight = (canvas.height * imgWidth) / canvas.width;
-      
-      console.log('PDF dimensions calculated, imgHeight:', imgHeight);
-      
-      let heightLeft = imgHeight;
-      let position = 0;
-      
-      // Add first page
-      pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-      heightLeft -= pageHeight;
-      
-      // Add additional pages if content is longer than one page
-      while (heightLeft > 0) {
-        position = heightLeft - imgHeight;
-        pdf.addPage();
-        pdf.addImage(imgData, 'PNG', 0, position, imgWidth, imgHeight);
-        heightLeft -= pageHeight;
-      }
-      
-      const fileName = `Monthly_Summary_${MONTHS[viewMonth]}_${viewYear}.pdf`;
-      pdf.save(fileName);
-      
-      console.log('PDF generated successfully:', fileName);
+      console.log('PDF generated successfully');
       
     } catch (error) {
       console.error('Error generating PDF:', error);
