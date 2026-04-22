@@ -1,5 +1,4 @@
 import jsPDF from 'jspdf';
-import jsPDFAutoTable from 'jspdf-autotable';
 
 // Color mappings for different leave types
 const LEAVE_COLORS = {
@@ -14,6 +13,9 @@ const LEAVE_COLORS = {
 };
 
 export const generateAttendanceReportPDF = async (data, month, year) => {
+  // Dynamic import to avoid Vite import analysis issues
+  const { default: jsPDFAutoTable } = await import('jspdf-autotable');
+  
   const pdf = new jsPDF('l', 'mm', 'a4');
   jsPDFAutoTable(pdf);
   
