@@ -13,11 +13,7 @@ const LEAVE_COLORS = {
 };
 
 export const generateAttendanceReportPDF = async (data, month, year) => {
-  // Dynamic import to avoid Vite import analysis issues
-  const { default: jsPDFAutoTable } = await import('jspdf-autotable');
-  
   const pdf = new jsPDF('l', 'mm', 'a4');
-  jsPDFAutoTable(pdf);
   
   // Get current month and year
   const currentDate = new Date();
@@ -35,7 +31,6 @@ export const generateAttendanceReportPDF = async (data, month, year) => {
   
   // Process data - group by employee name
   const employeeData = {};
-  const allDates = new Set();
   
   // Collect all unique dates and group by employee
   data.forEach(request => {
@@ -57,7 +52,6 @@ export const generateAttendanceReportPDF = async (data, month, year) => {
     // Add all dates in the range
     for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
       const dateStr = date.getDate();
-      allDates.add(dateStr);
       employeeData[employeeName].leaves[dateStr] = leaveType;
     }
   });
@@ -65,24 +59,21 @@ export const generateAttendanceReportPDF = async (data, month, year) => {
   // Sort employees alphabetically
   const sortedEmployees = Object.keys(employeeData).sort();
   
-  // Create table data
-  const tableData = [];
-  sortedEmployees.forEach((employeeName, index) => {
-    const employee = employeeData[employeeName];
-    const row = [
-      index + 1, // Index number
-      employeeName, // Name
-      ...Array.from({ length: 31 }, (_, i) => {
-        const day = i + 1;
-        return employee.leaves[day] || '';
-      }),
-      '', // Undertime
-      '' // Remarks
-    ];
-    tableData.push(row);
-  });
+  // Manual table drawing
+  let currentY = 40;
+  const cellHeight = 8;
+  const cellPadding = 1;
   
-  // Create table headers
+  // Table dimensions
+  const colWidths = {
+    0: 10,   // Index
+    1: 40,   // Name
+    ...Object.fromEntries(Array.from({ length: 31 }, (_, i) => [i + 2, 6])), // Days 1-31
+    33: 15,  // Undertime
+    34: 20   // Remarks
+  };
+  
+  // Draw headers
   const headers = [
     '#',
     'NAME OF PERSONNEL',
@@ -91,60 +82,84 @@ export const generateAttendanceReportPDF = async (data, month, year) => {
     'REMARKS'
   ];
   
-  // Generate the table
-  pdf.autoTable({
-    head: [headers],
-    body: tableData,
-    startY: 40,
-    theme: 'grid',
-    styles: {
-      fontSize: 6,
-      cellPadding: 1,
-      valign: 'middle',
-      halign: 'center',
-      lineWidth: 0.1,
-      lineColor: [0, 0, 0]
-    },
-    headStyles: {
-      fillColor: [240, 240, 240],
-      textColor: [0, 0, 0],
-      fontStyle: 'bold',
-      fontSize: 6
-    },
-    columnStyles: {
-      0: { cellWidth: 10, halign: 'center' }, // Index
-      1: { cellWidth: 40, halign: 'left' }, // Name
-      ...Object.fromEntries(Array.from({ length: 31 }, (_, i) => [i + 2, { cellWidth: 6, halign: 'center' }])), // Days 1-31
-      33: { cellWidth: 15, halign: 'center' }, // Undertime
-      34: { cellWidth: 20, halign: 'left' } // Remarks
-    },
-    didDrawCell: (data) => {
-      // Apply color coding to cells
-      if (data.row.index > 0 && data.column.index >= 2 && data.column.index <= 32) {
-        const cellValue = data.cell.raw;
-        if (cellValue && LEAVE_COLORS[cellValue]) {
-          const color = LEAVE_COLORS[cellValue].color;
-          pdf.setFillColor(...color);
-          pdf.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
-          
-          // Add text back
-          pdf.setTextColor(cellValue === 'OB' ? [0, 0, 0] : [255, 255, 255]);
-          pdf.setFontSize(5);
-          pdf.text(cellValue, data.cell.x + data.cell.width / 2, data.cell.y + data.cell.height / 2 + 1, { align: 'center' });
-        }
-        
-        // Weekends and holidays
-        const dayNum = data.column.index - 1;
-        if (isWeekendOrHoliday(dayNum, reportMonth, reportYear)) {
-          pdf.setFillColor(...LEAVE_COLORS.Weekend.color);
-          pdf.rect(data.cell.x, data.cell.y, data.cell.width, data.cell.height, 'F');
-        }
+  // Header background
+  pdf.setFillColor(240, 240, 240);
+  pdf.rect(15, currentY, 277, cellHeight, 'F');
+  
+  // Header text
+  pdf.setFontSize(6);
+  pdf.setFont('helvetica', 'bold');
+  let currentX = 15;
+  headers.forEach((header, i) => {
+    pdf.text(header, currentX + colWidths[i] / 2, currentY + cellHeight / 2 + 1, { align: 'center' });
+    currentX += colWidths[i];
+  });
+  
+  currentY += cellHeight;
+  
+  // Draw rows
+  sortedEmployees.forEach((employeeName, index) => {
+    const employee = employeeData[employeeName];
+    
+    // Draw row border
+    pdf.rect(15, currentY, 277, cellHeight);
+    
+    // Draw cells
+    let cellX = 15;
+    
+    // Index column
+    pdf.text((index + 1).toString(), cellX + colWidths[0] / 2, currentY + cellHeight / 2 + 1, { align: 'center' });
+    pdf.line(cellX += colWidths[0], currentY, cellX, currentY + cellHeight);
+    
+    // Name column
+    pdf.setFontSize(6);
+    pdf.setFont('helvetica', 'normal');
+    pdf.text(employeeName, cellX + 2, currentY + cellHeight / 2 + 1);
+    pdf.line(cellX += colWidths[1], currentY, cellX, currentY + cellHeight);
+    
+    // Day columns (1-31)
+    for (let day = 1; day <= 31; day++) {
+      const leaveType = employee.leaves[day];
+      
+      // Check if weekend
+      if (isWeekendOrHoliday(day, reportMonth, reportYear)) {
+        pdf.setFillColor(...LEAVE_COLORS.Weekend.color);
+        pdf.rect(cellX, currentY, colWidths[day + 1], cellHeight, 'F');
       }
+      
+      // Draw leave type if present
+      if (leaveType && LEAVE_COLORS[leaveType]) {
+        const color = LEAVE_COLORS[leaveType].color;
+        pdf.setFillColor(...color);
+        pdf.rect(cellX, currentY, colWidths[day + 1], cellHeight, 'F');
+        
+        // Add text
+        pdf.setTextColor(leaveType === 'OB' ? [0, 0, 0] : [255, 255, 255]);
+        pdf.setFontSize(5);
+        pdf.text(leaveType, cellX + colWidths[day + 1] / 2, currentY + cellHeight / 2 + 1, { align: 'center' });
+        pdf.setTextColor(0, 0, 0); // Reset text color
+      }
+      
+      pdf.line(cellX += colWidths[day + 1], currentY, cellX, currentY + cellHeight);
+    }
+    
+    // Undertime column
+    pdf.line(cellX += colWidths[33], currentY, cellX, currentY + cellHeight);
+    
+    // Remarks column
+    pdf.line(cellX += colWidths[34], currentY, cellX, currentY + cellHeight);
+    
+    currentY += cellHeight;
+    
+    // Add new page if needed
+    if (currentY > 180) {
+      pdf.addPage();
+      currentY = 20;
     }
   });
   
   // Add legend
-  const legendY = pdf.lastAutoTable.finalY + 10;
+  const legendY = currentY + 10;
   pdf.setFontSize(8);
   pdf.setFont('helvetica', 'bold');
   pdf.text('Legend:', 15, legendY);
