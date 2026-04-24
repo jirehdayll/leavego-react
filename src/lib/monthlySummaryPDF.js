@@ -1,239 +1,256 @@
 import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
-// Color mappings for different leave types (same as attendance report)
+// Color mappings based on requested Legend - all text set to black
 const LEAVE_COLORS = {
-  'SL': { color: [255, 0, 0], label: 'Sick Leave (SL)' }, // Red
-  'Maternity': { color: [0, 128, 0], label: 'Maternity' }, // Green
-  'OB': { color: [255, 255, 0], label: 'Official Business (OB)' }, // Yellow
-  'FL': { color: [0, 0, 255], label: 'Forced Leave (FL)' }, // Blue
-  'SPL': { color: [0, 0, 255], label: 'Special Privilege Leave (SPL)' }, // Blue
-  'VL': { color: [0, 0, 255], label: 'Vacation Leave (VL)' }, // Blue
-  'Weekend': { color: [128, 0, 128], label: 'Saturday/Sunday/Holiday' }, // Purple
-  'Present': { color: [255, 255, 255], label: 'Present' } // White
+  'SL': { color: [255, 0, 0], label: 'SICK LEAVE', text: [0, 0, 0] },
+  'Maternity': { color: [144, 238, 144], label: 'MATERNITY', text: [0, 0, 0] },
+  'OB': { color: [255, 255, 0], label: 'OFFICIAL BUSINESS', text: [0, 0, 0] },
+  'FL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
+  'SPL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
+  'VL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
+  'Weekend': { color: [112, 48, 160], label: 'SATURDAY/SUNDAY/HOLIDAY', text: [0, 0, 0] }
 };
 
 export const generateMonthlySummaryPDF = async (data, month, year) => {
-  const pdf = new jsPDF('l', 'mm', 'a4');
+  const pdf = new jsPDF('landscape', 'pt', 'legal');
   
-  // Get current month and year
+  // Header Info
   const currentDate = new Date();
   const reportMonth = month || currentDate.toLocaleString('default', { month: 'long' });
   const reportYear = year || currentDate.getFullYear();
   
-  // Add header
-  pdf.setFontSize(16);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('MONTHLY SUMMARY REPORT', pdf.internal.pageSize.width / 2, 20, { align: 'center' });
+  // Top Title
+  pdf.setFontSize(11);
+  pdf.setFont('times', 'bold');
+  pdf.text('REPORT OF ATTENDANCE OF CENRO-OLONGAPO CITY', pdf.internal.pageSize.width / 2, 40, { align: 'center' });
+  pdf.text(`FOR THE MONTH OF ${reportMonth.toUpperCase()} ${reportYear}`, pdf.internal.pageSize.width / 2, 55, { align: 'center' });
+
+  // Data processing: Group by unique employee name
+  const employeeMap = {};
   
-  pdf.setFontSize(12);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text(`FOR THE MONTH OF ${reportMonth.toUpperCase()} ${reportYear}`, pdf.internal.pageSize.width / 2, 30, { align: 'center' });
-  
-  pdf.setFontSize(10);
-  pdf.text('CENRO-OLONGAPO CITY', pdf.internal.pageSize.width / 2, 38, { align: 'center' });
-  
-  // Process data - group by employee name
-  const employeeData = {};
-  
-  // Collect all unique dates and group by employee
-  data.forEach(request => {
-    const employeeName = request.user_name || 'Unknown';
-    if (!employeeData[employeeName]) {
-      employeeData[employeeName] = {
-        name: employeeName,
-        leaves: {},
-        position: request.details?.position || '',
-        department: request.details?.office_department || '',
-        totalDays: 0
-      };
+  data.forEach(req => {
+    const name = req.user_name || 'Unknown';
+    if (!employeeMap[name]) {
+      employeeMap[name] = { name, leaves: {} };
     }
     
-    // Process leave dates
-    const startDate = new Date(request.details?.start_date);
-    const endDate = new Date(request.details?.end_date);
-    const leaveType = getLeaveTypeAbbreviation(request.details?.leave_type);
-    const numDays = parseInt(request.details?.num_days || 1);
-    
-    // Add all dates in the range
-    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
-      const dateStr = date.getDate();
-      employeeData[employeeName].leaves[dateStr] = leaveType;
-      employeeData[employeeName].totalDays += 1;
-    }
-  });
-  
-  // Sort employees alphabetically
-  const sortedEmployees = Object.keys(employeeData).sort();
-  
-  // Summary statistics
-  const totalApplications = data.length;
-  const totalEmployees = sortedEmployees.length;
-  const totalLeaveDays = Object.values(employeeData).reduce((sum, emp) => sum + emp.totalDays, 0);
-  
-  // Add summary statistics section
-  let currentY = 50;
-  pdf.setFontSize(10);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('SUMMARY STATISTICS', 15, currentY);
-  
-  currentY += 8;
-  pdf.setFont('helvetica', 'normal');
-  pdf.text(`Total Applications: ${totalApplications}`, 20, currentY);
-  currentY += 6;
-  pdf.text(`Total Employees: ${totalEmployees}`, 20, currentY);
-  currentY += 6;
-  pdf.text(`Total Leave Days: ${totalLeaveDays}`, 20, currentY);
-  
-  currentY += 12;
-  
-  // Manual table drawing for employee summary
-  const cellHeight = 8;
-  
-  // Table dimensions
-  const colWidths = {
-    0: 15,   // Index
-    1: 50,   // Name
-    2: 25,   // Position
-    3: 35,   // Department
-    4: 20,   // Total Days
-    5: 30,   // Leave Types
-    6: 40,   // Remarks
-    7: 25    // Status
-  };
-  
-  // Draw headers
-  const headers = [
-    '#',
-    'NAME',
-    'POSITION',
-    'DEPARTMENT',
-    'DAYS',
-    'LEAVE TYPES',
-    'REMARKS',
-    'STATUS'
-  ];
-  
-  // Header background
-  pdf.setFillColor(240, 240, 240);
-  pdf.rect(15, currentY, 277, cellHeight, 'F');
-  
-  // Header text
-  pdf.setFontSize(7);
-  pdf.setFont('helvetica', 'bold');
-  let currentX = 15;
-  headers.forEach((header, i) => {
-    pdf.text(header, currentX + colWidths[i] / 2, currentY + cellHeight / 2 + 1, { align: 'center' });
-    currentX += colWidths[i];
-  });
-  
-  currentY += cellHeight;
-  
-  // Draw rows for each employee
-  sortedEmployees.forEach((employeeName, index) => {
-    const employee = employeeData[employeeName];
-    
-    // Add new page if needed
-    if (currentY > 170) {
-      pdf.addPage();
-      currentY = 20;
-    }
-    
-    // Draw row border
-    pdf.rect(15, currentY, 277, cellHeight);
-    
-    // Draw cells
-    let cellX = 15;
-    
-    // Index column
-    pdf.text((index + 1).toString(), cellX + colWidths[0] / 2, currentY + cellHeight / 2 + 1, { align: 'center' });
-    pdf.line(cellX += colWidths[0], currentY, cellX, currentY + cellHeight);
-    
-    // Name column
-    pdf.setFontSize(6);
-    pdf.setFont('helvetica', 'normal');
-    pdf.text(employeeName, cellX + 2, currentY + cellHeight / 2 + 1);
-    pdf.line(cellX += colWidths[1], currentY, cellX, currentY + cellHeight);
-    
-    // Position column
-    pdf.text(employee.position.substring(0, 15), cellX + 2, currentY + cellHeight / 2 + 1);
-    pdf.line(cellX += colWidths[2], currentY, cellX, currentY + cellHeight);
-    
-    // Department column
-    pdf.text(employee.department.substring(0, 12), cellX + 2, currentY + cellHeight / 2 + 1);
-    pdf.line(cellX += colWidths[3], currentY, cellX, currentY + cellHeight);
-    
-    // Total Days column
-    pdf.text(employee.totalDays.toString(), cellX + colWidths[4] / 2, currentY + cellHeight / 2 + 1, { align: 'center' });
-    pdf.line(cellX += colWidths[4], currentY, cellX, currentY + cellHeight);
-    
-    // Leave Types column - show aggregated types
-    const leaveTypes = Object.values(employee.leaves);
-    const uniqueTypes = [...new Set(leaveTypes)];
-    const typeString = uniqueTypes.join(', ');
-    pdf.text(typeString.substring(0, 15), cellX + 2, currentY + cellHeight / 2 + 1);
-    pdf.line(cellX += colWidths[5], currentY, cellX, currentY + cellHeight);
-    
-    // Remarks column
-    pdf.text('Approved', cellX + 2, currentY + cellHeight / 2 + 1);
-    pdf.line(cellX += colWidths[6], currentY, cellX, currentY + cellHeight);
-    
-    // Status column
-    pdf.setFillColor(0, 128, 0); // Green for approved
-    pdf.rect(cellX + 5, currentY + 2, colWidths[7] - 10, cellHeight - 4, 'F');
-    pdf.setTextColor(255, 255, 255);
-    pdf.text('APPROVED', cellX + colWidths[7] / 2, currentY + cellHeight / 2 + 1, { align: 'center' });
-    pdf.setTextColor(0, 0, 0); // Reset text color
-    
-    currentY += cellHeight;
-  });
-  
-  // Add legend
-  currentY += 10;
-  pdf.setFontSize(8);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('Leave Type Legend:', 15, currentY);
-  
-  let legendX = 15;
-  let legendYPos = currentY + 5;
-  
-  Object.entries(LEAVE_COLORS).forEach(([key, { color, label }]) => {
-    if (key !== 'Present' && key !== 'Weekend') {
-      // Draw color box
-      pdf.setFillColor(...color);
-      pdf.rect(legendX, legendYPos, 4, 4, 'F');
+    if (req.details?.start_date && req.details?.end_date) {
+      const typeStr = req.details.leave_type || (req.request_type === 'travel' ? 'Official Business' : '');
+      const type = getLeaveTypeAbbreviation(typeStr);
+      let controlNumber = req.id ? String(req.id).slice(-4) : Math.floor(Math.random() * 10000).toString();
+      // Format as "26-[XXXX]" like in the image
+      controlNumber = `26-${controlNumber.padStart(4, '0')}`;
       
-      // Add label
-      pdf.setTextColor(0, 0, 0);
-      pdf.setFontSize(7);
-      pdf.text(label, legendX + 6, legendYPos + 3);
+      const start = new Date(req.details.start_date);
+      const end = new Date(req.details.end_date);
       
-      legendX += label.length * 2 + 15;
-      if (legendX > 180) {
-        legendX = 15;
-        legendYPos += 6;
+      for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+        employeeMap[name].leaves[d.getDate()] = {
+          type,
+          controlNumber,
+          label: type
+        };
       }
     }
   });
+
+  // Alphabetical sort of employees
+  const sortedNames = Object.keys(employeeMap).sort((a, b) => a.localeCompare(b));
   
-  // Add professional signatories
-  const signatoryY = pdf.internal.pageSize.height - 30;
+  // Prepare Table Rows
+  const tableRows = [];
+  sortedNames.forEach((name, idx) => {
+    const row = [ (idx + 1).toString(), name ]; // Col 1: index, Col 2: Name
+    for (let day = 1; day <= 31; day++) {
+      const cellData = employeeMap[name].leaves[day];
+      if (cellData) {
+        row.push(cellData.type === 'Weekend' ? '' : cellData.controlNumber || cellData.type);
+      } else {
+        row.push('');
+      }
+    }
+    row.push(''); // Undertime
+    row.push(''); // Remarks
+    tableRows.push(row);
+  });
+
+  // Prepare Headers
+  const tableHeaders = [
+    [
+      { content: '#', styles: { halign: 'center' } },
+      { content: 'NAME OF PERSONNEL', styles: { halign: 'left' } },
+      ...Array.from({ length: 31 }, (_, i) => ({ content: (i + 1).toString(), styles: { halign: 'center', cellWidth: 22 } })),
+      { content: 'Undertime', styles: { halign: 'center' } },
+      { content: 'REMARKS', styles: { halign: 'center' } }
+    ]
+  ];
+
+  const getDaysInMonth = (monthStr, yr) => {
+    return new Date(yr, new Date(`${monthStr} 1, ${yr}`).getMonth() + 1, 0).getDate();
+  };
+  const maxDays = getDaysInMonth(reportMonth, reportYear);
+
+  // Generate Table
+  autoTable(pdf, {
+    startY: 80,
+    head: tableHeaders,
+    body: tableRows,
+    theme: 'grid',
+    styles: {
+      fontSize: 8,
+      cellPadding: 2,
+      font: 'times',
+      lineColor: [0, 0, 0],
+      lineWidth: 0.5,
+      textColor: [0, 0, 0],
+    },
+    headStyles: {
+      fillColor: [255, 255, 255],
+      textColor: [0, 0, 0],
+      fontStyle: 'bold',
+      halign: 'center',
+      cellPadding: 1
+    },
+    columnStyles: {
+      0: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }, // Index
+      1: { cellWidth: 150, fontStyle: 'bold' }, // Name
+      // 31 days are dynamically auto-sized or fixed at 22 above
+      33: { cellWidth: 60 }, // Undertime
+      34: { cellWidth: 80 } // Remarks - reduced width
+    },
+    margin: { left: 15, right: 20 }, // Further decreased left margin
+    didParseCell: function (data) {
+      if (data.section === 'body' && data.column.index >= 2 && data.column.index <= 32) {
+        const day = data.column.index - 1;
+        
+        // Hide days that do not exist in the month
+        if (day > maxDays) {
+          data.cell.styles.fillColor = [200, 200, 200]; // Grey out non-existent days
+          return;
+        }
+
+        const employeeName = data.row.raw[1];
+        const leaveInfo = employeeMap[employeeName]?.leaves[day];
+        
+        const isWkend = isWeekendOrHoliday(day, reportMonth, reportYear);
+        
+        if (isWkend) {
+           data.cell.styles.fillColor = LEAVE_COLORS['Weekend'].color;
+           data.cell.styles.textColor = LEAVE_COLORS['Weekend'].text;
+           data.cell.text = []; // Clear text on weekends as per image
+        } else if (leaveInfo && LEAVE_COLORS[leaveInfo.type]) {
+           data.cell.styles.fillColor = LEAVE_COLORS[leaveInfo.type].color;
+           data.cell.styles.textColor = LEAVE_COLORS[leaveInfo.type].text;
+           data.cell.styles.halign = 'center';
+           data.cell.styles.fontSize = 6; 
+           data.cell.styles.fontStyle = 'bold';
+        }
+      }
+    },
+    // Custom cell drawing for merged leave periods
+    willDrawCell: function(data) {
+      if (data.section === 'body' && data.column.index >= 2 && data.column.index <= 32) {
+        const day = data.column.index - 1;
+        const employeeName = data.row.raw[1];
+        
+        // Check if this is the start of a leave period
+        const leaveInfo = employeeMap[employeeName]?.leaves[day];
+        if (leaveInfo && leaveInfo.type !== 'Weekend') {
+          const start = new Date(data.row.raw[1]);
+          // Find the duration of this leave period
+          let duration = 1;
+          let currentDay = day + 1;
+          
+          while (employeeMap[employeeName]?.leaves[currentDay]?.type === leaveInfo.type) {
+            duration++;
+            currentDay++;
+          }
+          
+          // Only draw text on the first day of the period
+          if (duration > 1) {
+            const pdf = data.doc;
+            const cellWidth = data.cell.width * duration;
+            const cellX = data.cell.x;
+            const cellY = data.cell.y;
+            const cellHeight = data.cell.height;
+            
+            // Draw merged cell background
+            pdf.setFillColor(...LEAVE_COLORS[leaveInfo.type].color);
+            pdf.rect(cellX, cellY, cellWidth, cellHeight, 'F');
+            
+            // Draw text centered in merged cell
+            pdf.setFont('times', 'bold');
+            pdf.setFontSize(6);
+            pdf.setTextColor(...LEAVE_COLORS[leaveInfo.type].text);
+            pdf.text(leaveInfo.controlNumber || leaveInfo.type, cellX + cellWidth/2, cellY + cellHeight/2 + 2, { align: 'center' });
+            
+            // Skip drawing individual cells for the rest of the period
+            data.cell.text = [];
+            data.cell.styles.fillColor = false;
+          }
+        }
+      }
+    }
+  });
+
+  // Add Dynamic Legend Below Table
+  const finalY = pdf.lastAutoTable.finalY + 15;
+  let currentX = 15; // Further decreased margin left
   
-  pdf.setFontSize(8);
-  pdf.setFont('helvetica', 'normal');
-  pdf.text('Prepared/Reviewed by:', 30, signatoryY);
-  pdf.text('Approved By:', 150, signatoryY);
+  // Custom grouping for legend based on image
+  const legendGroups = [
+    { key: 'Weekend' },
+    { key: 'SL' },
+    { key: 'Maternity' },
+    { key: 'OB' },
+    { key: 'VL' } // Represents FL/SPL/VL
+  ];
+
+  legendGroups.forEach(item => {
+    const colorInfo = LEAVE_COLORS[item.key];
+    if (colorInfo) {
+      pdf.setFillColor(...colorInfo.color);
+      pdf.rect(currentX, finalY, 150, 15, 'F'); // Background box for legend text
+      
+      pdf.setFontSize(8);
+      pdf.setFont('times', 'bold');
+      
+      // All text set to black
+      pdf.setTextColor(0,0,0);
+      pdf.text(colorInfo.label, currentX + 75, finalY + 10, { align: 'center' });
+      
+      currentX += 160;
+    }
+  });
+
+  // Signatories
+  const footerY = pdf.internal.pageSize.height - 100;
   
+  pdf.setFontSize(10);
+  pdf.setFont('times', 'normal');
+  pdf.setTextColor(0,0,0);
+  pdf.text('Prepared/Reviewed by:', 125, footerY);
+  pdf.text('Approved By:', 580, footerY);
+  
+  pdf.setFontSize(11);
+  pdf.setFont('times', 'bold');
+  pdf.text('MARICA PIA R. DIMALANTA-LICO', 125, footerY + 40);
+  pdf.text('EDWARD V. SERNADILLA, RPF, DPA', 580, footerY + 40);
+
   pdf.setFontSize(9);
-  pdf.setFont('helvetica', 'bold');
-  pdf.text('MARICA PIA R. DIMALANTA-LICO', 30, signatoryY + 8);
-  pdf.text('EDWARD V. SERNADILLA, RPF, DPA', 150, signatoryY + 8);
-  
-  // Save the PDF
+  pdf.setFont('times', 'normal');
+  pdf.text('FIII/Chief, CDS and in concurrent capacity as Chief, PSU', 125, footerY + 55);
+  pdf.text('CENRO', 580, footerY + 55);
+
+  // Save Name
   pdf.save(`Monthly_Summary_${reportMonth}_${reportYear}.pdf`);
 };
 
-// Helper function to get leave type abbreviation
+// Helpers
 function getLeaveTypeAbbreviation(leaveType) {
+  if (!leaveType) return 'OB';
+  
   const typeMap = {
     'Sick Leave': 'SL',
     'Maternity Leave': 'Maternity',
@@ -242,5 +259,15 @@ function getLeaveTypeAbbreviation(leaveType) {
     'Special Privilege Leave': 'SPL',
     'Vacation Leave': 'VL'
   };
-  return typeMap[leaveType] || leaveType;
+  return typeMap[leaveType] || 'OB';
+}
+
+function isWeekendOrHoliday(day, month, year) {
+  const dateStr = `${month} 1, ${year}`;
+  const dt = new Date(dateStr);
+  if (isNaN(dt.getTime())) return false; // fallback if month name is weird
+  
+  const testDate = new Date(year, dt.getMonth(), day);
+  const dayOfWeek = testDate.getDay();
+  return dayOfWeek === 0 || dayOfWeek === 6;
 }

@@ -18,12 +18,12 @@ import {
 
 function StatCard({ icon: Icon, label, value, color, bg, trend, trendValue }) {
   return (
-    <div className="bg-white rounded-2xl p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-4 card-hover group">
-      <div className={`w-12 h-12 ${bg} rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-200`}>
-        <Icon className={`w-6 h-6 ${color}`} />
+    <div className="bg-white rounded-2xl p-3 sm:p-4 lg:p-5 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-3 sm:gap-4 card-hover group">
+      <div className={`w-10 h-10 sm:w-12 sm:h-12 ${bg} rounded-xl sm:rounded-2xl flex items-center justify-center flex-shrink-0 group-hover:scale-110 transition-transform duration-200`}>
+        <Icon className={`w-5 h-5 sm:w-6 sm:h-6 ${color}`} />
       </div>
-      <div className="flex-1">
-        <p className="text-2xl font-black text-slate-800">{value ?? '0'}</p>
+      <div className="flex-1 min-w-0">
+        <p className="text-lg sm:text-xl lg:text-2xl font-black text-slate-800">{value ?? '0'}</p>
         <p className="text-xs font-medium text-slate-500 mt-0.5 leading-tight">{label}</p>
         {trend && (
           <div className={`flex items-center gap-1 text-xs font-semibold ${
@@ -43,31 +43,31 @@ function RequestCard({ request, onView, isRecent = false, isNewlyApproved = fals
 
   return (
     <div 
-      className={`bg-white rounded-2xl p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group ${
+      className={`bg-white rounded-2xl p-3 sm:p-4 border border-slate-100 shadow-sm hover:shadow-md transition-all duration-200 cursor-pointer group ${
         isRecent ? 'border-l-4 border-l-blue-500' : ''
       }`}
       onClick={() => onView(request)}
     >
-      <div className="flex items-start justify-between gap-4">
-        <div className="flex items-center gap-3 flex-1">
-          <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-center gap-2 sm:gap-3 flex-1 min-w-0">
+          <div className={`w-8 h-8 sm:w-10 sm:h-10 rounded-lg sm:rounded-xl flex items-center justify-center flex-shrink-0 ${
             isLeave ? 'bg-blue-50' : 'bg-emerald-50'
           }`}>
             {isLeave ? (
-              <FileText className="w-5 h-5 text-blue-600" />
+              <FileText className="w-4 h-4 sm:w-5 sm:h-5 text-blue-600" />
             ) : (
-              <Plane className="w-5 h-5 text-emerald-600" />
+              <Plane className="w-4 h-4 sm:w-5 sm:h-5 text-emerald-600" />
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <h4 className="font-semibold text-slate-800 truncate">
+            <h4 className="font-semibold text-slate-800 truncate text-sm sm:text-base">
               {isLeave ? 'Leave Application' : 'Travel Order'}
             </h4>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-xs text-slate-500 mt-0.5 truncate">
               {isLeave ? request.details?.leave_type : request.details?.destination}
             </p>
-            <div className="flex items-center gap-2 mt-2">
-              <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+            <div className="flex items-center gap-1 sm:gap-2 mt-2 flex-wrap">
+              <span className={`px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold ${
                 STATUS_COLORS[request.status]?.bg || 'bg-slate-100'
               } ${
                 STATUS_COLORS[request.status]?.text || 'text-slate-700'
@@ -75,41 +75,34 @@ function RequestCard({ request, onView, isRecent = false, isNewlyApproved = fals
                 {request.status}
               </span>
               {isNewlyApproved && (
-                <span className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-bold ${
+                <span className={`flex items-center gap-1 px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold ${
                   request.status === REQUEST_STATUS.APPROVED 
                     ? 'bg-emerald-100 text-emerald-600' 
                     : 'bg-red-100 text-red-600'
                 }`}>
-                  <span className={`w-2 h-2 rounded-full animate-pulse ${
+                  <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full animate-pulse ${
                     request.status === REQUEST_STATUS.APPROVED ? 'bg-emerald-500' : 'bg-red-500'
                   }`}></span>
-                  {request.status === REQUEST_STATUS.APPROVED ? 'Approved' : 'Declined'}
+                  <span className="hidden sm:inline">{request.status === REQUEST_STATUS.APPROVED ? 'Approved' : 'Declined'}</span>
+                  <span className="sm:hidden">{request.status === REQUEST_STATUS.APPROVED ? '✓' : '✗'}</span>
                 </span>
               )}
               {isRecent && (
-                <span className="px-2 py-1 rounded-full text-xs font-bold bg-blue-100 text-blue-600">
+                <span className="px-1.5 sm:px-2 py-0.5 rounded-full text-[10px] sm:text-xs font-bold bg-blue-100 text-blue-600">
                   Recent
                 </span>
               )}
             </div>
           </div>
         </div>
-        <div className="text-right">
-          <p className="text-xs text-slate-400">
+        <div className="text-right flex-shrink-0">
+          <p className="text-[10px] sm:text-xs text-slate-400">
             {new Date(request.submitted_at).toLocaleDateString('en-PH', {
               month: 'short',
               day: 'numeric',
+              year: 'numeric'
             })}
           </p>
-          <div className="flex items-center gap-1.5 mt-1">
-            <button 
-              onClick={() => onView(request)}
-              className="text-xs text-amber-600 hover:text-amber-800 font-medium"
-              title="View Details"
-            >
-              <Eye className="w-4 h-4" />
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -262,52 +255,52 @@ export default function EmployeeDashboard() {
   const recentRequests = requests.slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f0fdf8] to-white p-8">
+    <div className="min-h-screen bg-gradient-to-br from-[#f0fdf8] to-white p-4 sm:p-6 lg:p-8">
       {/* Static Header with Fixed Logout Button */}
-      <header className="mb-8">
-        <div className="flex items-start justify-between">
-          <div className="flex items-center gap-4">
+      <header className="mb-6 sm:mb-8">
+        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
+          <div className="flex items-center gap-3 sm:gap-4">
             <div className="w-8 h-8 bg-gradient-to-br from-emerald-500 to-emerald-600 rounded-xl flex items-center justify-center flex-shrink-0">
               <div className="w-4 h-4 bg-white rounded-full flex items-center justify-center">
                 <User className="w-2 h-2 text-emerald-600" />
               </div>
             </div>
             <div>
-              <h1 className="text-lg font-black text-slate-800">Employee Dashboard</h1>
-              <p className="text-xs text-slate-500">Welcome back, {profile?.full_name || user?.email}</p>
+              <h1 className="text-base sm:text-lg lg:text-xl font-black text-slate-800">Employee Dashboard</h1>
+              <p className="text-xs text-slate-500 truncate max-w-[200px] sm:max-w-none">Welcome back, {profile?.full_name || user?.email}</p>
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
+          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 sm:gap-4">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2 w-full sm:w-auto">
               <button
                 onClick={() => navigate('/forms/leave')}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-semibold rounded-xl transition-all hover:shadow-lg transform hover:scale-105"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold rounded-xl transition-all hover:shadow-lg transform hover:scale-105 w-full sm:w-auto justify-center"
               >
                 <FileText className="w-4 h-4" />
-                Leave Form
+                <span className="hidden sm:inline">Leave Form</span>
+                <span className="sm:hidden">Leave</span>
               </button>
               <button
                 onClick={() => navigate('/forms/travel')}
-                className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-semibold rounded-xl transition-all hover:shadow-lg transform hover:scale-105"
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-xs sm:text-sm font-semibold rounded-xl transition-all hover:shadow-lg transform hover:scale-105 w-full sm:w-auto justify-center"
               >
                 <Plane className="w-4 h-4" />
-                Travel Form
+                <span className="hidden sm:inline">Travel Form</span>
+                <span className="sm:hidden">Travel</span>
               </button>
             </div>
             
-            
-            <div className="flex items-center gap-2">
-              <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 border border-red-600 text-red-600 hover:bg-red-50 text-sm font-semibold rounded-xl transition-all hover:shadow-lg">
-                <LogOut className="w-4 h-4" />
-                Logout
-              </button>
-            </div>
+            <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 border border-red-600 text-red-600 hover:bg-red-50 text-xs sm:text-sm font-semibold rounded-xl transition-all hover:shadow-lg w-full sm:w-auto justify-center">
+              <LogOut className="w-4 h-4" />
+              <span className="hidden sm:inline">Logout</span>
+              <span className="sm:hidden">Exit</span>
+            </button>
           </div>
         </div>
       </header>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4 mb-8">
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4 mb-6 sm:mb-8">
         <StatCard
           icon={Clock}
           label="Total Requests"
@@ -317,21 +310,21 @@ export default function EmployeeDashboard() {
         />
         <StatCard
           icon={Clock}
-          label="Pending Applications"
+          label="Pending"
           value={stats.pending}
           color="text-amber-600"
           bg="bg-amber-50"
         />
         <StatCard
           icon={CheckCircle2}
-          label="Approved Applications"
+          label="Approved"
           value={stats.approved}
           color="text-emerald-600"
           bg="bg-emerald-50"
         />
         <StatCard
           icon={Clock}
-          label="Declined Applications"
+          label="Declined"
           value={stats.declined}
           color="text-red-600"
           bg="bg-red-50"
@@ -347,23 +340,23 @@ export default function EmployeeDashboard() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6 sm:gap-8">
         <div>
           <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
-            <div className="px-6 py-4 border-b border-slate-100">
+            <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100">
               <div>
-                <h3 className="font-bold text-slate-800">Recent Requests</h3>
+                <h3 className="font-bold text-slate-800 text-sm sm:text-base lg:text-lg">Recent Requests</h3>
                 <p className="text-xs text-slate-400 mt-0.5">Your latest applications</p>
               </div>
             </div>
-            <div className="p-6 space-y-4 max-h-141.5 overflow-y-auto">
+            <div className="p-4 sm:p-6 space-y-3 sm:space-y-4 max-h-96 sm:max-h-[500px] overflow-y-auto">
               {recentRequests.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="w-12 h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
-                    <FileText className="w-6 h-6 text-slate-400" />
+                <div className="text-center py-6 sm:py-8">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 bg-slate-50 rounded-full flex items-center justify-center mx-auto mb-3">
+                    <FileText className="w-5 h-5 sm:w-6 sm:h-6 text-slate-400" />
                   </div>
-                  <p className="text-slate-500 font-medium">No requests yet</p>
-                  <p className="text-slate-400 text-xs mt-1">Create your first request to get started</p>
+                  <p className="text-slate-500 font-medium text-sm sm:text-base">No requests yet</p>
+                  <p className="text-slate-400 text-xs sm:text-sm mt-1">Create your first request to get started</p>
                 </div>
               ) : (
                 recentRequests.map((request) => (
@@ -378,21 +371,20 @@ export default function EmployeeDashboard() {
           </div>
         </div>
 
-        <div className="space-y-6">
-
+        <div className="space-y-4 sm:space-y-6">
           {/* QR Code Display */}
-          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-6 flex flex-col h-[643px]">
+          <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 sm:p-6 flex flex-col min-h-[400px] sm:min-h-[500px] lg:min-h-[643px]">
             <div className="text-center h-full flex flex-col">
-              <div className="mb-4">
-                <h3 className="font-bold text-slate-800 text-lg">Your ID Pass</h3>
-                <p className="text-sm text-slate-500">Scan at the security desk or present to admin</p>
+              <div className="mb-3 sm:mb-4">
+                <h3 className="font-bold text-slate-800 text-sm sm:text-base lg:text-lg">Your ID Pass</h3>
+                <p className="text-xs sm:text-sm text-slate-500">Scan at the security desk or present to admin</p>
               </div>
               
-              <div className="flex-1 flex flex-col items-center justify-center p-6 bg-gradient-to-br from-emerald-50 to-blue-50/50 rounded-2xl border border-emerald-100 mb-4">
-                <div className="bg-white p-4 rounded-xl shadow-sm border border-emerald-200 inline-block transition-transform hover:scale-105 duration-300">
+              <div className="flex-1 flex flex-col items-center justify-center p-3 sm:p-6 bg-gradient-to-br from-emerald-50 to-blue-50/50 rounded-2xl border border-emerald-100 mb-3 sm:mb-4">
+                <div className="bg-white p-2 sm:p-4 rounded-xl shadow-sm border border-emerald-200 inline-block transition-transform hover:scale-105 duration-300">
                   <QRCodeSVG 
                     value={`${window.location.origin}/profile/view/${user?.id}`}
-                    size={380}
+                    size={window.innerWidth < 640 ? 200 : window.innerWidth < 1024 ? 280 : 380}
                     level="H"
                     includeMargin={false}
                     fgColor="#022720"
@@ -401,8 +393,8 @@ export default function EmployeeDashboard() {
               </div>
               
               <div>
-                <p className="font-bold text-slate-800 text-lg">{profile?.full_name || 'Employee'}</p>
-                <p className="text-sm font-medium text-emerald-600">
+                <p className="font-bold text-slate-800 text-sm sm:text-base lg:text-lg truncate max-w-full">{profile?.full_name || 'Employee'}</p>
+                <p className="text-xs sm:text-sm font-medium text-emerald-600 truncate max-w-full">
                   {profile?.department || 'LeaveGo Organization'}
                 </p>
               </div>

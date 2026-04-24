@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PDF Viewer Test</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .controls {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        .controls label {
+            margin-right: 15px;
+        }
+        .controls select, .controls input {
+            padding: 5px;
+            margin-left: 5px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        button:disabled {
+            background: #ccc;
+            cursor: not-allowed;
+        }
+        iframe {
+            width: 100%;
+            height: 800px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .code-guide {
+            background: #f9f9f9;
+            padding: 20px;
+            border-radius: 5px;
+            margin-top: 20px;
+        }
+        .code-guide h3 {
+            color: #333;
+            border-bottom: 2px solid #007bff;
+            padding-bottom: 5px;
+        }
+        .code-block {
+            background: #f0f0f0;
+            padding: 10px;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            margin: 10px 0;
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📄 Monthly Summary PDF Viewer</h1>
+        <p>Generate and preview the monthly summary PDF with test data.</p>
+        
+        <div class="controls">
+            <label>
+                Month: 
+                <select id="monthSelect">
+                    <option value="0">January</option>
+                    <option value="1">February</option>
+                    <option value="2">March</option>
+                    <option value="3">April</option>
+                    <option value="4">May</option>
+                    <option value="5">June</option>
+                    <option value="6">July</option>
+                    <option value="7">August</option>
+                    <option value="8">September</option>
+                    <option value="9">October</option>
+                    <option value="10">November</option>
+                    <option value="11">December</option>
+                </select>
+            </label>
+            <label>
+                Year: 
+                <input type="number" id="yearInput" value="2024" min="2020" max="2030">
+            </label>
+            <br>
+            <button id="generateBtn" onclick="generatePDF()">Generate PDF</button>
+            <button id="downloadBtn" onclick="downloadPDF()" style="display: none; background: #28a745;">Download PDF</button>
+            <button id="autoGenerateBtn" onclick="toggleAutoGenerate()" style="background: #6c757d;">Auto-Generate: OFF</button>
+        </div>
+
+        <div id="pdfContainer" style="display: none;">
+            <h3>PDF Preview:</h3>
+            <iframe id="pdfFrame"></iframe>
+        </div>
+
+        <div class="code-guide">
+            <h2>📝 How to Modify the PDF Code</h2>
+            
+            <h3>🎨 Colors & Styling</h3>
+            <p><strong>Line 6-12:</strong> Change leave type colors</p>
+            <div class="code-block">
+'SL': { color: [255, 0, 0], label: 'SICK LEAVE', text: [0, 0, 0] }
+            </div>
+            <p>Format: [Red, Green, Blue] values from 0-255</p>
+
+            <h3>📏 Layout & Sizing</h3>
+            <p><strong>Line 106:</strong> Font size (change 8 to larger/smaller)</p>
+            <p><strong>Line 107:</strong> Cell padding (change 2 for spacing)</p>
+            <p><strong>Line 108:</strong> Font family ('times', 'helvetica', 'courier')</p>
+            <p><strong>Line 124:</strong> Remarks column width (change 120)</p>
+            <p><strong>Line 126:</strong> Page margins (change left: 20, right: 20)</p>
+
+            <h3>📄 Headers & Text</h3>
+            <p><strong>Line 25-26:</strong> Main title text</p>
+            <p><strong>Line 113:</strong> Header background color [255, 255, 255] = white</p>
+            <p><strong>Line 114:</strong> Header text color [0, 0, 0] = black</p>
+
+            <h3>👥 Signatories</h3>
+            <p><strong>Lines 237-244:</strong> Names and titles</p>
+            <div class="code-block">
+pdf.text('MARICA PIA R. DIMALANTA-LICO', 130, footerY + 40);
+pdf.text('EDWARD V. SERNADILLA, RPF, DPA', 580, footerY + 40);
+            </div>
+            <p>Format: pdf.text('Name', x-position, y-position);</p>
+
+            <h3>🎯 Weekend Color</h3>
+            <p><strong>Line 141:</strong> Weekend background [112, 48, 160] = purple</p>
+            <p><strong>Line 142:</strong> Weekend text color [0, 0, 0] = black</p>
+
+            <h3>📊 Column Widths</h3>
+            <p><strong>Line 120:</strong> Index column width (25)</p>
+            <p><strong>Line 121:</strong> Name column width (150)</p>
+            <p><strong>Line 123:</strong> Undertime column width (60)</p>
+            <p><strong>Line 124:</strong> Remarks column width (120)</p>
+
+            <p><strong>💡 Tip:</strong> The numbers in brackets are RGB colors. [0,0,0] = black, [255,255,255] = white</p>
+        </div>
+    </div>
+
+    <!-- Include jsPDF libraries -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+
+    <script>
+        let currentPdfBlob = null;
+        let autoGenerate = false;
+        const { jsPDF } = window.jspdf;
+
+        // Test data
+        function createTestData(month, year) {
+            return [
+                {
+                    user_name: 'John Doe',
+                    details: {
+                        leave_type: 'Sick Leave',
+                        start_date: `${year}-${String(month + 1).padStart(2, '0')}-05`,
+                        end_date: `${year}-${String(month + 1).padStart(2, '0')}-07`,
+                        num_days: 3
+                    },
+                    id: '12345',
+                    request_type: 'leave'
+                },
+                {
+                    user_name: 'Jane Smith',
+                    details: {
+                        leave_type: 'Official Business',
+                        start_date: `${year}-${String(month + 1).padStart(2, '0')}-10`,
+                        end_date: `${year}-${String(month + 1).padStart(2, '0')}-12`,
+                        num_days: 3
+                    },
+                    id: '67890',
+                    request_type: 'travel'
+                },
+                {
+                    user_name: 'Robert Johnson',
+                    details: {
+                        leave_type: 'Vacation Leave',
+                        start_date: `${year}-${String(month + 1).padStart(2, '0')}-15`,
+                        end_date: `${year}-${String(month + 1).padStart(2, '0')}-20`,
+                        num_days: 6
+                    },
+                    id: '54321',
+                    request_type: 'leave'
+                }
+            ];
+        }
+
+        // Helper functions
+        function getLeaveColors(type) {
+            const colors = {
+                'SL': { color: [255, 0, 0], label: 'SICK LEAVE', text: [0, 0, 0] },
+                'Maternity': { color: [144, 238, 144], label: 'MATERNITY', text: [0, 0, 0] },
+                'OB': { color: [255, 255, 0], label: 'OFFICIAL BUSINESS', text: [0, 0, 0] },
+                'FL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
+                'SPL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
+                'VL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
+                'Weekend': { color: [112, 48, 160], label: 'SATURDAY/SUNDAY/HOLIDAY', text: [0, 0, 0] }
+            };
+            return colors[type] || colors['OB'];
+        }
+
+        function getLeaveTypeAbbreviation(leaveType) {
+            if (!leaveType) return 'OB';
+            
+            const typeMap = {
+                'Sick Leave': 'SL',
+                'Maternity Leave': 'Maternity',
+                'Official Business': 'OB',
+                'Forced Leave': 'FL',
+                'Special Privilege Leave': 'SPL',
+                'Vacation Leave': 'VL'
+            };
+            return typeMap[leaveType] || 'OB';
+        }
+
+        function isWeekendOrHoliday(day, month, year) {
+            const dateStr = `${month} 1, ${year}`;
+            const dt = new Date(dateStr);
+            if (isNaN(dt.getTime())) return false;
+            
+            const testDate = new Date(year, dt.getMonth(), day);
+            const dayOfWeek = testDate.getDay();
+            return dayOfWeek === 0 || dayOfWeek === 6;
+        }
+
+        function toggleAutoGenerate() {
+            autoGenerate = !autoGenerate;
+            const btn = document.getElementById('autoGenerateBtn');
+            btn.textContent = `Auto-Generate: ${autoGenerate ? 'ON' : 'OFF'}`;
+            btn.style.backgroundColor = autoGenerate ? '#28a745' : '#6c757d';
+            
+            // Add event listeners for real-time updates
+            if (autoGenerate) {
+                document.getElementById('monthSelect').addEventListener('change', generatePDF);
+                document.getElementById('yearInput').addEventListener('input', generatePDF);
+                generatePDF(); // Generate immediately when turned on
+            } else {
+                document.getElementById('monthSelect').removeEventListener('change', generatePDF);
+                document.getElementById('yearInput').removeEventListener('input', generatePDF);
+            }
+        }
+
+        async function generatePDF() {
+            const btn = document.getElementById('generateBtn');
+            const month = parseInt(document.getElementById('monthSelect').value);
+            const year = parseInt(document.getElementById('yearInput').value);
+            
+            // Only disable button if not in auto-generate mode
+            if (!autoGenerate) {
+                btn.disabled = true;
+                btn.textContent = 'Generating...';
+            }
+            
+            try {
+                const data = createTestData(month, year);
+                const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                
+                // Create PDF
+                const pdf = new jsPDF('landscape', 'pt', 'legal');
+                
+                // === LINE 18-31: HEADER SETUP ===
+                const currentDate = new Date();
+                const reportMonth = months[month] || currentDate.toLocaleString('default', { month: 'long' });
+                const reportYear = year || currentDate.getFullYear();
+                
+                pdf.setFontSize(11);
+                pdf.setFont('times', 'bold');
+                pdf.text('REPORT OF ATTENDANCE OF CENRO-OLONGAPO CITY', pdf.internal.pageSize.width / 2, 40, { align: 'center' });
+                pdf.text(`FOR THE MONTH OF ${reportMonth.toUpperCase()} ${reportYear}`, pdf.internal.pageSize.width / 2, 55, { align: 'center' });
+
+                // === LINE 33-56: DATA PROCESSING ===
+                const employeeMap = {};
+                
+                data.forEach(req => {
+                    const name = req.user_name || 'Unknown';
+                    if (!employeeMap[name]) {
+                        employeeMap[name] = { name, leaves: {} };
+                    }
+                    
+                    if (req.details?.start_date && req.details?.end_date) {
+                        const typeStr = req.details.leave_type || (req.request_type === 'travel' ? 'Official Business' : '');
+                        const type = getLeaveTypeAbbreviation(typeStr);
+                        let controlNumber = req.id ? String(req.id).slice(-4) : Math.floor(Math.random() * 10000).toString();
+                        controlNumber = `26-${controlNumber.padStart(4, '0')}`;
+                        
+                        const start = new Date(req.details.start_date);
+                        const end = new Date(req.details.end_date);
+                        
+                        for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
+                            employeeMap[name].leaves[d.getDate()] = {
+                                type,
+                                controlNumber,
+                                label: type
+                            };
+                        }
+                    }
+                });
+
+                // === LINE 58-76: TABLE ROWS PREPARATION ===
+                const sortedNames = Object.keys(employeeMap).sort((a, b) => a.localeCompare(b));
+                const tableRows = [];
+                
+                sortedNames.forEach((name, idx) => {
+                    const row = [ (idx + 1).toString(), name ];
+                    for (let day = 1; day <= 31; day++) {
+                        const cellData = employeeMap[name].leaves[day];
+                        if (cellData) {
+                            row.push(cellData.type === 'Weekend' ? '' : cellData.controlNumber || cellData.type);
+                        } else {
+                            row.push('');
+                        }
+                    }
+                    row.push('');
+                    row.push('');
+                    tableRows.push(row);
+                });
+
+                // === LINE 78-87: TABLE HEADERS ===
+                const tableHeaders = [
+                    [
+                        { content: '#', styles: { halign: 'center' } },
+                        { content: 'NAME OF PERSONNEL', styles: { halign: 'left' } },
+                        ...Array.from({ length: 31 }, (_, i) => ({ content: (i + 1).toString(), styles: { halign: 'center', cellWidth: 22 } })),
+                        { content: 'Undertime', styles: { halign: 'center' } },
+                        { content: 'REMARKS', styles: { halign: 'center' } }
+                    ]
+                ];
+
+                // === LINE 95-199: TABLE GENERATION ===
+                const getDaysInMonth = (monthStr, yr) => {
+                    return new Date(yr, new Date(`${monthStr} 1, ${yr}`).getMonth() + 1, 0).getDate();
+                };
+                const maxDays = getDaysInMonth(reportMonth, reportYear);
+
+                pdf.autoTable({
+                    startY: 80,
+                    head: tableHeaders,
+                    body: tableRows,
+                    theme: 'grid',
+                    styles: {
+                        fontSize: 8,           // === LINE 106: FONT SIZE ===
+                        cellPadding: 2,         // === LINE 107: CELL PADDING ===
+                        font: 'times',          // === LINE 108: FONT FAMILY ===
+                        lineColor: [0, 0, 0],  // === LINE 109: BORDER COLOR ===
+                        lineWidth: 0.5,         // === LINE 110: BORDER WIDTH ===
+                        textColor: [0, 0, 0],   // === LINE 111: TEXT COLOR ===
+                    },
+                    headStyles: {
+                        fillColor: [255, 255, 255],  // === LINE 113: HEADER BACKGROUND ===
+                        textColor: [0, 0, 0],        // === LINE 114: HEADER TEXT COLOR ===
+                        fontStyle: 'bold',            // === LINE 115: HEADER FONT STYLE ===
+                        halign: 'center',             // === LINE 116: HEADER ALIGNMENT ===
+                        cellPadding: 1                // === LINE 117: HEADER PADDING ===
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }, // Index column
+                        1: { cellWidth: 150, fontStyle: 'bold' },                   // Name column
+                        33: { cellWidth: 60 },                                     // Undertime column
+                        34: { cellWidth: 80 }                                      // === LINE 124: REMARKS WIDTH ===
+                    },
+                    margin: { left: 15, right: 20 },  // === LINE 126: MARGINS ===
+                    didParseCell: function (data) {
+                        // === LINES 127-153: CELL STYLING LOGIC ===
+                        if (data.section === 'body' && data.column.index >= 2 && data.column.index <= 32) {
+                            const day = data.column.index - 1;
+                            
+                            if (day > maxDays) {
+                                data.cell.styles.fillColor = [200, 200, 200];
+                                return;
+                            }
+
+                            const employeeName = data.row.raw[1];
+                            const leaveInfo = employeeMap[employeeName]?.leaves[day];
+                            const isWkend = isWeekendOrHoliday(day, reportMonth, reportYear);
+                            
+                            if (isWkend) {
+                                data.cell.styles.fillColor = [112, 48, 160];  // Weekend color
+                                data.cell.styles.textColor = [0, 0, 0];       // Weekend text color
+                                data.cell.text = [];
+                            } else if (leaveInfo) {
+                                // === LINES 141-146: LEAVE CELL STYLING ===
+                                const leaveColors = getLeaveColors(leaveInfo.type);
+                                data.cell.styles.fillColor = leaveColors.color;
+                                data.cell.styles.textColor = leaveColors.text;
+                                data.cell.styles.halign = 'center';
+                                data.cell.styles.fontSize = 6; 
+                                data.cell.styles.fontStyle = 'bold';
+                            }
+                        }
+                    },
+                    willDrawCell: function(data) {
+                        // === LINES 155-198: MERGED CELLS LOGIC ===
+                        if (data.section === 'body' && data.column.index >= 2 && data.column.index <= 32) {
+                            const day = data.column.index - 1;
+                            const employeeName = data.row.raw[1];
+                            
+                            const leaveInfo = employeeMap[employeeName]?.leaves[day];
+                            if (leaveInfo && leaveInfo.type !== 'Weekend') {
+                                let duration = 1;
+                                let currentDay = day + 1;
+                                
+                                while (employeeMap[employeeName]?.leaves[currentDay]?.type === leaveInfo.type) {
+                                    duration++;
+                                    currentDay++;
+                                }
+                                
+                                if (duration > 1) {
+                                    const pdf = data.doc;
+                                    const cellWidth = data.cell.width * duration;
+                                    const cellX = data.cell.x;
+                                    const cellY = data.cell.y;
+                                    const cellHeight = data.cell.height;
+                                    
+                                    const leaveColors = getLeaveColors(leaveInfo.type);
+                                    pdf.setFillColor(...leaveColors.color);
+                                    pdf.rect(cellX, cellY, cellWidth, cellHeight, 'F');
+                                    
+                                    pdf.setFont('times', 'bold');
+                                    pdf.setFontSize(6);
+                                    pdf.setTextColor(...leaveColors.text);
+                                    pdf.text(leaveInfo.controlNumber || leaveInfo.type, cellX + cellWidth/2, cellY + cellHeight/2 + 2, { align: 'center' });
+                                    
+                                    data.cell.text = [];
+                                    data.cell.styles.fillColor = false;
+                                }
+                            }
+                        }
+                    }
+                });
+
+                // === LINES 201-229: LEGEND ===
+                const finalY = pdf.lastAutoTable.finalY + 15;
+                let currentX = 15;
+                
+                const legendGroups = [
+                    { key: 'Weekend' },
+                    { key: 'SL' },
+                    { key: 'Maternity' },
+                    { key: 'OB' },
+                    { key: 'VL' }
+                ];
+
+                legendGroups.forEach(item => {
+                    const colorInfo = getLeaveColors(item.key);
+                    if (colorInfo) {
+                        pdf.setFillColor(...colorInfo.color);
+                        pdf.rect(currentX, finalY, 150, 15, 'F');
+                        
+                        pdf.setFontSize(8);
+                        pdf.setFont('times', 'bold');
+                        pdf.setTextColor(0,0,0);
+                        pdf.text(colorInfo.label, currentX + 75, finalY + 10, { align: 'center' });
+                        
+                        currentX += 160;
+                    }
+                });
+
+                // === LINES 231-248: SIGNATORIES ===
+                const footerY = pdf.internal.pageSize.height - 100;
+                
+                pdf.setFontSize(10);
+                pdf.setFont('times', 'normal');
+                pdf.setTextColor(0,0,0);
+                pdf.text('Prepared/Reviewed by:', 125, footerY);
+                pdf.text('Approved By:', 580, footerY);
+                
+                pdf.setFontSize(11);
+                pdf.setFont('times', 'bold');
+                pdf.text('MARICA PIA R. DIMALANTA-LICO', 125, footerY + 40);
+                pdf.text('EDWARD V. SERNADILLA, RPF, DPA', 580, footerY + 40);
+
+                pdf.setFontSize(9);
+                pdf.setFont('times', 'normal');
+                pdf.text('FIII/Chief, CDS and in concurrent capacity as Chief, PSU', 125, footerY + 55);
+                pdf.text('CENRO', 580, footerY + 55);
+
+                // Create blob and display
+                currentPdfBlob = pdf.output('blob');
+                const url = URL.createObjectURL(currentPdfBlob);
+                
+                document.getElementById('pdfFrame').src = url;
+                document.getElementById('pdfContainer').style.display = 'block';
+                document.getElementById('downloadBtn').style.display = 'inline-block';
+                
+            } catch (error) {
+                console.error('Error generating PDF:', error);
+                alert('Error generating PDF: ' + error.message);
+            } finally {
+                // Only re-enable button if not in auto-generate mode
+                if (!autoGenerate) {
+                    btn.disabled = false;
+                    btn.textContent = 'Generate PDF';
+                }
+            }
+        }
+
+        function downloadPDF() {
+            if (currentPdfBlob) {
+                const month = parseInt(document.getElementById('monthSelect').value);
+                const year = parseInt(document.getElementById('yearInput').value);
+                const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+                
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(currentPdfBlob);
+                link.download = `Monthly_Summary_${months[month]}_${year}.pdf`;
+                link.click();
+            }
+        }
+
+        // Set current month and year
+        document.getElementById('monthSelect').value = new Date().getMonth();
+        document.getElementById('yearInput').value = new Date().getFullYear();
+        
+        // Generate PDF immediately on page load
+        window.addEventListener('load', function() {
+            setTimeout(generatePDF, 500); // Small delay to ensure everything is loaded
+        });
+    </script>
+</body>
+</html>

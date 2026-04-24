@@ -130,14 +130,14 @@ export default function MonthlySummary() {
       <div className="p-2 sm:p-4 lg:p-8">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-4 sm:mb-6 gap-4">
           <div>
-            <h2 className="text-xl sm:text-2xl font-black text-slate-800">Monthly Summary</h2>
+            <h2 className="text-lg sm:text-xl lg:text-2xl font-black text-slate-800">Monthly Summary</h2>
             <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Color-coded leave calendar for approved applications</p>
           </div>
           <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
             <button
               onClick={downloadPDF}
               disabled={isGeneratingPDF}
-              className={`flex items-center gap-2 px-4 py-2 text-sm font-semibold rounded-xl transition-all shadow-sm ${
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold rounded-xl transition-all shadow-sm ${
                 isGeneratingPDF 
                   ? 'bg-gray-400 text-white cursor-not-allowed' 
                   : 'bg-emerald-600 hover:bg-emerald-700 text-white'
@@ -147,37 +147,40 @@ export default function MonthlySummary() {
               {isGeneratingPDF ? (
                 <>
                   <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  Generating...
+                  <span className="hidden sm:inline">Generating...</span>
+                  <span className="sm:hidden">...</span>
                 </>
               ) : (
                 <>
                   <Download className="w-4 h-4" />
-                  Download PDF
+                  <span className="hidden sm:inline">Download PDF</span>
+                  <span className="sm:hidden">PDF</span>
                 </>
               )}
             </button>
-            <button onClick={prevMonth} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm">
+            <button onClick={prevMonth} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm">
               <ChevronLeft className="w-4 h-4 text-slate-600" />
             </button>
             <button 
               onClick={() => setShowCalendar(true)}
-              className="px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 min-w-[150px] text-center shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
+              className="px-3 sm:px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 min-w-[120px] sm:min-w-[150px] text-center shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
             >
               <Calendar className="w-4 h-4" />
-              {MONTHS[viewMonth]} {viewYear}
+              <span className="truncate">{MONTHS[viewMonth]} {viewYear}</span>
             </button>
-            <button onClick={nextMonth} className="w-9 h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm">
+            <button onClick={nextMonth} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm">
               <ChevronRight className="w-4 h-4 text-slate-600" />
             </button>
           </div>
         </div>
 
         {/* Legend */}
-        <div className="flex flex-wrap gap-3 mb-6">
+        <div className="flex flex-wrap gap-2 sm:gap-3 mb-4 sm:mb-6">
           {legend.map(l => (
-            <span key={l.label} className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold border ${l.color}`}>
-              <span className={`w-2 h-2 rounded-full ${l.color.split(' ')[0]}`}></span>
-              {l.label}
+            <span key={l.label} className={`inline-flex items-center gap-1 sm:gap-2 px-2 sm:px-3 py-1 sm:py-1.5 rounded-full text-xs font-semibold border ${l.color}`}>
+              <span className={`w-1.5 h-1.5 sm:w-2 sm:h-2 rounded-full ${l.color.split(' ')[0]}`}></span>
+              <span className="hidden sm:inline">{l.label}</span>
+              <span className="sm:hidden text-[10px]">{l.label.split(' ')[0]}</span>
             </span>
           ))}
         </div>
@@ -190,12 +193,12 @@ export default function MonthlySummary() {
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-4 sm:mb-6 mobile-compact-card">
               <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100">
                 {['S','M','T','W','T','F','S'].map(d => (
-                  <div key={d} className="px-1 py-2 text-center text-xs font-bold text-slate-500 uppercase tracking-wider">{d}</div>
+                  <div key={d} className="px-1 py-1 sm:px-1 sm:py-2 text-center text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">{d}</div>
                 ))}
               </div>
               <div className="grid grid-cols-7 overflow-x-auto">
                 {Array.from({ length: firstDayOfMonth }, (_, i) => (
-                  <div key={`empty-${i}`} className="h-16 sm:h-24 border-b border-r border-slate-50 bg-slate-50/50" />
+                  <div key={`empty-${i}`} className="h-12 sm:h-16 lg:h-24 border-b border-r border-slate-50 bg-slate-50/50" />
                 ))}
                 {Array.from({ length: daysInMonth }, (_, i) => {
                   const day = i + 1;
@@ -205,20 +208,21 @@ export default function MonthlySummary() {
                     return d.getDate() === day && d.getMonth() === viewMonth && d.getFullYear() === viewYear;
                   });
                   return (
-                    <div key={day} className={`h-16 sm:h-24 border-b border-r border-slate-50 ${weekend ? 'bg-slate-50/30' : 'bg-white'} relative group`}>
-                      <div className="text-xs font-medium text-slate-600 p-0.5 sm:p-1">{day}</div>
-                      <div className="space-y-0.5 p-0.5 sm:p-1 overflow-y-auto max-h-12 sm:max-h-16">
-                        {dayForms.slice(0, 2).map((req, i) => {
+                    <div key={day} className={`h-12 sm:h-16 lg:h-24 border-b border-r border-slate-50 ${weekend ? 'bg-slate-50/30' : 'bg-white'} relative group`}>
+                      <div className="text-[10px] sm:text-xs font-medium text-slate-600 p-0.5 sm:p-1">{day}</div>
+                      <div className="space-y-0.5 p-0.5 sm:p-1 overflow-y-auto max-h-8 sm:max-h-12 lg:max-h-16">
+                        {dayForms.slice(0, 1).map((req, i) => {
                           const col = getLeaveColor(req);
                           const applicantName = req.user_name || req.user_email?.split('@')[0] || 'Unknown';
-                          const displayName = applicantName.length > 12 ? applicantName.substring(0, 12) + '...' : applicantName;
+                          const displayName = applicantName.length > 8 ? applicantName.substring(0, 8) + '...' : applicantName;
                           return (
-                            <div key={i} className={`text-[8px] sm:text-[10px] leading-none px-0.5 py-0.5 rounded truncate ${col.bg} ${col.text} ${col.border}`}>
-                              {displayName} - {col.label}
+                            <div key={i} className={`text-[6px] sm:text-[8px] lg:text-[10px] leading-none px-0.5 py-0.5 rounded truncate ${col.bg} ${col.text} ${col.border}`}>
+                              <span className="hidden lg:inline">{displayName} - {col.label}</span>
+                              <span className="lg:hidden">{displayName.split(' ')[0]}</span>
                             </div>
                           );
                         })}
-                        {dayForms.length > 2 && <div className="text-[8px] sm:text-[9px] text-slate-400 font-medium">+{dayForms.length - 2} more</div>}
+                        {dayForms.length > 1 && <div className="text-[6px] sm:text-[8px] lg:text-[9px] text-slate-400 font-medium">+{dayForms.length - 1}</div>}
                       </div>
                     </div>
                   );
@@ -228,21 +232,21 @@ export default function MonthlySummary() {
 
             {/* Employee Table */}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mobile-compact-card">
-              <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-100">
-                <h3 className="font-bold text-slate-800 text-sm sm:text-base">Employee Summary — {MONTHS[viewMonth]} {viewYear}</h3>
+              <div className="px-3 sm:px-4 lg:px-6 py-2 sm:py-3 lg:py-4 border-b border-slate-100">
+                <h3 className="font-bold text-slate-800 text-sm sm:text-base lg:text-lg">Employee Summary — {MONTHS[viewMonth]} {viewYear}</h3>
                 <p className="text-xs text-slate-400 mt-0.5">{monthForms.length} application{monthForms.length !== 1 ? 's' : ''} approved this month</p>
               </div>
               {Object.keys(byEmployee).length === 0 ? (
-                <div className="py-8 sm:py-12 text-center text-slate-400 text-xs sm:text-sm">No approved applications for this month.</div>
+                <div className="py-6 sm:py-8 lg:py-12 text-center text-slate-400 text-xs sm:text-sm">No approved applications for this month.</div>
               ) : (
                 <div className="mobile-scroll-table">
                   <table className="w-full mobile-compact-table text-xs sm:text-sm">
                   <thead>
                     <tr className="bg-slate-50">
-                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
-                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Forms</th>
-                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Types</th>
-                      <th className="px-2 sm:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Days</th>
+                      <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
+                      <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Forms</th>
+                      <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Types</th>
+                      <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Days</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
@@ -250,9 +254,12 @@ export default function MonthlySummary() {
                       const totalDays = reqs.reduce((sum, r) => sum + parseInt(r.details?.num_days || 1), 0);
                       return (
                         <tr key={name} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="px-2 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm font-semibold text-slate-800 truncate">{name}</td>
-                          <td className="px-2 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-slate-600">{reqs.length}</td>
-                          <td className="px-2 sm:px-6 py-2 sm:py-4">
+                          <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4 text-xs sm:text-sm font-semibold text-slate-800 truncate">
+                            <span className="block lg:hidden truncate max-w-[100px]">{name.split(' ')[0]}</span>
+                            <span className="hidden lg:inline">{name}</span>
+                          </td>
+                          <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4 text-xs sm:text-sm text-slate-600">{reqs.length}</td>
+                          <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4">
                             <div className="flex flex-wrap gap-0.5 sm:gap-1">
                               {(() => {
                                 const typeGroups = {};
@@ -267,13 +274,14 @@ export default function MonthlySummary() {
                                 
                                 return Object.entries(typeGroups).map(([label, { count, color }]) => (
                                   <span key={label} className={`px-1 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-xs font-bold border ${color.bg} ${color.text} ${color.border}`}>
-                                    {count > 1 ? `${count} ${label}` : label}
+                                    <span className="hidden sm:inline">{count > 1 ? `${count} ${label}` : label}</span>
+                                    <span className="sm:hidden">{count > 1 ? `${count}` : label.split(' ')[0]}</span>
                                   </span>
                                 ));
                               })()}
                             </div>
                           </td>
-                          <td className="px-2 sm:px-6 py-2 sm:py-4 text-xs sm:text-sm text-slate-600">{totalDays} day{totalDays !== 1 ? 's' : ''}</td>
+                          <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4 text-xs sm:text-sm text-slate-600">{totalDays} day{totalDays !== 1 ? 's' : ''}</td>
                         </tr>
                       );
                     })}
