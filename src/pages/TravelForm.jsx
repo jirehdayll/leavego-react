@@ -5,6 +5,7 @@ import { OFFICES, APPROPRIATIONS, DEPARTMENTS, POSITIONS, REQUEST_TYPES } from '
 import SalaryRangeInput from '../components/SalaryRangeInput';
 import { ArrowLeft, Send, ChevronDown, Edit } from 'lucide-react';
 import { leaveRequestsAPI } from '../api/leaveRequests';
+import { generateUUID, isValidUUID } from '../utils/uuid';
 
 const InputField = ({ label, required, children }) => (
   <div>
@@ -110,9 +111,19 @@ export default function TravelForm() {
         throw new Error('You must be logged in to submit a request.');
       }
       
+      // Validate and ensure user_id is a proper UUID
+      const userId = isValidUUID(user.id) ? user.id : generateUUID();
+      
+      // If the user.id was invalid, update the stored session with a valid UUID
+      if (!isValidUUID(user.id)) {
+        const updatedUser = { ...user, id: userId };
+        localStorage.setItem('basicAuth', JSON.stringify(updatedUser));
+        console.warn('[TravelForm] Invalid user.id detected, regenerated valid UUID:', userId);
+      }
+
       // Create travel request object for API
       const travelRequest = {
-        user_id: user.id,
+        user_id: userId,
         user_email: user.email,
         user_name: formData.full_name,
         request_type: REQUEST_TYPES.TRAVEL,

@@ -80,59 +80,34 @@ export default function Archive() {
   const [sortBy, setSortBy] = useState('date-desc');
   const [selectedMonth, setSelectedMonth] = useState('');
 
-  const fetch = () => {
+  const fetch = async () => {
     setLoading(true);
     try {
-      // Get forms from localStorage
-      let allForms = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
+      // Import supabase client for fetching from database
+      const { supabase } = await import('../lib/supabaseClient');
       
-      // Create sample archived data if none exists
-      if (allForms.length === 0) {
-        const sampleArchivedForms = [
-          {
-            id: 'arch1',
-            user_email: 'employee@denr.gov.ph',
-            user_name: 'Employee User',
-            request_type: REQUEST_TYPES.LEAVE,
-            status: REQUEST_STATUS.DECLINED,
-            is_archived: true,
-            submitted_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-            created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
-            details: { leave_type: 'Vacation Leave', num_days: 5, details_of_leave: 'Family vacation' }
-          },
-          {
-            id: 'arch2',
-            user_email: 'employee@denr.gov.ph',
-            user_name: 'Employee User',
-            request_type: REQUEST_TYPES.TRAVEL,
-            status: REQUEST_STATUS.APPROVED,
-            is_archived: true,
-            submitted_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-            created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
-            details: { destination: 'Cebu City', purpose: 'Regional Conference', departure_date: '2024-03-15', arrival_date: '2024-03-17' }
-          },
-          {
-            id: 'arch3',
-            user_email: 'test@denr.gov.ph',
-            user_name: 'Test User',
-            request_type: REQUEST_TYPES.LEAVE,
-            status: REQUEST_STATUS.DECLINED,
-            is_archived: false, // Declined but not archived
-            submitted_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-            created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
-            details: { leave_type: 'Sick Leave', num_days: 2, details_of_leave: 'Medical consultation' }
-          }
-        ];
-        localStorage.setItem('leaveRequests', JSON.stringify(sampleArchivedForms));
-        allForms = sampleArchivedForms;
+      // Fetch archived and declined forms from Supabase
+      const { data, error } = await supabase
+        .from('leave_requests')
+        .select('*')
+        .or(`is_archived.eq.true,status.eq.${REQUEST_STATUS.DECLINED}`)
+        .order('submitted_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching archive data from Supabase:', error);
+        // Fallback to localStorage if Supabase fails
+        const localForms = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
+        const archivedForms = localForms.filter(f => f.is_archived === true || f.status === REQUEST_STATUS.DECLINED);
+        setForms(archivedForms);
+      } else {
+        setForms(data || []);
       }
-      
-      // Filter for archived and declined forms
-      const archivedForms = allForms.filter(f => f.is_archived === true || f.status === REQUEST_STATUS.DECLINED);
-      setForms(archivedForms);
     } catch (error) {
       console.error('Error fetching archive data:', error);
-      setForms([]);
+      // Fallback to localStorage
+      const localForms = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
+      const archivedForms = localForms.filter(f => f.is_archived === true || f.status === REQUEST_STATUS.DECLINED);
+      setForms(archivedForms);
     } finally {
       setLoading(false);
     }
@@ -140,40 +115,35 @@ export default function Archive() {
 
   useEffect(() => { fetch(); }, []);
 
-  const restore = (id) => {
+  const restore = async (id) => {
     if (!window.confirm('Are you sure you want to restore this application? It will be moved back to the pending applications list.')) {
       return;
     }
     
     try {
-      // Get all forms from localStorage
-      let allForms = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
-      const formToRestore = allForms.find(form => form.id === id);
+      // Import supabase client
+      const { supabase } = await import('../lib/supabaseClient');
       
-      if (!formToRestore) {
-        alert('Form not found.');
-        return;
+      // Update the form in Supabase
+      const { error } = await supabase
+        .from('leave_requests')
+        .update({
+          is_archived: false,
+          status: REQUEST_STATUS.PENDING,
+          // Reset approval fields if they exist
+          admin_approved: false,
+          admin_approved_at: null,
+          admin_approved_by: null,
+          cenro_approved: false,
+          cenro_approved_at: null,
+          cenro_approved_by: null
+        })
+        .eq('id', id);
+      
+      if (error) {
+        throw error;
       }
       
-      // Restore the form - allow restoring both archived pending and declined forms
-      const updatedForms = allForms.map(form => {
-        if (form.id === id) {
-          return {
-            ...form,
-            is_archived: false,
-            status: REQUEST_STATUS.PENDING,
-            // Reset approval fields if they exist
-            admin_approved: false,
-            admin_approved_at: null,
-            admin_approved_by: null,
-            cenro_approved: false,
-            cenro_approved_at: null,
-            cenro_approved_by: null
-          };
-        }
-        return form;
-      });
-      localStorage.setItem('leaveRequests', JSON.stringify(updatedForms));
       fetch(); // Refresh the archive list
       alert('Application restored successfully. It has been moved back to pending applications.');
     } catch (error) {
@@ -372,7 +342,9 @@ export default function Archive() {
                         <div className="flex items-center justify-end gap-2 mobile-action-buttons" onClick={e => e.stopPropagation()}>
                           <button onClick={e => { e.stopPropagation(); setSelected(req); }} className="p-2 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all mobile-compact-icon-btn"><Eye className="w-4 h-4" /></button>
                           <button onClick={e => { e.stopPropagation(); downloadPDF(req); }} className="p-2 text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 rounded-xl transition-all mobile-compact-icon-btn"><Download className="w-4 h-4" /></button>
-                          <button onClick={e => { e.stopPropagation(); restore(req.id); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all mobile-compact-icon-btn" title="Restore to Pending"><RotateCcw className="w-4 h-4" /></button>
+                          {req.is_archived === true && req.status !== REQUEST_STATUS.DECLINED && (
+                            <button onClick={e => { e.stopPropagation(); restore(req.id); }} className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-xl transition-all mobile-compact-icon-btn" title="Restore to Pending"><RotateCcw className="w-4 h-4" /></button>
+                          )}
                         </div>
                       </td>
                     </tr>

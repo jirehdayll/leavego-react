@@ -1,11 +1,12 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { MONTHS, REQUEST_STATUS, REQUEST_TYPES, USER_ROLES } from '../constants';
 import { useAuth } from '../hooks/useAuth';
+import { leaveRequestsAPI } from '../api/leaveRequests';
 import AdminLayout from '../components/AdminLayout';
 import {
   Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import { X, TrendingUp, TrendingDown, Minus, ChevronDown, User } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, ChevronDown, User, RefreshCw } from 'lucide-react';
 
 
 // Helper function to format salary with commas
@@ -28,9 +29,30 @@ const formatSalary = (salary) => {
   return salary;
 };
 
+// Helper function to match forms to accounts casing-agnostically and key-resiliently
+const isFormOfAccount = (f, acc) => {
+  if (!f || !acc) return false;
+  
+  const fEmail = (f.user_email || '').toLowerCase().trim();
+  const accEmail = (acc.email || acc.denr_email || '').toLowerCase().trim();
+  
+  if (fEmail && accEmail && fEmail === accEmail) {
+    return true;
+  }
+  
+  const fName = (f.user_name || '').toLowerCase().trim();
+  const accName = (acc.full_name || acc.fullName || acc.name || '').toLowerCase().trim();
+  
+  if (fName && accName && fName === accName) {
+    return true;
+  }
+  
+  return false;
+};
+
 function EmployeeModal({ employee, allForms, onClose }) {
   const [period, setPeriod] = useState('monthly');
-  const forms = allForms.filter(f => f.user_email === employee.email || f.user_name === employee.full_name || f.user_name === employee.name);
+  const forms = allForms.filter(f => isFormOfAccount(f, employee));
 
   const approved = forms.filter(f => f.status === REQUEST_STATUS.APPROVED).length;
   const declined = forms.filter(f => f.status === REQUEST_STATUS.DECLINED).length;
@@ -80,10 +102,10 @@ function EmployeeModal({ employee, allForms, onClose }) {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center text-2xl font-black text-white flex-shrink-0">
-                {(employee.full_name || '?')[0].toUpperCase()}
+                {(employee.full_name || employee.fullName || '?')[0].toUpperCase()}
               </div>
               <div>
-                <h3 className="text-xl font-black text-white">{employee.full_name || employee.name || 'Employee'}</h3>
+                <h3 className="text-xl font-black text-white">{employee.full_name || employee.fullName || employee.name || 'Employee'}</h3>
                 <p className="text-emerald-300/70 text-sm">{employee.position || 'DENR Employee'} · {employee.email || employee.denr_email}</p>
                 {employee.salary_range && ( 
                   <p className="text-emerald-400/80 text-xs font-semibold mt-1">Salary: ₱{formatSalary(employee.salary_range)}</p>
@@ -174,75 +196,60 @@ export default function Records() {
   const [accounts, setAccounts] = useState([]);
   const [allForms, setAllForms] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [search, setSearch] = useState('');
   const [sortOrder, setSortOrder] = useState('az');
   const [selectedEmployee, setSelectedEmployee] = useState(null);
+  const [error, setError] = useState(null);
 
-  useEffect(() => {
-    const fetchData = async () => {
-      setLoading(true);
-      
+  const fetchData = useCallback(async () => {
+    setLoading(true);
+    setRefreshing(true);
+    setError(null);
+    
+    try {
       // Get accounts from localStorage
       const userAccounts = getAccounts();
-      console.log('Fetched accounts from localStorage:', userAccounts);
+      console.log('Fetched accounts from localStorage:', userAccounts?.length || 0);
       
-      // Get forms from localStorage or create sample data
-      let forms = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
+      // Get forms from Supabase API
+      const { data: formsData, error: formsError } = await leaveRequestsAPI.getAll({});
       
-      // If no forms exist, create sample data for demonstration
-      if (forms.length === 0) {
-        const sampleForms = [
-          {
-            id: '1',
-            user_email: 'employee@denr.gov.ph',
-            user_name: 'Employee User',
-            request_type: REQUEST_TYPES.LEAVE,
-            status: REQUEST_STATUS.APPROVED,
-            submitted_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-            created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
-            details: { leave_type: 'Vacation Leave', num_days: 3 }
-          },
-          {
-            id: '2',
-            user_email: 'employee@denr.gov.ph',
-            user_name: 'Employee User',
-            request_type: REQUEST_TYPES.TRAVEL,
-            status: REQUEST_STATUS.DECLINED,
-            submitted_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-            created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
-            details: { destination: 'Manila', purpose: 'Official Business' }
-          },
-          {
-            id: '3',
-            user_email: 'admin@denr.gov.ph',
-            user_name: 'Admin User',
-            request_type: REQUEST_TYPES.LEAVE,
-            status: REQUEST_STATUS.PENDING,
-            submitted_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
-            details: { leave_type: 'Sick Leave', num_days: 2 }
-          }
-        ];
-        localStorage.setItem('leaveRequests', JSON.stringify(sampleForms));
-        forms = sampleForms;
+      if (formsError) {
+        console.error('Error fetching forms from Supabase:', formsError);
+        setError('Failed to load forms from database. Please try again.');
+        setAllForms([]);
+      } else {
+        setAllForms(formsData || []);
+        console.log('Fetched forms from Supabase:', formsData?.length || 0);
       }
       
       setAccounts(userAccounts || []);
-      setAllForms(forms || []);
+    } catch (err) {
+      console.error('Fetch data error:', err);
+      setError('Failed to load data. Please try again.');
+      setAllForms([]);
+      setAccounts([]);
+    } finally {
       setLoading(false);
-    };
-    fetchData();
+      setRefreshing(false);
+    }
   }, [getAccounts]);
 
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  // Filter out admin accounts to show only employees
   let filtered = accounts.filter(a =>
-    !search || (a.full_name || a.name || '').toLowerCase().includes(search.toLowerCase()) || (a.email || a.denr_email || '').toLowerCase().includes(search.toLowerCase())
+    !search || (a.full_name || a.fullName || a.name || '').toLowerCase().includes(search.toLowerCase()) || (a.email || a.denr_email || '').toLowerCase().includes(search.toLowerCase())
   ).filter(a => 
     a.role !== USER_ROLES.ADMIN && 
     a.role !== USER_ROLES.SUPER_ADMIN && 
     a.role !== USER_ROLES.CENRO
   );
-  if (sortOrder === 'az') filtered.sort((a, b) => (a.full_name || a.name || '').localeCompare(b.full_name || b.name || ''));
-  else filtered.sort((a, b) => (b.full_name || b.name || '').localeCompare(a.full_name || a.name || ''));
+  if (sortOrder === 'az') filtered.sort((a, b) => (a.full_name || a.fullName || a.name || '').localeCompare(b.full_name || b.fullName || b.name || ''));
+  else filtered.sort((a, b) => (b.full_name || b.fullName || b.name || '').localeCompare(a.full_name || a.fullName || a.name || ''));
 
   return (
     <AdminLayout>
@@ -252,6 +259,15 @@ export default function Records() {
             <h2 className="text-2xl font-black text-slate-800">Records</h2>
             <p className="text-slate-500 text-sm mt-0.5">Click any employee to view detailed statistics</p>
           </div>
+          <button
+            onClick={fetchData}
+            disabled={refreshing}
+            className="flex items-center gap-2 px-4 py-2 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-sm font-semibold rounded-xl transition-all disabled:opacity-50"
+            title="Refresh data"
+          >
+            <RefreshCw className={`w-4 h-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
         </div>
 
         <div className="flex flex-wrap gap-3 mb-5">
@@ -265,6 +281,17 @@ export default function Records() {
           </select>
         </div>
 
+        {/* Error Banner */}
+        {error && (
+          <div className="mb-6 flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
+            <X className="w-4 h-4 flex-shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold">Could not load records</p>
+              <p className="text-red-600/80">{error}</p>
+            </div>
+          </div>
+        )}
+
         {loading ? (
           <div className="flex justify-center py-20"><div className="animate-spin rounded-full h-8 w-8 border-2 border-emerald-500 border-t-transparent"></div></div>
         ) : filtered.length === 0 ? (
@@ -272,7 +299,7 @@ export default function Records() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map(acc => {
-              const empForms = allForms.filter(f => f.user_email === acc.email || f.user_name === acc.full_name || f.user_name === acc.name);
+              const empForms = allForms.filter(f => isFormOfAccount(f, acc));
               const approved = empForms.filter(f => f.status === REQUEST_STATUS.APPROVED).length;
               return (
                 <button
@@ -282,10 +309,10 @@ export default function Records() {
                 >
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-11 h-11 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center text-white font-black text-lg flex-shrink-0">
-                      {(acc.full_name || acc.name || '?')[0].toUpperCase()}
+                      {(acc.full_name || acc.fullName || acc.name || '?')[0].toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-bold text-slate-800 text-sm truncate">{acc.full_name || acc.name || 'No Name'}</p>
+                      <p className="font-bold text-slate-800 text-sm truncate">{acc.full_name || acc.fullName || acc.name || 'No Name'}</p>
                       <p className="text-xs text-slate-400 truncate">{acc.position || '—'}</p>
                       {acc.salary_range && (
                         <p className="text-xs text-emerald-600 font-semibold truncate mt-1">Salary: ₱{formatSalary(acc.salary_range)}</p>

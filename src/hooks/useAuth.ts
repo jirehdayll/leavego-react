@@ -23,6 +23,7 @@ const defaultAuthState: AuthState = {
 export function useAuth() {
   const [user, setUser] = useState<any | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [hasSession, setHasSession] = useState<boolean>(false);
 
   // Initialize default accounts on first load
   useEffect(() => {
@@ -35,6 +36,7 @@ export function useAuth() {
           password: 'admin',
           role: 'admin',
           fullName: 'Admin User',
+          full_name: 'Admin User',
           isActive: true,
           createdAt: new Date().toISOString()
         },
@@ -44,6 +46,7 @@ export function useAuth() {
           password: 'employee',
           role: 'employee',
           fullName: 'Employee User',
+          full_name: 'Employee User',
           isActive: true,
           createdAt: new Date().toISOString()
         },
@@ -53,21 +56,51 @@ export function useAuth() {
           password: 'cenro123',
           role: 'cenro',
           fullName: 'CENRO User',
+          full_name: 'CENRO User',
           isActive: true,
           createdAt: new Date().toISOString()
         }
       ];
       localStorage.setItem('userAccounts', JSON.stringify(defaultAccounts));
+    } else {
+      // Migrate existing accounts to ensure both fullName and full_name are present
+      try {
+        const accounts = JSON.parse(existingAccounts);
+        let migrated = false;
+        const updated = accounts.map((acc: any) => {
+          if (acc.fullName && !acc.full_name) {
+            migrated = true;
+            return { ...acc, full_name: acc.fullName };
+          }
+          if (acc.full_name && !acc.fullName) {
+            migrated = true;
+            return { ...acc, fullName: acc.full_name };
+          }
+          return acc;
+        });
+        if (migrated) {
+          localStorage.setItem('userAccounts', JSON.stringify(updated));
+        }
+      } catch (e) {
+        console.error('Migration error:', e);
+      }
     }
   }, []);
 
-  // Check for existing auth on mount
+  // Check for existing auth on mount - only use explicit session (basicAuth)
   useEffect(() => {
     const storedAuth = localStorage.getItem('basicAuth');
     if (storedAuth) {
       try {
         const authData = JSON.parse(storedAuth);
-        setUser(authData);
+        // Validate that the user has a proper UUID format
+        if (authData.id) {
+          setUser(authData);
+          setHasSession(true);
+        } else {
+          // Invalid session data, clear it
+          localStorage.removeItem('basicAuth');
+        }
       } catch (error) {
         localStorage.removeItem('basicAuth');
       }
@@ -148,6 +181,7 @@ export function useAuth() {
       password,
       role,
       fullName,
+      full_name: fullName,
       isActive: true,
       createdAt: new Date().toISOString()
     };
@@ -190,6 +224,7 @@ export function useAuth() {
     isAdmin: user?.role === 'admin' || user?.role === 'cenro',
     isEmployee: user?.role === 'employee',
     loading,
+    hasSession,
     login,
     logout,
     createAccount,

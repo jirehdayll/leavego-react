@@ -21,7 +21,7 @@ import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
 import { APP_ROUTES } from './constants';
 
 function App() {
-  const { user, loading } = useAuth();
+  const { user, loading, hasSession } = useAuth();
 
   if (loading) {
     return (
@@ -40,11 +40,11 @@ function App() {
         {/* Public / Landing - Show login if not authenticated, dashboard if authenticated */}
         <Route 
           path={APP_ROUTES.ROOT} 
-          element={!user ? <Login /> : <Navigate to="/dashboard" replace />} 
+          element={!hasSession ? <Login /> : <Navigate to="/dashboard" replace />} 
         />
 
         {/* Login route - Only show if not authenticated */}
-        <Route path={APP_ROUTES.LOGIN} element={!user ? <Login /> : <Navigate to="/dashboard" replace />} />
+        <Route path={APP_ROUTES.LOGIN} element={!hasSession ? <Login /> : <Navigate to="/dashboard" replace />} />
 
         {/* Password recovery from email (public) */}
         <Route path={APP_ROUTES.RESET_PASSWORD} element={<ResetPassword />} />
@@ -64,7 +64,7 @@ function App() {
         <Route path="/admin/records" element={<AdminRoute><Records /></AdminRoute>} />
         <Route path="/profile/view/:id" element={<AdminRoute><ScannedProfileView /></AdminRoute>} />
 
-        <Route path="*" element={<Navigate to={!user ? APP_ROUTES.LOGIN : "/dashboard"} replace />} />
+        <Route path="*" element={<Navigate to={!hasSession ? APP_ROUTES.LOGIN : "/dashboard"} replace />} />
       </Routes>
     </Router>
   );

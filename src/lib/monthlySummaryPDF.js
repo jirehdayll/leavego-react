@@ -1,15 +1,15 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 
-// Color mappings based on requested Legend - all text set to black
+// Synchronized Color mappings matching UI calendar exactly - text is set to high contrast white for premium looks
 const LEAVE_COLORS = {
-  'SL': { color: [255, 0, 0], label: 'SICK LEAVE', text: [0, 0, 0] },
-  'Maternity': { color: [144, 238, 144], label: 'MATERNITY', text: [0, 0, 0] },
-  'OB': { color: [255, 255, 0], label: 'OFFICIAL BUSINESS', text: [0, 0, 0] },
-  'FL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
-  'SPL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
-  'VL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
-  'Weekend': { color: [112, 48, 160], label: 'SATURDAY/SUNDAY/HOLIDAY', text: [0, 0, 0] }
+  'SL': { color: [244, 63, 94], label: 'SICK LEAVE', text: [255, 255, 255] }, // Rose-500
+  'Maternity': { color: [5, 150, 105], label: 'MATERNITY', text: [255, 255, 255] }, // Emerald-600
+  'OB': { color: [245, 158, 11], label: 'OFFICIAL BUSINESS', text: [255, 255, 255] }, // Amber-500
+  'FL': { color: [14, 165, 233], label: 'FL/SPL/VL', text: [255, 255, 255] }, // Sky-500
+  'SPL': { color: [14, 165, 233], label: 'FL/SPL/VL', text: [255, 255, 255] },
+  'VL': { color: [14, 165, 233], label: 'FL/SPL/VL', text: [255, 255, 255] },
+  'Weekend': { color: [112, 48, 160], label: 'SATURDAY/SUNDAY/HOLIDAY', text: [255, 255, 255] }
 };
 
 export const generateMonthlySummaryPDF = async (data, month, year) => {
@@ -29,28 +29,45 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
   // Data processing: Group by unique employee name
   const employeeMap = {};
   
+  const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  const monthIdx = monthNames.indexOf(reportMonth.toLowerCase());
+  const targetYear = parseInt(reportYear);
+
   data.forEach(req => {
     const name = req.user_name || 'Unknown';
     if (!employeeMap[name]) {
-      employeeMap[name] = { name, leaves: {} };
+      employeeMap[name] = { name, leaves: {}, rawRequests: [] };
     }
     
-    if (req.details?.start_date && req.details?.end_date) {
-      const typeStr = req.details.leave_type || (req.request_type === 'travel' ? 'Official Business' : '');
+    // Parse inclusive start/end or departure/arrival dates cleanly
+    const startDateVal = req.details?.start_date || req.details?.departure_date || req.submitted_at || req.created_at;
+    const endDateVal = req.details?.end_date || req.details?.arrival_date || req.submitted_at || req.created_at;
+    
+    if (startDateVal && endDateVal) {
+      const typeStr = req.details?.leave_type || (req.request_type === 'travel' ? 'Official Business' : 'Leave');
       const type = getLeaveTypeAbbreviation(typeStr);
       let controlNumber = req.id ? String(req.id).slice(-4) : Math.floor(Math.random() * 10000).toString();
-      // Format as "26-[XXXX]" like in the image
       controlNumber = `26-${controlNumber.padStart(4, '0')}`;
       
-      const start = new Date(req.details.start_date);
-      const end = new Date(req.details.end_date);
+      const start = new Date(startDateVal);
+      const end = new Date(endDateVal);
+      
+      // Store raw request for Remarks detailing inclusive ranges
+      employeeMap[name].rawRequests.push({
+        typeStr,
+        start: new Date(start),
+        end: new Date(end)
+      });
       
       for (let d = new Date(start); d <= end; d.setDate(d.getDate() + 1)) {
-        employeeMap[name].leaves[d.getDate()] = {
-          type,
-          controlNumber,
-          label: type
-        };
+        // Mark only cells matching current month and year
+        if (d.getMonth() === monthIdx && d.getFullYear() === targetYear) {
+          employeeMap[name].leaves[d.getDate()] = {
+            type,
+            controlNumber,
+            label: type
+          };
+        }
       }
     }
   });
@@ -71,7 +88,17 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
       }
     }
     row.push(''); // Undertime
-    row.push(''); // Remarks
+    
+    // Build dynamic Remarks listing leave type and its inclusive dates span
+    const remarksList = [];
+    employeeMap[name].rawRequests.forEach(req => {
+      const formatDateStr = (date) => {
+        return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+      };
+      remarksList.push(`${req.typeStr}: ${formatDateStr(req.start)} to ${formatDateStr(req.end)}`);
+    });
+    
+    row.push(remarksList.join('; ')); // Remarks
     tableRows.push(row);
   });
 
@@ -87,7 +114,8 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
   ];
 
   const getDaysInMonth = (monthStr, yr) => {
-    return new Date(yr, new Date(`${monthStr} 1, ${yr}`).getMonth() + 1, 0).getDate();
+    const mIdx = monthNames.indexOf(monthStr.toLowerCase());
+    return new Date(yr, mIdx + 1, 0).getDate();
   };
   const maxDays = getDaysInMonth(reportMonth, reportYear);
 
@@ -115,11 +143,10 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
     columnStyles: {
       0: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }, // Index
       1: { cellWidth: 150, fontStyle: 'bold' }, // Name
-      // 31 days are dynamically auto-sized or fixed at 22 above
       33: { cellWidth: 60 }, // Undertime
-      34: { cellWidth: 80 } // Remarks - reduced width
+      34: { cellWidth: 120 } // Remarks
     },
-    margin: { left: 15, right: 20 }, // Further decreased left margin
+    margin: { left: 15, right: 20 },
     didParseCell: function (data) {
       if (data.section === 'body' && data.column.index >= 2 && data.column.index <= 32) {
         const day = data.column.index - 1;
@@ -138,7 +165,7 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
         if (isWkend) {
            data.cell.styles.fillColor = LEAVE_COLORS['Weekend'].color;
            data.cell.styles.textColor = LEAVE_COLORS['Weekend'].text;
-           data.cell.text = []; // Clear text on weekends as per image
+           data.cell.text = []; // Clear text on weekends
         } else if (leaveInfo && LEAVE_COLORS[leaveInfo.type]) {
            data.cell.styles.fillColor = LEAVE_COLORS[leaveInfo.type].color;
            data.cell.styles.textColor = LEAVE_COLORS[leaveInfo.type].text;
@@ -157,7 +184,6 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
         // Check if this is the start of a leave period
         const leaveInfo = employeeMap[employeeName]?.leaves[day];
         if (leaveInfo && leaveInfo.type !== 'Weekend') {
-          const start = new Date(data.row.raw[1]);
           // Find the duration of this leave period
           let duration = 1;
           let currentDay = day + 1;
@@ -175,9 +201,11 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
             const cellY = data.cell.y;
             const cellHeight = data.cell.height;
             
-            // Draw merged cell background
+            // Draw merged cell background with stroke border
             pdf.setFillColor(...LEAVE_COLORS[leaveInfo.type].color);
-            pdf.rect(cellX, cellY, cellWidth, cellHeight, 'F');
+            pdf.setDrawColor(0, 0, 0);
+            pdf.setLineWidth(0.5);
+            pdf.rect(cellX, cellY, cellWidth, cellHeight, 'FD'); // FD: Fill and Stroke
             
             // Draw text centered in merged cell
             pdf.setFont('times', 'bold');
@@ -196,9 +224,8 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
 
   // Add Dynamic Legend Below Table
   const finalY = pdf.lastAutoTable.finalY + 15;
-  let currentX = 15; // Further decreased margin left
+  let currentX = 15;
   
-  // Custom grouping for legend based on image
   const legendGroups = [
     { key: 'Weekend' },
     { key: 'SL' },
@@ -211,13 +238,13 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
     const colorInfo = LEAVE_COLORS[item.key];
     if (colorInfo) {
       pdf.setFillColor(...colorInfo.color);
-      pdf.rect(currentX, finalY, 150, 15, 'F'); // Background box for legend text
+      pdf.setDrawColor(0, 0, 0);
+      pdf.setLineWidth(0.5);
+      pdf.rect(currentX, finalY, 150, 15, 'FD');
       
       pdf.setFontSize(8);
       pdf.setFont('times', 'bold');
-      
-      // All text set to black
-      pdf.setTextColor(0,0,0);
+      pdf.setTextColor(...colorInfo.text);
       pdf.text(colorInfo.label, currentX + 75, finalY + 10, { align: 'center' });
       
       currentX += 160;
@@ -272,11 +299,11 @@ function getLeaveTypeAbbreviation(leaveType) {
 }
 
 function isWeekendOrHoliday(day, month, year) {
-  const dateStr = `${month} 1, ${year}`;
-  const dt = new Date(dateStr);
-  if (isNaN(dt.getTime())) return false; // fallback if month name is weird
+  const monthNames = ['january', 'february', 'march', 'april', 'may', 'june', 'july', 'august', 'september', 'october', 'november', 'december'];
+  const monthIdx = monthNames.indexOf(month.toLowerCase());
+  if (monthIdx === -1) return false;
   
-  const testDate = new Date(year, dt.getMonth(), day);
+  const testDate = new Date(year, monthIdx, day);
   const dayOfWeek = testDate.getDay();
   return dayOfWeek === 0 || dayOfWeek === 6;
 }

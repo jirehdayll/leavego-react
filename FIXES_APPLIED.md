@@ -79,8 +79,11 @@ Updated the `restore` function in Archive.jsx to:
 3. Reset approval fields (admin_approved, cenro_approved, etc.) to allow re-approval workflow
 4. Added confirmation dialog before restoring
 
+Also updated AdminDashboard.jsx to automatically archive declined forms when the decline button is clicked.
+
 ### Files Modified
 - `src/pages/Archive.jsx`
+- `src/pages/AdminDashboard.jsx`
 
 ---
 
@@ -92,15 +95,58 @@ The QR scanner requested camera permissions successfully, but the camera feed wa
 ### Solution
 Completely rewrote the QRScanner component with:
 1. Added comprehensive CSS styles to ensure video element visibility
-2. Added `display: block !important` to force video display
+2. Added `display: block !important`, `visibility: visible !important`, `opacity: 1 !important` to force video display
 3. Added proper z-index for canvas overlay
-4. Added `videoConstraints: { facingMode: 'environment' }` for back camera preference
-5. Improved cleanup and initialization logic
+4. Added `videoConstraints: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } }` for better camera quality
+5. Improved cleanup and initialization logic with fallback to facingMode if camera ID fails
 6. Added `containerRef` for better DOM element tracking
-7. Added proper error handling with HTTPS requirement note
+7. Added proper error handling with specific permission denial messages
+8. Added HTTPS requirement note in error messages
 
 ### Files Modified
 - `src/components/QRScanner.jsx`
+
+---
+
+## Issue 6: Admin Dashboard Stats Not Limited to Current Month
+
+### Problem
+The approved travel and leave counts on the admin dashboard were counting all-time approvals instead of only current month.
+
+### Solution
+Updated the stats calculation in AdminDashboard.jsx to:
+1. Filter approved forms by the current month (using `monthStart` date)
+2. Display "Approved Travel (This Month)" and "Approved Leave (This Month)" as the primary stats
+3. Added "Total Approved All-Time" as a separate stat for reference
+
+### Files Modified
+- `src/pages/AdminDashboard.jsx`
+
+---
+
+## Issue 7: Dual Approval Workflow (Admin → CENRO)
+
+### Problem
+The approve button wasn't working properly. The workflow should be:
+1. Admin approves → status changes to "Pending CENRO Approval"
+2. CENRO approves → status changes to "Approved" (final)
+
+### Solution
+Updated the `updateStatus` function in AdminDashboard.jsx to:
+1. When admin clicks "Approve" on a pending request:
+   - Sets status to "Pending CENRO Approval"
+   - Sets `admin_approved: true`, `admin_approved_at`, `admin_approved_by`
+   - Shows alert: "Request approved and sent to CENRO for final approval."
+2. When CENRO clicks "Final Approve" on a pending CENRO request:
+   - Sets status to "Approved"
+   - Sets `cenro_approved: true`, `cenro_approved_at`, `cenro_approved_by`
+   - Shows alert: "Request fully approved!"
+3. When decline is clicked:
+   - Sets status to "Declined" and `is_archived: true`
+   - Shows alert: "Request declined and moved to archive."
+
+### Files Modified
+- `src/pages/AdminDashboard.jsx`
 
 ---
 
@@ -113,7 +159,7 @@ Completely rewrote the QRScanner component with:
 - Verify the request is submitted successfully without UUID errors
 
 ### 2. Admin Approval Fix
-- **Run the migration:** `migrations/fix_status_check_constraint.sql` in Supabase Dashboard
+- **Run the migration:** `migrations/fix_status_check_constraint.sql` in Supabase Dashboard → SQL Editor
 - Log in as admin
 - Approve a pending request
 - Verify it moves to "Pending CENRO Approval" status
@@ -141,8 +187,16 @@ Completely rewrote the QRScanner component with:
 - Verify the camera feed is visible
 - Test scanning a QR code
 
+### 6. Dashboard Stats
+- Log in as admin
+- Verify the "Approved Travel (This Month)" and "Approved Leave (This Month)" only count current month
+- Verify "Total Approved All-Time" shows all-time count
+
 ## Build Status
 ✅ Build completed successfully with `npm run build`
+
+## Git Status
+✅ Changes pushed to GitHub (commit: 9e0d055)
 
 ## Migration Required
 ⚠️ **IMPORTANT:** Run `migrations/fix_status_check_constraint.sql` in Supabase Dashboard → SQL Editor to fix the admin approval issue.

@@ -2,15 +2,14 @@ import React, { useEffect, useState, useRef } from 'react';
 import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
-import { ChevronLeft, ChevronRight, Calendar, X, Download, FileSpreadsheet } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, X, Download } from 'lucide-react';
 import { generateMonthlySummaryPDF } from '../lib/monthlySummaryPDF';
-import { generateMonthlySummaryExcel } from '../lib/excelGenerator';
 import html2canvas from 'html2canvas';
 
 const TYPE_COLORS = {
-  [REQUEST_TYPES.TRAVEL]: { bg: 'bg-yellow-100', text: 'text-yellow-800', border: 'border-yellow-200', label: 'Travel Order' },
-  [REQUEST_TYPES.LEAVE]: { bg: 'bg-red-100', text: 'text-red-800', border: 'border-red-200', label: 'Leave Application' },
-  Maternity: { bg: 'bg-green-100', text: 'text-green-800', border: 'border-green-200', label: 'Maternity Leave' },
+  [REQUEST_TYPES.TRAVEL]: { bg: 'bg-amber-500', text: 'text-black', border: 'border-amber-600', label: 'Travel Order' },
+  [REQUEST_TYPES.LEAVE]: { bg: 'bg-rose-200', text: 'text-black', border: 'border-rose-600', label: 'Leave Application' },
+  Maternity: { bg: 'bg-emerald-600', text: 'text-black', border: 'border-emerald-700', label: 'Maternity Leave' },
 };
 
 function getLeaveColor(req) {
@@ -24,7 +23,6 @@ export default function MonthlySummary() {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
-  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
   const now = new Date();
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [viewYear, setViewYear] = useState(now.getFullYear());
@@ -34,15 +32,15 @@ export default function MonthlySummary() {
   const downloadPDF = async () => {
     console.log('PDF download triggered');
     setIsGeneratingPDF(true);
-    
+
     try {
       console.log('Starting professional PDF generation...');
-      
+
       // Generate PDF using the new professional format
       await generateMonthlySummaryPDF(monthForms, MONTHS[viewMonth], viewYear);
-      
+
       console.log('PDF generated successfully');
-      
+
     } catch (error) {
       console.error('Error generating PDF:', error);
       console.error('Full error details:', error.stack);
@@ -53,17 +51,7 @@ export default function MonthlySummary() {
     }
   };
 
-  const downloadExcel = () => {
-    setIsGeneratingExcel(true);
-    try {
-      generateMonthlySummaryExcel(monthForms, MONTHS[viewMonth], viewYear);
-    } catch (error) {
-      console.error('Error generating Excel:', error);
-      alert('Failed to generate Excel. Please try again.\n\nError: ' + error.message);
-    } finally {
-      setIsGeneratingExcel(false);
-    }
-  };
+
 
   useEffect(() => {
     const fetch = async () => {
@@ -109,9 +97,9 @@ export default function MonthlySummary() {
   });
 
   const legend = [
-    { color: 'bg-yellow-100 border-yellow-200 text-yellow-800', label: 'Travel Order / Official Business' },
-    { color: 'bg-red-100 border-red-200 text-red-800', label: 'Sick Leave / Leave Application' },
-    { color: 'bg-green-100 border-green-200 text-green-800', label: 'Maternity / Paternity Leave' },
+    { color: 'bg-orange-500 border-amber-600 text-white', label: 'Travel Order / Official Business' },
+    { color: 'bg-red-500 border-rose-400 text-white', label: 'Sick Leave / Leave Application' },
+    { color: 'bg-green-700 border-emerald-700 text-white', label: 'Maternity / Paternity Leave' },
     { color: 'bg-purple-100 border-purple-200 text-purple-800', label: 'Weekends / Holidays' },
   ];
 
@@ -124,7 +112,7 @@ export default function MonthlySummary() {
     const d = f.details || {};
     const start = new Date(d.start_date || d.departure_date || f.submitted_at);
     const end = new Date(d.end_date || d.arrival_date || f.submitted_at);
-    
+
     // Calculate the days in current month that this application spans
     const daysInMonthSpan = [];
     for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate() + 1)) {
@@ -132,7 +120,7 @@ export default function MonthlySummary() {
         daysInMonthSpan.push(cur.getDate());
       }
     }
-    
+
     return {
       ...f,
       start,
@@ -140,6 +128,36 @@ export default function MonthlySummary() {
       daysInMonthSpan,
       color: getLeaveColor(f)
     };
+  }).filter(app => app.daysInMonthSpan.length > 0);
+
+  // Assign lanes to each application so they don't overlap vertically (greedy interval scheduling)
+  // Sort applications by their first day so they are assigned lanes chronologically
+  const sortedApps = [...continuousApplications].sort((a, b) => a.daysInMonthSpan[0] - b.daysInMonthSpan[0]);
+
+  const lanes = []; // Array of Sets containing occupied days for each lane track
+  sortedApps.forEach(app => {
+    let assignedLane = 0;
+    while (true) {
+      if (!lanes[assignedLane]) {
+        lanes[assignedLane] = new Set();
+      }
+
+      let hasOverlap = false;
+      for (let d of app.daysInMonthSpan) {
+        if (lanes[assignedLane].has(d)) {
+          hasOverlap = true;
+          break;
+        }
+      }
+
+      if (!hasOverlap) {
+        app.daysInMonthSpan.forEach(d => lanes[assignedLane].add(d));
+        app.lane = assignedLane;
+        break;
+      }
+
+      assignedLane++;
+    }
   });
 
   const isWeekend = (day) => {
@@ -156,38 +174,14 @@ export default function MonthlySummary() {
             <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Color-coded leave calendar for approved applications</p>
           </div>
           <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
-            <button
-              onClick={downloadExcel}
-              disabled={isGeneratingExcel}
-              className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold rounded-xl transition-all shadow-sm ${
-                isGeneratingExcel 
-                  ? 'bg-gray-400 text-white cursor-not-allowed' 
-                  : 'bg-green-600 hover:bg-green-700 text-white'
-              }`}
-              title="Download as Excel"
-            >
-              {isGeneratingExcel ? (
-                <>
-                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                  <span className="hidden sm:inline">Generating...</span>
-                  <span className="sm:hidden">...</span>
-                </>
-              ) : (
-                <>
-                  <FileSpreadsheet className="w-4 h-4" />
-                  <span className="hidden sm:inline">Download Excel</span>
-                  <span className="sm:hidden">Excel</span>
-                </>
-              )}
-            </button>
+
             <button
               onClick={downloadPDF}
               disabled={isGeneratingPDF}
-              className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold rounded-xl transition-all shadow-sm ${
-                isGeneratingPDF 
-                  ? 'bg-gray-400 text-white cursor-not-allowed' 
-                  : 'bg-emerald-600 hover:bg-emerald-700 text-white'
-              }`}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold rounded-xl transition-all shadow-sm ${isGeneratingPDF
+                ? 'bg-gray-400 text-white cursor-not-allowed'
+                : 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                }`}
               title="Download as PDF"
             >
               {isGeneratingPDF ? (
@@ -207,7 +201,7 @@ export default function MonthlySummary() {
             <button onClick={prevMonth} className="w-8 h-8 sm:w-9 sm:h-9 rounded-xl bg-white border border-slate-200 flex items-center justify-center hover:bg-slate-50 transition-all shadow-sm">
               <ChevronLeft className="w-4 h-4 text-slate-600" />
             </button>
-            <button 
+            <button
               onClick={() => setShowCalendar(true)}
               className="px-3 sm:px-4 py-2 bg-white border border-slate-200 rounded-xl text-sm font-bold text-slate-700 min-w-[120px] sm:min-w-[150px] text-center shadow-sm hover:bg-slate-50 transition-all flex items-center justify-center gap-2"
             >
@@ -238,8 +232,8 @@ export default function MonthlySummary() {
             {/* Calendar Grid */}
             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden mb-4 sm:mb-6 mobile-compact-card">
               <div className="grid grid-cols-7 bg-slate-50 border-b border-slate-100">
-                {['S','M','T','W','T','F','S'].map(d => (
-                  <div key={d} className="px-1 py-1 sm:px-1 sm:py-2 text-center text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">{d}</div>
+                {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, index) => (
+                  <div key={`${d}-${index}`} className="px-1 py-1 sm:px-1 sm:py-2 text-center text-[10px] sm:text-xs font-bold text-slate-500 uppercase tracking-wider">{d}</div>
                 ))}
               </div>
               <div className="grid grid-cols-7 overflow-x-auto">
@@ -251,42 +245,52 @@ export default function MonthlySummary() {
                   const weekend = isWeekend(day);
 
                   return (
-                    <div key={day} className={`h-12 sm:h-16 lg:h-24 border-b border-r border-slate-50 ${weekend ? 'bg-slate-50/30' : 'bg-white'} relative group`}>
-                      <div className="text-[10px] sm:text-xs font-medium text-slate-600 p-0.5 sm:p-1">{day}</div>
-                      
-                      {/* Original shape labels with background behind */}
-                      <div className="space-y-0.5 p-0.5 sm:p-1 overflow-y-auto max-h-8 sm:max-h-12 lg:max-h-16">
-                        {continuousApplications.filter(app => app.daysInMonthSpan[0] === day).map((app, appIndex) => {
+                    <div key={day} className={`h-12 sm:h-16 lg:h-24 border-b border-r border-slate-50 ${weekend ? 'bg-slate-50/30' : 'bg-white'} relative group overflow-hidden`}>
+                      <div className="text-[10px] sm:text-xs font-semibold text-slate-500 p-0.5 sm:p-1 flex justify-between items-center relative z-20">
+                        <span>{day}</span>
+                      </div>
+
+                      {/* Google Calendar-Style Event Lanes */}
+                      <div className="absolute inset-x-0 bottom-1 top-5 flex flex-col gap-0.5 sm:gap-1 px-0.5 pointer-events-none">
+                        {Array.from({ length: Math.min(lanes.length, 3) }).map((_, laneIndex) => {
+                          const app = sortedApps.find(a => a.lane === laneIndex && a.daysInMonthSpan.includes(day));
+
+                          if (!app) {
+                            return <div key={`empty-lane-${laneIndex}`} className="h-3 sm:h-4 lg:h-5" />;
+                          }
+
+                          const isStart = app.daysInMonthSpan[0] === day;
+                          const isEnd = app.daysInMonthSpan[app.daysInMonthSpan.length - 1] === day;
+
                           const applicantName = app.user_name || app.user_email?.split('@')[0] || 'Unknown';
-                          const displayName = applicantName.length > 8 ? applicantName.substring(0, 8) + '...' : applicantName;
-                          
+                          const displayName = applicantName.split(' ')[0];
+                          const isTravel = app.request_type === REQUEST_TYPES.TRAVEL;
+                          const appType = isTravel ? 'Travel' : (app.details?.leave_type?.split(' ')[0] || 'Leave');
+
+                          let roundedClass = 'rounded-none';
+                          if (isStart && isEnd) roundedClass = 'rounded-md';
+                          else if (isStart) roundedClass = 'rounded-l-md';
+                          else if (isEnd) roundedClass = 'rounded-r-md';
+
                           return (
-                            <div key={`label-${app.id || appIndex}`} className={`text-[6px] sm:text-[8px] lg:text-[10px] leading-none px-0.5 py-0.5 rounded truncate ${app.color.bg} ${app.color.text} ${app.color.border} relative z-10`}>
-                              <span className="hidden lg:inline">{displayName} - {app.color.label}</span>
-                              <span className="lg:hidden">{displayName.split(' ')[0]}</span>
+                            <div
+                              key={`app-${app.id}`}
+                              className={`h-3 sm:h-4 lg:h-5 text-[6px] sm:text-[8px] lg:text-[10px] font-extrabold leading-none flex items-center px-1 border-y border-black/5 ${roundedClass} ${app.color.bg} ${app.color.text} ${app.color.border} pointer-events-auto cursor-pointer shadow-sm`}
+                              title={`${app.user_name} - ${app.color.label} (${app.daysInMonthSpan.length} Days)`}
+                              style={{
+                                margin: '0 -2px',
+                                zIndex: 10
+                              }}
+                            >
+                              {isStart ? (
+                                <span className="truncate w-full block">
+                                  {displayName} ({appType})
+                                </span>
+                              ) : (
+                                <span className="opacity-0">—</span>
+                              )}
                             </div>
                           );
-                        })}
-                      </div>
-                      
-                      {/* Background directly behind labels */}
-                      <div className="absolute inset-0 pointer-events-none">
-                        {continuousApplications.map((app, appIndex) => {
-                          if (app.daysInMonthSpan.includes(day)) {
-                            return (
-                              <div
-                                key={`bg-${app.id || appIndex}`}
-                                className={`absolute left-0 right-0 ${app.color.bg} opacity-20`}
-                                style={{ 
-                                  zIndex: 1, // Always behind labels
-                                  top: `${appIndex * 16 + 8}px`,
-                                  height: '20px', // Match label height exactly
-                                  margin: '0 -1px' // Extend through table lines
-                                }}
-                              />
-                            );
-                          }
-                          return null;
                         })}
                       </div>
                     </div>
@@ -306,52 +310,52 @@ export default function MonthlySummary() {
               ) : (
                 <div className="mobile-scroll-table">
                   <table className="w-full mobile-compact-table text-xs sm:text-sm">
-                  <thead>
-                    <tr className="bg-slate-50">
-                      <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
-                      <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Forms</th>
-                      <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Types</th>
-                      <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Days</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-slate-50">
-                    {Object.entries(byEmployee).map(([name, reqs]) => {
-                      const totalDays = reqs.reduce((sum, r) => sum + parseInt(r.details?.num_days || 1), 0);
-                      return (
-                        <tr key={name} className="hover:bg-slate-50/80 transition-colors">
-                          <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4 text-xs sm:text-sm font-semibold text-slate-800 truncate">
-                            <span className="block lg:hidden truncate max-w-[100px]">{name.split(' ')[0]}</span>
-                            <span className="hidden lg:inline">{name}</span>
-                          </td>
-                          <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4 text-xs sm:text-sm text-slate-600">{reqs.length}</td>
-                          <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4">
-                            <div className="flex flex-wrap gap-0.5 sm:gap-1">
-                              {(() => {
-                                const typeGroups = {};
-                                reqs.forEach(r => {
-                                  const col = getLeaveColor(r);
-                                  const key = col.label;
-                                  if (!typeGroups[key]) {
-                                    typeGroups[key] = { count: 0, color: col };
-                                  }
-                                  typeGroups[key].count++;
-                                });
-                                
-                                return Object.entries(typeGroups).map(([label, { count, color }]) => (
-                                  <span key={label} className={`px-1 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-xs font-bold border ${color.bg} ${color.text} ${color.border}`}>
-                                    <span className="hidden sm:inline">{count > 1 ? `${count} ${label}` : label}</span>
-                                    <span className="sm:hidden">{count > 1 ? `${count}` : label.split(' ')[0]}</span>
-                                  </span>
-                                ));
-                              })()}
-                            </div>
-                          </td>
-                          <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4 text-xs sm:text-sm text-slate-600">{totalDays} day{totalDays !== 1 ? 's' : ''}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                    <thead>
+                      <tr className="bg-slate-50">
+                        <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Employee</th>
+                        <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Forms</th>
+                        <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Types</th>
+                        <th className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Days</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-slate-50">
+                      {Object.entries(byEmployee).map(([name, reqs]) => {
+                        const totalDays = reqs.reduce((sum, r) => sum + parseInt(r.details?.num_days || 1), 0);
+                        return (
+                          <tr key={name} className="hover:bg-slate-50/80 transition-colors">
+                            <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4 text-xs sm:text-sm font-semibold text-slate-800 truncate">
+                              <span className="block lg:hidden truncate max-w-[100px]">{name.split(' ')[0]}</span>
+                              <span className="hidden lg:inline">{name}</span>
+                            </td>
+                            <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4 text-xs sm:text-sm text-slate-600">{reqs.length}</td>
+                            <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4">
+                              <div className="flex flex-wrap gap-0.5 sm:gap-1">
+                                {(() => {
+                                  const typeGroups = {};
+                                  reqs.forEach(r => {
+                                    const col = getLeaveColor(r);
+                                    const key = col.label;
+                                    if (!typeGroups[key]) {
+                                      typeGroups[key] = { count: 0, color: col };
+                                    }
+                                    typeGroups[key].count++;
+                                  });
+
+                                  return Object.entries(typeGroups).map(([label, { count, color }]) => (
+                                    <span key={label} className={`px-1 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-xs font-bold border ${color.bg} ${color.text} ${color.border}`}>
+                                      <span className="hidden sm:inline">{count > 1 ? `${count} ${label}` : label}</span>
+                                      <span className="sm:hidden">{count > 1 ? `${count}` : label.split(' ')[0]}</span>
+                                    </span>
+                                  ));
+                                })()}
+                              </div>
+                            </td>
+                            <td className="px-2 sm:px-3 lg:px-6 py-2 sm:py-3 lg:py-4 text-xs sm:text-sm text-slate-600">{totalDays} day{totalDays !== 1 ? 's' : ''}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
                 </div>
               )}
             </div>
@@ -366,27 +370,27 @@ export default function MonthlySummary() {
           <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[80vh] overflow-hidden">
             <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
               <h3 className="text-lg font-bold text-slate-800">Select Month</h3>
-              <button 
+              <button
                 onClick={() => setShowCalendar(false)}
                 className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all"
               >
                 <X className="w-4 h-4 text-slate-600" />
               </button>
             </div>
-            
+
             <div className="p-6">
               {/* Year Selection */}
               <div className="mb-6">
                 <label className="block text-sm font-semibold text-slate-700 mb-2">Year</label>
                 <div className="flex items-center gap-2">
-                  <button 
+                  <button
                     onClick={() => setViewYear(viewYear - 1)}
                     className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all"
                   >
                     <ChevronLeft className="w-4 h-4 text-slate-600" />
                   </button>
                   <span className="flex-1 text-center font-bold text-slate-800">{viewYear}</span>
-                  <button 
+                  <button
                     onClick={() => setViewYear(viewYear + 1)}
                     className="w-8 h-8 rounded-lg bg-slate-100 hover:bg-slate-200 flex items-center justify-center transition-all"
                   >
@@ -403,11 +407,10 @@ export default function MonthlySummary() {
                     <button
                       key={month}
                       onClick={() => handleMonthSelect(index, viewYear)}
-                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${
-                        index === viewMonth
-                          ? 'bg-emerald-600 text-white'
-                          : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
-                      }`}
+                      className={`px-3 py-2 rounded-lg text-sm font-medium transition-all ${index === viewMonth
+                        ? 'bg-emerald-600 text-white'
+                        : 'bg-slate-100 hover:bg-slate-200 text-slate-700'
+                        }`}
                     >
                       {month}
                     </button>

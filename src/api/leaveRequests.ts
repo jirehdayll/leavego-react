@@ -22,6 +22,31 @@ function handleResult<T>(result: any, context: string): ApiResponse<T> {
   return result;
 }
 
+function mapFromDb(request: LeaveRequest): LeaveRequest {
+  if (!request) return request;
+  if (request.status === ('Pending' as any) && request.admin_approved && !request.cenro_approved) {
+    return {
+      ...request,
+      status: 'Pending CENRO Approval'
+    };
+  }
+  return request;
+}
+
+function mapListFromDb(requests: LeaveRequest[]): LeaveRequest[] {
+  if (!requests) return [];
+  return requests.map(mapFromDb);
+}
+
+function mapToDb(updates: UpdateLeaveRequestData): UpdateLeaveRequestData {
+  if (!updates) return updates;
+  const mapped = { ...updates };
+  if (mapped.status === 'Pending CENRO Approval') {
+    mapped.status = 'Pending' as any;
+  }
+  return mapped;
+}
+
 export const leaveRequestsAPI = {
   // Get all leave requests with optional filtering
   getAll: async (filters: LeaveRequestFilters = {}): Promise<ApiResponse<LeaveRequest[]>> => {
@@ -30,7 +55,13 @@ export const leaveRequestsAPI = {
 
       // Apply filters
       if (filters.status) {
-        query = query.eq('status', filters.status);
+        if (filters.status === 'Pending CENRO Approval') {
+          query = query.eq('status', 'Pending').eq('admin_approved', true);
+        } else if (filters.status === 'Pending') {
+          query = query.eq('status', 'Pending').eq('admin_approved', false);
+        } else {
+          query = query.eq('status', filters.status);
+        }
       }
 
       if (filters.request_type) {
@@ -53,7 +84,12 @@ export const leaveRequestsAPI = {
       const orderBy = normalizeLeaveRequestOrderBy(filters.orderBy);
       const result = await query.order(orderBy, { ascending: false });
 
-      return handleResult<LeaveRequest[]>(result, 'getAll');
+      const mappedResult = {
+        ...result,
+        data: result.data ? mapListFromDb(result.data) : null
+      };
+
+      return handleResult<LeaveRequest[]>(mappedResult, 'getAll');
     }, 'Fetching leave requests');
   },
 
@@ -66,7 +102,12 @@ export const leaveRequestsAPI = {
         .eq('id', id)
         .single();
 
-      return handleResult<LeaveRequest>(result, 'getById');
+      const mappedResult = {
+        ...result,
+        data: result.data ? mapFromDb(result.data) : null
+      };
+
+      return handleResult<LeaveRequest>(mappedResult, 'getById');
     }, 'Fetching leave request');
   },
 
@@ -93,7 +134,12 @@ export const leaveRequestsAPI = {
         throw new Error('No data returned from database');
       }
 
-      return result as ApiResponse<LeaveRequest>;
+      const mappedResult = {
+        ...result,
+        data: mapFromDb(result.data)
+      };
+
+      return mappedResult as ApiResponse<LeaveRequest>;
     }, 'Creating leave request');
   },
 
@@ -102,10 +148,15 @@ export const leaveRequestsAPI = {
     return handleApiCall(async () => {
       const result = await supabase
         .from('leave_requests')
-        .update(withTimestamp(updates))
+        .update(withTimestamp(mapToDb(updates)))
         .eq('id', id);
 
-      return handleResult<LeaveRequest[]>(result, 'update');
+      const mappedResult = {
+        ...result,
+        data: result.data ? mapListFromDb(result.data) : null
+      };
+
+      return handleResult<LeaveRequest[]>(mappedResult, 'update');
     }, 'Updating leave request');
   },
 
@@ -117,7 +168,12 @@ export const leaveRequestsAPI = {
         .update(withTimestamp({ is_archived: true }))
         .eq('id', id);
 
-      return handleResult<LeaveRequest[]>(result, 'archive');
+      const mappedResult = {
+        ...result,
+        data: result.data ? mapListFromDb(result.data) : null
+      };
+
+      return handleResult<LeaveRequest[]>(mappedResult, 'archive');
     }, 'Archiving leave request');
   },
 
@@ -129,7 +185,12 @@ export const leaveRequestsAPI = {
         .delete()
         .eq('id', id);
 
-      return handleResult<LeaveRequest[]>(result, 'delete');
+      const mappedResult = {
+        ...result,
+        data: result.data ? mapListFromDb(result.data) : null
+      };
+
+      return handleResult<LeaveRequest[]>(mappedResult, 'delete');
     }, 'Deleting leave request');
   },
 
@@ -139,7 +200,13 @@ export const leaveRequestsAPI = {
       let query = supabase.from('leave_requests').select('*', { count: 'exact', head: true });
 
       if (filters.status) {
-        query = query.eq('status', filters.status);
+        if (filters.status === 'Pending CENRO Approval') {
+          query = query.eq('status', 'Pending').eq('admin_approved', true);
+        } else if (filters.status === 'Pending') {
+          query = query.eq('status', 'Pending').eq('admin_approved', false);
+        } else {
+          query = query.eq('status', filters.status);
+        }
       }
 
       if (filters.is_archived !== undefined) {
@@ -183,7 +250,13 @@ export const leaveRequestsAPI = {
 
       // Apply filters
       if (filters.status) {
-        query = query.eq('status', filters.status);
+        if (filters.status === 'Pending CENRO Approval') {
+          query = query.eq('status', 'Pending').eq('admin_approved', true);
+        } else if (filters.status === 'Pending') {
+          query = query.eq('status', 'Pending').eq('admin_approved', false);
+        } else {
+          query = query.eq('status', filters.status);
+        }
       }
 
       if (filters.request_type) {
@@ -206,7 +279,7 @@ export const leaveRequestsAPI = {
       const orderBy = normalizeLeaveRequestOrderBy(filters.orderBy);
       const result = await query.order(orderBy, { ascending: false });
 
-      const data = result.data || [];
+      const data = result.data ? mapListFromDb(result.data) : [];
       const hasMore = offset + data.length < totalCount;
       const totalPages = Math.ceil(totalCount / limit);
 
@@ -242,7 +315,7 @@ export const leaveRequestsAPI = {
         .select('*')
         .in('id', ids);
 
-      return { data, error: null };
+      return { data: data ? mapListFromDb(data) : null, error: null };
     }, 'Bulk updating leave requests');
   },
 
@@ -256,7 +329,13 @@ export const leaveRequestsAPI = {
 
       // Apply additional filters
       if (filters.status) {
-        query = query.eq('status', filters.status);
+        if (filters.status === 'Pending CENRO Approval') {
+          query = query.eq('status', 'Pending').eq('admin_approved', true);
+        } else if (filters.status === 'Pending') {
+          query = query.eq('status', 'Pending').eq('admin_approved', false);
+        } else {
+          query = query.eq('status', filters.status);
+        }
       }
 
       if (filters.request_type) {
@@ -268,7 +347,13 @@ export const leaveRequestsAPI = {
       }
 
       const result = await query.order('submitted_at', { ascending: false });
-      return handleResult<LeaveRequest[]>(result, 'searching leave requests');
+      
+      const mappedResult = {
+        ...result,
+        data: result.data ? mapListFromDb(result.data) : null
+      };
+
+      return handleResult<LeaveRequest[]>(mappedResult, 'searching leave requests');
     }, 'Searching leave requests');
   },
 
@@ -282,11 +367,16 @@ export const leaveRequestsAPI = {
           admin_approved: true,
           admin_approved_at: new Date().toISOString(),
           admin_approved_by: adminEmail,
-          status: 'Pending CENRO Approval'
+          status: 'Pending'
         })
         .eq('id', id);
 
-      return handleResult<LeaveRequest[]>(result, 'admin approval');
+      const mappedResult = {
+        ...result,
+        data: result.data ? mapListFromDb(result.data) : null
+      };
+
+      return handleResult<LeaveRequest[]>(mappedResult, 'admin approval');
     }, 'Admin approving request');
   },
 
@@ -314,7 +404,12 @@ export const leaveRequestsAPI = {
         })
         .eq('id', id);
 
-      return handleResult<LeaveRequest[]>(result, 'CENRO approval');
+      const mappedResult = {
+        ...result,
+        data: result.data ? mapListFromDb(result.data) : null
+      };
+
+      return handleResult<LeaveRequest[]>(mappedResult, 'CENRO approval');
     }, 'CENRO approving request');
   },
 
@@ -328,11 +423,17 @@ export const leaveRequestsAPI = {
         query = query.eq('status', 'Pending').eq('admin_approved', false);
       } else if (approverEmail === 'cenro@denr.gov.ph') {
         // CENRO sees requests that are pending CENRO approval
-        query = query.eq('status', 'Pending CENRO Approval').eq('cenro_approved', false);
+        query = query.eq('status', 'Pending').eq('admin_approved', true).eq('cenro_approved', false);
       }
 
       const result = await query.order('submitted_at', { ascending: false });
-      return handleResult<LeaveRequest[]>(result, 'fetching pending requests for approver');
+
+      const mappedResult = {
+        ...result,
+        data: result.data ? mapListFromDb(result.data) : null
+      };
+
+      return handleResult<LeaveRequest[]>(mappedResult, 'fetching pending requests for approver');
     }, 'Fetching pending requests for approver');
   },
 

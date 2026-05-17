@@ -5,6 +5,7 @@ import { LEAVE_TYPES, DEPARTMENTS, POSITIONS, REQUEST_TYPES } from '../constants
 import SalaryRangeInput from '../components/SalaryRangeInput';
 import { ArrowLeft, Send, ChevronDown, Edit } from 'lucide-react';
 import { leaveRequestsAPI } from '../api/leaveRequests';
+import { generateUUID, isValidUUID } from '../utils/uuid';
 
 const InputField = ({ label, required, children }) => (
   <div>
@@ -128,11 +129,21 @@ export default function LeaveForm() {
         throw new Error('You must be logged in to submit a request.');
       }
 
+      // Validate and ensure user_id is a proper UUID
+      const userId = isValidUUID(user.id) ? user.id : generateUUID();
+      
+      // If the user.id was invalid, update the stored session with a valid UUID
+      if (!isValidUUID(user.id)) {
+        const updatedUser = { ...user, id: userId };
+        localStorage.setItem('basicAuth', JSON.stringify(updatedUser));
+        console.warn('[LeaveForm] Invalid user.id detected, regenerated valid UUID:', userId);
+      }
+
       const fullName = `${formData.first_name} ${formData.middle_name} ${formData.last_name}`.trim();
       
       // Create leave request object for API
       const leaveRequest = {
-        user_id: user.id,
+        user_id: userId,
         user_email: user.email,
         user_name: fullName,
         request_type: REQUEST_TYPES.LEAVE,

@@ -5,9 +5,10 @@ import { leaveRequestsAPI } from '../api/leaveRequests';
 import {
   Clock, CheckCircle2, Plane, FileText, TrendingUp,
   Eye, Check, X, Archive, Download, User, Calendar, Mail,
-  Search, Filter, ChevronDown
+  Search, Filter, ChevronDown, XCircle, AlertTriangle, Info
 } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 function ViewRequestModal({ request, onClose }) {
   if (!request) return null;
@@ -98,7 +99,28 @@ export default function AdminDashboard() {
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = (message, type = 'success') => {
+    const id = Date.now() + Math.random().toString(36).substr(2, 9);
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  };
   const [connectionStatus, setConnectionStatus] = useState('connected');
+  
+  // Confirmation modal states
+  const [confirmModal, setConfirmModal] = useState({
+    isOpen: false,
+    type: 'warning',
+    title: '',
+    message: '',
+    confirmText: 'Confirm',
+    onConfirm: null,
+    isLoading: false
+  });
+  const [actionLoading, setActionLoading] = useState(false);
   
   const now = new Date();
   const monthName = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][now.getMonth()];
@@ -131,14 +153,10 @@ export default function AdminDashboard() {
     fetchRequests();
   }, [fetchRequests]);
 
-  const updateStatus = async (id, status) => {
+  // Helper function to execute status update with proper error handling
+  const executeStatusUpdate = async (id, status, request) => {
+    setActionLoading(true);
     try {
-      const request = requests.find(r => r.id === id);
-      if (!request) {
-        alert('Request not found');
-        return;
-      }
-      
       console.log('Updating status:', { id, status, user: user?.email, role: user?.role });
       
       // Handle dual approval logic
@@ -146,14 +164,13 @@ export default function AdminDashboard() {
         if (user?.role === 'admin' || user?.email === 'admin@denr.gov.ph') {
           // Admin approves - move to pending CENRO
           console.log('Admin approving request - moving to Pending CENRO Approval');
-          // Use direct update to avoid constraint issues
           await leaveRequestsAPI.update(id, { 
             status: REQUEST_STATUS.PENDING_CENRO,
             admin_approved: true,
             admin_approved_at: new Date().toISOString(),
             admin_approved_by: user.email
           });
-          alert('Request approved and sent to CENRO for final approval.');
+          showToast('Request approved and sent to CENRO for final approval.', 'success');
         } else if (user?.role === 'cenro' || user?.email === 'cenro@denr.gov.ph') {
           // CENRO approves - final approval
           console.log('CENRO approving request - final approval');
@@ -163,7 +180,7 @@ export default function AdminDashboard() {
             cenro_approved_at: new Date().toISOString(),
             cenro_approved_by: user.email
           });
-          alert('Request fully approved!');
+          showToast('Request fully approved! The application is now finalized.', 'success');
         } else {
           // Fallback for testing
           console.log('Direct approval for testing');
@@ -176,7 +193,7 @@ export default function AdminDashboard() {
           status: REQUEST_STATUS.DECLINED,
           is_archived: true
         });
-        alert('Request declined and moved to archive.');
+        showToast('Request declined and moved to the archive.', 'danger');
       } else {
         await leaveRequestsAPI.update(id, { status });
       }
@@ -185,8 +202,89 @@ export default function AdminDashboard() {
       fetchRequests();
     } catch (error) {
       console.error('Error updating status:', error);
-      alert(error.message || 'Error updating status. Please ensure the database migration has been run.');
+      showToast(error.message || 'Error updating status. Please try again.', 'danger');
+    } finally {
+      setActionLoading(false);
     }
+  };
+
+  // Handler for approve button - shows confirmation modal
+  const handleApproveClick = (request) => {
+    const isAdmin = user?.role === 'admin' || user?.email === 'admin@denr.gov.ph';
+    const isCENRO = user?.role === 'cenro' || user?.email === 'cenro@denr.gov.ph';
+    
+    let title, message, confirmText;
+    
+    if (request.status === REQUEST_STATUS.PENDING && isAdmin) {
+      title = 'Approve Request (Stage 1 of 2)';
+      message = `You are about to approve this ${request.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'} from ${request.user_name}. This will send it to CENRO for final approval.`;
+      confirmText = 'Approve & Send to CENRO';
+    } else if (request.status === REQUEST_STATUS.PENDING_CENRO && isCENRO) {
+      title = 'Final Approval (Stage 2 of 2)';
+      message = `You are about to give final approval to this ${request.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'} from ${request.user_name}. This will mark it as fully approved.`;
+      confirmText = 'Give Final Approval';
+    } else {
+      title = 'Approve Request';
+      message = `Are you sure you want to approve this ${request.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'}?`;
+      confirmText = 'Approve';
+    }
+    
+    setConfirmModal({
+      isOpen: true,
+      type: 'success',
+      title,
+      message,
+      confirmText,
+      isLoading: actionLoading,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+        executeStatusUpdate(request.id, REQUEST_STATUS.APPROVED, request);
+        setConfirmModal({ isOpen: false });
+      }
+    });
+  };
+
+  // Handler for decline button - shows confirmation modal
+  const handleDeclineClick = (request) => {
+    setConfirmModal({
+      isOpen: true,
+      type: 'danger',
+      title: 'Decline Request',
+      message: `Are you sure you want to decline this ${request.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'} from ${request.user_name}? This action will archive the request and it cannot be undone.`,
+      confirmText: 'Decline Request',
+      isLoading: actionLoading,
+      onConfirm: () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+        executeStatusUpdate(request.id, REQUEST_STATUS.DECLINED, request);
+        setConfirmModal({ isOpen: false });
+      }
+    });
+  };
+
+  // Handler for archive button - shows confirmation modal
+  const handleArchiveClick = (request) => {
+    setConfirmModal({
+      isOpen: true,
+      type: 'warning',
+      title: 'Archive Request',
+      message: `Are you sure you want to archive this ${request.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'} from ${request.user_name}? Archived requests can be restored later.`,
+      confirmText: 'Archive',
+      isLoading: actionLoading,
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+        try {
+          await leaveRequestsAPI.update(request.id, { is_archived: true });
+          alert('Request archived successfully.');
+          fetchRequests();
+        } catch (error) {
+          console.error('Error archiving request:', error);
+          alert('Failed to archive request. Please try again.');
+        } finally {
+          setActionLoading(false);
+          setConfirmModal({ isOpen: false });
+        }
+      }
+    });
   };
 
   const markAsSeen = async (id) => {
@@ -398,7 +496,7 @@ export default function AdminDashboard() {
                           {/* Show appropriate approval buttons based on user role and request status */}
                           {req.status === REQUEST_STATUS.PENDING && (
                             <button
-                              onClick={() => updateStatus(req.id, REQUEST_STATUS.APPROVED)}
+                              onClick={() => handleApproveClick(req)}
                               className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
                               title="Approve"
                             >
@@ -408,7 +506,7 @@ export default function AdminDashboard() {
                           
                           {req.status === REQUEST_STATUS.PENDING_CENRO && (
                             <button
-                              onClick={() => updateStatus(req.id, REQUEST_STATUS.APPROVED)}
+                              onClick={() => handleApproveClick(req)}
                               className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
                               title="Final Approve"
                             >
@@ -418,7 +516,7 @@ export default function AdminDashboard() {
                           
                           {(req.status === REQUEST_STATUS.PENDING || req.status === REQUEST_STATUS.PENDING_CENRO) && (
                             <button
-                              onClick={() => updateStatus(req.id, REQUEST_STATUS.DECLINED)}
+                              onClick={() => handleDeclineClick(req)}
                               className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
                               title="Decline"
                             >
@@ -427,7 +525,7 @@ export default function AdminDashboard() {
                           )}
                           
                           <button
-                            onClick={() => archiveRequest(req.id)}
+                            onClick={() => handleArchiveClick(req)}
                             className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all mobile-compact-icon-btn"
                             title="Archive"
                           >
@@ -444,6 +542,55 @@ export default function AdminDashboard() {
         </div>
       </div>
       {selectedRequest && <ViewRequestModal request={selectedRequest} onClose={() => setSelectedRequest(null)} />}
+      
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        onClose={() => setConfirmModal({ isOpen: false })}
+        onConfirm={confirmModal.onConfirm}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        type={confirmModal.type}
+        isLoading={confirmModal.isLoading}
+      />
+
+      {/* Toast Container */}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-3 max-w-sm w-full">
+        {toasts.map(t => {
+          let bgClass = 'bg-white border-slate-100 text-slate-800';
+          let icon = <CheckCircle2 className="w-5 h-5 text-emerald-500" />;
+          if (t.type === 'success') {
+            bgClass = 'bg-emerald-50 border-emerald-200 text-emerald-900';
+            icon = <CheckCircle2 className="w-5 h-5 text-emerald-600" />;
+          } else if (t.type === 'danger') {
+            bgClass = 'bg-rose-50 border-rose-200 text-rose-900';
+            icon = <XCircle className="w-5 h-5 text-rose-600" />;
+          } else if (t.type === 'warning') {
+            bgClass = 'bg-amber-50 border-amber-200 text-amber-900';
+            icon = <AlertTriangle className="w-5 h-5 text-amber-600" />;
+          } else if (t.type === 'info') {
+            bgClass = 'bg-blue-50 border-blue-200 text-blue-900';
+            icon = <Info className="w-5 h-5 text-blue-600" />;
+          }
+          
+          return (
+            <div
+              key={t.id}
+              className={`flex items-start gap-3 p-4 rounded-2xl border shadow-xl transition-all duration-300 animate-slide-in-right ${bgClass}`}
+            >
+              <div className="flex-shrink-0 mt-0.5">{icon}</div>
+              <div className="flex-1 text-sm font-semibold leading-tight">{t.message}</div>
+              <button
+                onClick={() => setToasts(prev => prev.filter(toast => toast.id !== t.id))}
+                className="text-slate-400 hover:text-slate-600 flex-shrink-0"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
     </AdminLayout>
   );
 }
