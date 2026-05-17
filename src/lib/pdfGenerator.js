@@ -346,33 +346,43 @@ export async function generateLeaveApplicationPDF(data) {
   y += detailsH;
 
   // 6C & 6D
-  const row6cdH = 18;
+  const row6cdH = 26;
   drawRect(left, y, col1, row6cdH);
   drawRect(left + col1, y, col2, row6cdH);
+  
+  // 6C Left Side
   cellText('6C NUMBER OF WORKING DAYS APPLIED FOR', left + 2, y + 5, { size: 7, bold: true });
-  doc.setFontSize(9);
-  doc.text(data.num_days || '___', left + 5, y + 11);
-  cellText('INCLUSIVE DATES', left + 2, y + 15, { size: 7 });
+  doc.setDrawColor(180, 180, 180);
+  doc.line(left + 4, y + 11, left + col1 - 4, y + 11);
+  doc.setFont('helvetica', 'normal');
+  doc.setFontSize(8);
+  doc.text(data.num_days || '', left + 8, y + 10);
+  
+  cellText('INCLUSIVE DATES', left + 2, y + 16, { size: 7, bold: true });
+  doc.line(left + 4, y + 22, left + col1 - 4, y + 22);
+  const dates = data.start_date && data.end_date ? `${data.start_date} to ${data.end_date}` : '';
+  doc.text(dates, left + 8, y + 21);
+  doc.setDrawColor(0, 0, 0);
 
+  // 6D Right Side
   cellText('6D COMPUTATION', left + col1 + 2, y + 5, { size: 7, bold: true });
-  doc.setFontSize(7);
-  doc.rect(left + col1 + 2, y + 7, 3, 3);
-  doc.text('Not Requested', left + col1 + 7, y + 10);
+  doc.setFontSize(6.5);
+  doc.rect(left + col1 + 5, y + 8, 3, 3);
+  doc.text('Not Requested', left + col1 + 10, y + 10.5);
+  
+  doc.rect(left + col1 + 5, y + 13, 3, 3);
   doc.setFillColor(0, 0, 0);
-  doc.rect(left + col1 + 2.5, y + 12.5, 2, 2, 'F');
+  doc.rect(left + col1 + 5.5, y + 13.5, 2, 2, 'F');
   doc.setFillColor(255, 255, 255);
-  doc.rect(left + col1 + 2, y + 12, 3, 3);
-  doc.text('Requested', left + col1 + 7, y + 14.5);
-  doc.setFontSize(7);
-  const dates = `${data.start_date || ''} to ${data.end_date || ''}`;
-  doc.text(dates, left + 5, y + 8);
+  doc.text('Requested', left + col1 + 10, y + 15.5);
+  
+  // Applicant Signature line inside 6D box
+  doc.setDrawColor(180, 180, 180);
+  doc.line(left + col1 + 15, y + row6cdH - 7, right - 15, y + row6cdH - 7);
+  doc.setDrawColor(0, 0, 0);
+  cellText('(Signature of Applicant)', left + col1 + col2 / 2, y + row6cdH - 3, { align: 'center', size: 6.5 });
+  
   y += row6cdH;
-
-  // Signature line
-  drawRect(left, y, tableW, 8);
-  doc.setFontSize(7);
-  doc.text('(Signature of Applicant)', W - left - 2, y + 5.5, { align: 'right' });
-  y += 8;
 
   // Section 7 header
   drawRect(left, y, tableW, secH);
@@ -384,16 +394,16 @@ export async function generateLeaveApplicationPDF(data) {
   y += secH;
 
   // 7A & 7B
-  const row7H = 38;
+  const row7H = 46;
   drawRect(left, y, col1, row7H);
   drawRect(left + col1, y, col2, row7H);
   cellText('7A CERTIFICATION OF LEAVE CREDITS', left + 2, y + 5, { size: 7, bold: true });
   doc.setFontSize(7);
-  doc.text('As of _______________', left + 2, y + 10);
+  doc.text('      As of _______________', left + 2, y + 9.5);
 
   // Small table for leave credits
   const tblX = left + 5;
-  const tblY = y + 13;
+  const tblY = y + 12;
   doc.rect(tblX, tblY, 35, 5); // header row
   doc.rect(tblX + 35, tblY, 15, 5);
   doc.rect(tblX + 50, tblY, 15, 5);
@@ -428,25 +438,41 @@ export async function generateLeaveApplicationPDF(data) {
     }
   });
 
-  const sigY = y + row7H - 4;
-  cellText('DAISY A. FABILEÑA', left + col1 / 2, sigY, { align: 'center', size: 7, bold: true });
-  cellText('"AO IV/HRMO"', left + col1 / 2, sigY + 4, { align: 'center', size: 7 });
+  // Daisy signature block centered inside 7A
+  doc.setDrawColor(180, 180, 180);
+  doc.line(left + 15, y + row7H - 9, left + col1 - 15, y + row7H - 9);
+  doc.setDrawColor(0, 0, 0);
+  cellText('DAISY A. FABILEÑA', left + col1 / 2, y + row7H - 11, { align: 'center', size: 7, bold: true });
+  cellText('"AO IV/HRMO"', left + col1 / 2, y + row7H - 5, { align: 'center', size: 7 });
 
+  // 7B
   cellText('7B RECOMMENDATION', left + col1 + 2, y + 5, { size: 7, bold: true });
   doc.setFontSize(7);
-  doc.rect(left + col1 + 2, y + 9, 3, 3);
-  doc.text('For approval', left + col1 + 7, y + 11.5);
+  doc.rect(left + col1 + 2, y + 8, 3, 3);
+  doc.text('For approval', left + col1 + 7, y + 10.5);
+  
   doc.setFillColor(0, 0, 0);
   doc.rect(left + col1 + 2.5, y + 14.5, 2, 2, 'F');
   doc.setFillColor(255, 255, 255);
   doc.rect(left + col1 + 2, y + 14, 3, 3);
-  doc.text('For disapproval due to ___________', left + col1 + 7, y + 16.5);
+  doc.text('For disapproval due to _______________________', left + col1 + 7, y + 16.5);
+  
+  // Extra lines for disapproval reasons
+  doc.setDrawColor(180, 180, 180);
+  doc.line(left + col1 + 10, y + 22, right - 10, y + 22);
+  doc.line(left + col1 + 10, y + 28, right - 10, y + 28);
+  doc.line(left + col1 + 10, y + 34, right - 10, y + 34);
+  doc.setDrawColor(0, 0, 0);
+  
   y += row7H;
 
   // 7C & 7D
-  const row7cdH = 32;
-  drawRect(left, y, col1, row7cdH);
-  drawRect(left + col1, y, col2, row7cdH);
+  const row7cdH = 48;
+  drawRect(left, y, tableW, row7cdH);
+  
+  // Partial vertical divider line separating 7C and 7D that stops above the signature
+  doc.line(left + col1, y, left + col1, y + row7cdH - 16);
+  
   cellText('7.C APPROVED FOR:', left + 2, y + 5, { size: 7, bold: true });
   doc.setFontSize(7);
   doc.text('_______ days with pay', left + 4, y + 10);
@@ -454,13 +480,17 @@ export async function generateLeaveApplicationPDF(data) {
   doc.text('_______ others (Specify)', left + 4, y + 20);
 
   cellText('7.D DISAPPROVED DUE TO:', left + col1 + 2, y + 5, { size: 7, bold: true });
+  doc.setDrawColor(180, 180, 180);
   for (let i = 0; i < 3; i++) {
-    doc.line(left + col1 + 4, y + 12 + i * 5, right - 2, y + 12 + i * 5);
+    doc.line(left + col1 + 4, y + 11 + i * 5, right - 4, y + 11 + i * 5);
   }
-
-  const apprY = y + row7cdH - 6;
-  cellText('EDWARD V. SERNADILLA, RPF, DPA /', W / 2, apprY, { align: 'center', size: 8, bold: true });
-  cellText('OIC, CENR Officer', W / 2, apprY + 4.5, { align: 'center', size: 7.5 });
+  
+  // Edward signature block centered inside the bottom of 7C/7D box
+  doc.line(W / 2 - 35, y + row7cdH - 10, W / 2 + 35, y + row7cdH - 10);
+  doc.setDrawColor(0, 0, 0);
+  cellText('EDWARD V. SERNADILLA, RPF, DPA /', W / 2, y + row7cdH - 12, { align: 'center', size: 8, bold: true });
+  cellText('OIC, CENR Officer', W / 2, y + row7cdH - 6, { align: 'center', size: 7.5 });
+  
   y += row7cdH;
 
   doc.save(`Leave_Application_${(data.full_name || 'Employee').replace(/\s+/g, '_')}.pdf`);
