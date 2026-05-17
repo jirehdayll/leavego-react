@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
-import { supabase } from '../lib/supabaseClient';
+import { MONTHS, REQUEST_STATUS, REQUEST_TYPES, USER_ROLES } from '../constants';
+import { useAuth } from '../hooks/useAuth';
 import AdminLayout from '../components/AdminLayout';
 import {
   Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
@@ -8,9 +8,29 @@ import {
 import { X, TrendingUp, TrendingDown, Minus, ChevronDown, User } from 'lucide-react';
 
 
+// Helper function to format salary with commas
+const formatSalary = (salary) => {
+  if (!salary) return salary;
+  
+  // If salary already has commas, return as-is
+  if (salary.includes(',')) {
+    return salary;
+  }
+  
+  // Extract only digits for formatting
+  const numericValue = salary.replace(/[^\d]/g, '');
+  
+  // Only format if it's a pure number longer than 3 digits
+  if (numericValue.length > 3 && /^\d+$/.test(salary)) {
+    return numericValue.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+  
+  return salary;
+};
+
 function EmployeeModal({ employee, allForms, onClose }) {
   const [period, setPeriod] = useState('monthly');
-  const forms = allForms.filter(f => f.user_email === employee.denr_email || f.user_name === employee.full_name);
+  const forms = allForms.filter(f => f.user_email === employee.email || f.user_name === employee.full_name || f.user_name === employee.name);
 
   const approved = forms.filter(f => f.status === REQUEST_STATUS.APPROVED).length;
   const declined = forms.filter(f => f.status === REQUEST_STATUS.DECLINED).length;
@@ -54,7 +74,7 @@ function EmployeeModal({ employee, allForms, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-10 overflow-y-auto">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl overflow-hidden my-4">
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden my-4 flex flex-col">
         {/* Header */}
         <div className="bg-gradient-to-r from-[#1a3530] to-[#0f211d] px-7 py-6">
           <div className="flex items-center justify-between">
@@ -63,8 +83,11 @@ function EmployeeModal({ employee, allForms, onClose }) {
                 {(employee.full_name || '?')[0].toUpperCase()}
               </div>
               <div>
-                <h3 className="text-xl font-black text-white">{employee.full_name || 'Employee'}</h3>
-                <p className="text-emerald-300/70 text-sm">{employee.position || 'DENR Employee'} · {employee.denr_email}</p>
+                <h3 className="text-xl font-black text-white">{employee.full_name || employee.name || 'Employee'}</h3>
+                <p className="text-emerald-300/70 text-sm">{employee.position || 'DENR Employee'} · {employee.email || employee.denr_email}</p>
+                {employee.salary_range && ( 
+                  <p className="text-emerald-400/80 text-xs font-semibold mt-1">Salary: ₱{formatSalary(employee.salary_range)}</p>
+                )}
               </div>
             </div>
             <button onClick={onClose} className="w-9 h-9 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white">
@@ -73,9 +96,9 @@ function EmployeeModal({ employee, allForms, onClose }) {
           </div>
         </div>
 
-        <div className="p-7 space-y-6">
+        <div className="p-7 space-y-6 overflow-y-auto flex-1">
           {/* Stats */}
-          <div className="grid grid-cols-4 gap-4">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
             {[
               { label: 'Total', value: total, color: 'text-slate-800', bg: 'bg-slate-100' },
               { label: 'Approved', value: approved, color: 'text-emerald-700', bg: 'bg-emerald-100' },
@@ -147,6 +170,7 @@ function EmployeeModal({ employee, allForms, onClose }) {
 }
 
 export default function Records() {
+  const { getAccounts } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [allForms, setAllForms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -157,22 +181,68 @@ export default function Records() {
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
-      const [{ data: profiles }, { data: forms }] = await Promise.all([
-        supabase.from('profiles').select('*'),
-        supabase.from('leave_requests').select('*'),
-      ]);
-      setAccounts(profiles || []);
+      
+      // Get accounts from localStorage
+      const userAccounts = getAccounts();
+      console.log('Fetched accounts from localStorage:', userAccounts);
+      
+      // Get forms from localStorage or create sample data
+      let forms = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
+      
+      // If no forms exist, create sample data for demonstration
+      if (forms.length === 0) {
+        const sampleForms = [
+          {
+            id: '1',
+            user_email: 'employee@denr.gov.ph',
+            user_name: 'Employee User',
+            request_type: REQUEST_TYPES.LEAVE,
+            status: REQUEST_STATUS.APPROVED,
+            submitted_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString(),
+            details: { leave_type: 'Vacation Leave', num_days: 3 }
+          },
+          {
+            id: '2',
+            user_email: 'employee@denr.gov.ph',
+            user_name: 'Employee User',
+            request_type: REQUEST_TYPES.TRAVEL,
+            status: REQUEST_STATUS.DECLINED,
+            submitted_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString(),
+            details: { destination: 'Manila', purpose: 'Official Business' }
+          },
+          {
+            id: '3',
+            user_email: 'admin@denr.gov.ph',
+            user_name: 'Admin User',
+            request_type: REQUEST_TYPES.LEAVE,
+            status: REQUEST_STATUS.PENDING,
+            submitted_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date(Date.now() - 2 * 24 * 60 * 60 * 1000).toISOString(),
+            details: { leave_type: 'Sick Leave', num_days: 2 }
+          }
+        ];
+        localStorage.setItem('leaveRequests', JSON.stringify(sampleForms));
+        forms = sampleForms;
+      }
+      
+      setAccounts(userAccounts || []);
       setAllForms(forms || []);
       setLoading(false);
     };
     fetchData();
-  }, []);
+  }, [getAccounts]);
 
   let filtered = accounts.filter(a =>
-    !search || (a.full_name || '').toLowerCase().includes(search.toLowerCase()) || (a.denr_email || '').toLowerCase().includes(search.toLowerCase())
+    !search || (a.full_name || a.name || '').toLowerCase().includes(search.toLowerCase()) || (a.email || a.denr_email || '').toLowerCase().includes(search.toLowerCase())
+  ).filter(a => 
+    a.role !== USER_ROLES.ADMIN && 
+    a.role !== USER_ROLES.SUPER_ADMIN && 
+    a.role !== USER_ROLES.CENRO
   );
-  if (sortOrder === 'az') filtered.sort((a, b) => (a.full_name || '').localeCompare(b.full_name || ''));
-  else filtered.sort((a, b) => (b.full_name || '').localeCompare(a.full_name || ''));
+  if (sortOrder === 'az') filtered.sort((a, b) => (a.full_name || a.name || '').localeCompare(b.full_name || b.name || ''));
+  else filtered.sort((a, b) => (b.full_name || b.name || '').localeCompare(a.full_name || a.name || ''));
 
   return (
     <AdminLayout>
@@ -202,7 +272,7 @@ export default function Records() {
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filtered.map(acc => {
-              const empForms = allForms.filter(f => f.user_email === acc.denr_email || f.user_name === acc.full_name);
+              const empForms = allForms.filter(f => f.user_email === acc.email || f.user_name === acc.full_name || f.user_name === acc.name);
               const approved = empForms.filter(f => f.status === REQUEST_STATUS.APPROVED).length;
               return (
                 <button
@@ -212,11 +282,14 @@ export default function Records() {
                 >
                   <div className="flex items-center gap-3 mb-4">
                     <div className="w-11 h-11 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center text-white font-black text-lg flex-shrink-0">
-                      {(acc.full_name || '?')[0].toUpperCase()}
+                      {(acc.full_name || acc.name || '?')[0].toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <p className="font-bold text-slate-800 text-sm truncate">{acc.full_name || 'No Name'}</p>
+                      <p className="font-bold text-slate-800 text-sm truncate">{acc.full_name || acc.name || 'No Name'}</p>
                       <p className="text-xs text-slate-400 truncate">{acc.position || '—'}</p>
+                      {acc.salary_range && (
+                        <p className="text-xs text-emerald-600 font-semibold truncate mt-1">Salary: ₱{formatSalary(acc.salary_range)}</p>
+                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center">

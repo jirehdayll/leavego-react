@@ -2,7 +2,12 @@ import { APP_ROUTES, USER_ROLES } from '../constants';
 import { emailValidationService } from '../services/emailValidationService';
 
 export function normalizeRole(role) {
-  return role === USER_ROLES.ADMIN ? USER_ROLES.ADMIN : USER_ROLES.EMPLOYEE;
+  if (!role) return USER_ROLES.EMPLOYEE;
+  const r = String(role).toLowerCase();
+  if (r === USER_ROLES.SUPER_ADMIN) return USER_ROLES.SUPER_ADMIN;
+  if (r === USER_ROLES.ADMIN) return USER_ROLES.ADMIN;
+  if (r === USER_ROLES.CENRO) return USER_ROLES.CENRO;
+  return USER_ROLES.EMPLOYEE;
 }
 
 export function isBootstrapAdminEmail(email) {
@@ -23,11 +28,21 @@ export function resolveRoleFromProfile(profile, userEmail) {
 }
 
 export function canAccessAdmin(role, isActive = true) {
-  return isActive && role === USER_ROLES.ADMIN;
+  if (!isActive) return false;
+  return (
+    role === USER_ROLES.ADMIN ||
+    role === USER_ROLES.CENRO ||
+    role === USER_ROLES.SUPER_ADMIN
+  );
 }
 
 export function getDefaultRouteForRole(role) {
-  return role === USER_ROLES.ADMIN
-    ? APP_ROUTES.ADMIN_DASHBOARD
-    : '/dashboard';
+  if (
+    role === USER_ROLES.ADMIN ||
+    role === USER_ROLES.CENRO ||
+    role === USER_ROLES.SUPER_ADMIN
+  ) {
+    return APP_ROUTES.ADMIN_DASHBOARD;
+  }
+  return '/dashboard';
 }

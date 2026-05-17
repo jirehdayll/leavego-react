@@ -43,12 +43,6 @@ function FileCard({ req, view, onClick, onDownload, onArchive }) {
   return (
     <tr className="hover:bg-slate-50/80 transition-colors cursor-pointer" onClick={onClick}>
       <td className="px-6 py-4">
-        <span className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold ${isTravel ? 'bg-emerald-100 text-emerald-700' : 'bg-blue-100 text-blue-700'}`}>
-          {isTravel ? <Plane className="w-3 h-3" /> : <FileText className="w-3 h-3" />}
-          {isTravel ? 'Travel Order' : 'Leave Application'}
-        </span>
-      </td>
-      <td className="px-6 py-4">
         <div className="flex items-center gap-2.5">
           <div className="w-8 h-8 bg-slate-100 rounded-full flex items-center justify-center">
             <User className="w-4 h-4 text-slate-500" />
@@ -59,7 +53,13 @@ function FileCard({ req, view, onClick, onDownload, onArchive }) {
           </div>
         </div>
       </td>
-      <td className="px-6 py-4 text-sm text-slate-500">{dateStr}</td>
+      <td className="px-6 py-4 text-sm text-slate-600">
+        {isTravel ? (
+          <span>{req.details?.departure_date || '—'} → {req.details?.arrival_date || '—'}</span>
+        ) : (
+          <span>{req.details?.start_date || '—'} to {req.details?.end_date || '—'}</span>
+        )}
+      </td>
       <td className="px-6 py-4 text-sm text-slate-600 max-w-[200px] truncate">
         {isTravel ? req.details?.destination : req.details?.leave_type}
       </td>
@@ -258,10 +258,9 @@ export default function ApprovedForms() {
             <table className="w-full">
               <thead>
                 <tr className="bg-slate-50">
-                  <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Type</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Applicant</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Date</th>
-                  <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Details</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Name</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Start & End Date</th>
+                  <th className="px-6 py-3 text-left text-xs font-bold text-slate-500 uppercase tracking-wider">Location / Type</th>
                   <th className="px-6 py-3 text-right text-xs font-bold text-slate-500 uppercase tracking-wider">Actions</th>
                 </tr>
               </thead>

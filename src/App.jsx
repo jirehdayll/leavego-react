@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { useAuth } from './hooks/useAuth';
 
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import EmployeeDashboard from './pages/EmployeeDashboard';
 import LeaveForm from './pages/LeaveForm';
 import TravelForm from './pages/TravelForm';
@@ -21,7 +22,6 @@ import { APP_ROUTES } from './constants';
 
 function App() {
   const { user, loading } = useAuth();
-  const isAuthenticated = Boolean(user);
 
   if (loading) {
     return (
@@ -34,34 +34,37 @@ function App() {
     );
   }
 
-
   return (
     <Router>
       <Routes>
-        {/* Public / Landing - Only show login if no session */}
+        {/* Public / Landing - Show login if not authenticated, dashboard if authenticated */}
         <Route 
           path={APP_ROUTES.ROOT} 
-          element={!isAuthenticated ? <Login /> : <Navigate to="/dashboard" replace />} 
+          element={!user ? <Login /> : <Navigate to="/dashboard" replace />} 
         />
 
-        {/* Login route - for explicit login access */}
-        <Route path={APP_ROUTES.LOGIN} element={<Login />} />
+        {/* Login route - Only show if not authenticated */}
+        <Route path={APP_ROUTES.LOGIN} element={!user ? <Login /> : <Navigate to="/dashboard" replace />} />
 
-        {/* Employee Routes - Protected by ProtectedRoute component */}
+        {/* Password recovery from email (public) */}
+        <Route path={APP_ROUTES.RESET_PASSWORD} element={<ResetPassword />} />
+
+        {/* Employee Routes - Protected */}
         <Route path="/dashboard" element={<ProtectedRoute><EmployeeDashboard /></ProtectedRoute>} />
-                <Route path="/forms/leave" element={<ProtectedRoute><LeaveForm /></ProtectedRoute>} />
+        <Route path="/forms/leave" element={<ProtectedRoute><LeaveForm /></ProtectedRoute>} />
         <Route path="/forms/travel" element={<ProtectedRoute><TravelForm /></ProtectedRoute>} />
         <Route path="/success" element={<ProtectedRoute><FormSuccessful /></ProtectedRoute>} />
 
+        {/* Admin Routes - Protected and require admin role */}
         <Route path={APP_ROUTES.ADMIN_DASHBOARD} element={<AdminRoute><AdminDashboard /></AdminRoute>} />
         <Route path="/admin/approved" element={<AdminRoute><ApprovedForms /></AdminRoute>} />
-                <Route path="/admin/archive" element={<AdminRoute><Archive /></AdminRoute>} />
+        <Route path="/admin/archive" element={<AdminRoute><Archive /></AdminRoute>} />
         <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
         <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
         <Route path="/admin/records" element={<AdminRoute><Records /></AdminRoute>} />
         <Route path="/profile/view/:id" element={<AdminRoute><ScannedProfileView /></AdminRoute>} />
 
-        <Route path="*" element={<Navigate to={APP_ROUTES.ROOT} replace />} />
+        <Route path="*" element={<Navigate to={!user ? APP_ROUTES.LOGIN : "/dashboard"} replace />} />
       </Routes>
     </Router>
   );

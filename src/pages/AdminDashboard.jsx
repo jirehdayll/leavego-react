@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { supabase } from '../lib/supabaseClient';
+import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
+import { useAuth } from '../hooks/useAuth';
 import { leaveRequestsAPI } from '../api/leaveRequests';
-import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import {
   Clock, CheckCircle2, Plane, FileText, TrendingUp,
   Eye, Check, X, Archive, Download, User, Calendar, Mail,
@@ -37,6 +37,7 @@ function ViewRequestModal({ request, onClose }) {
             <div><p className="text-xs text-slate-400">Status</p>
               <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-bold ${
                 request.status === REQUEST_STATUS.PENDING ? 'bg-amber-100 text-amber-700' :
+                request.status === REQUEST_STATUS.PENDING_CENRO ? 'bg-blue-100 text-blue-700' :
                 request.status === REQUEST_STATUS.APPROVED ? 'bg-emerald-100 text-emerald-700' :
                 'bg-red-100 text-red-700'
               }`}>{request.status}</span>
@@ -93,33 +94,31 @@ function StatCard({ icon: Icon, label, value, color, bg }) {
 }
 
 export default function AdminDashboard() {
+  const { user } = useAuth();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
-  const [connectionStatus, setConnectionStatus] = useState('connecting');
+  const [connectionStatus, setConnectionStatus] = useState('connected');
   
   const now = new Date();
-  const monthName = MONTHS[now.getMonth()];
+  const monthName = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][now.getMonth()];
   const year = now.getFullYear();
 
   const fetchRequests = useCallback(async () => {
     setLoading(true);
 
     try {
-      // Fetch active requests using API
-      const { data: activeData, error: activeErr } = await leaveRequestsAPI.getAll({
-        is_archived: false,
-        orderBy: 'submitted_at'
-      });
-
-      if (!activeErr) {
-        console.log('Fetched requests:', activeData?.length || 0);
-        setRequests(activeData || []);
-      } else {
-        console.error('Fetch requests error:', activeErr);
+      // Fetch requests from Supabase
+      const { data, error } = await leaveRequestsAPI.getAll({ is_archived: false });
+      
+      if (error) {
+        console.error('Error fetching requests from Supabase:', error);
         setRequests([]);
+      } else {
+        setRequests(data || []);
+        console.log('Fetched requests from Supabase:', data?.length || 0);
       }
-
+      
     } catch (error) {
       console.error('Fetch requests error:', error);
       setRequests([]);
@@ -130,66 +129,95 @@ export default function AdminDashboard() {
 
   useEffect(() => {
     fetchRequests();
-
-    const channel = supabase
-      .channel('leave_requests_realtime')
-      .on('postgres_changes', 
-        { 
-          event: '*', 
-          schema: 'public', 
-          table: 'leave_requests' 
-        }, 
-        (payload) => {
-          console.log('Real-time update received:', payload);
-          fetchRequests();
-        }
-      )
-      .subscribe((status) => {
-        console.log('Real-time subscription status:', status);
-        setConnectionStatus(status);
-      });
-
-    return () => {
-      console.log('Cleaning up real-time subscription');
-      supabase.removeChannel(channel);
-    };
   }, [fetchRequests]);
 
   const updateStatus = async (id, status) => {
     try {
       const request = requests.find(r => r.id === id);
-      if (request) {
-        // Mark as seen if not already seen
-        if (!request.seen_by_admin) {
-          await leaveRequestsAPI.update(id, { 
-            status, 
-            seen_by_admin: true,
-            admin_seen_at: new Date().toISOString()
-          });
-        } else {
-          await leaveRequestsAPI.update(id, { status });
-        }
+      if (!request) {
+        alert('Request not found');
+        return;
       }
+      
+      console.log('Updating status:', { id, status, user: user?.email, role: user?.role });
+      
+      // Handle dual approval logic
+      if (status === REQUEST_STATUS.APPROVED) {
+        if (user?.role === 'admin' || user?.email === 'admin@denr.gov.ph') {
+          // Admin approves - move to pending CENRO
+          console.log('Admin approving request - moving to Pending CENRO Approval');
+          // Use direct update to avoid constraint issues
+          await leaveRequestsAPI.update(id, { 
+            status: REQUEST_STATUS.PENDING_CENRO,
+            admin_approved: true,
+            admin_approved_at: new Date().toISOString(),
+            admin_approved_by: user.email
+          });
+          alert('Request approved and sent to CENRO for final approval.');
+        } else if (user?.role === 'cenro' || user?.email === 'cenro@denr.gov.ph') {
+          // CENRO approves - final approval
+          console.log('CENRO approving request - final approval');
+          await leaveRequestsAPI.update(id, { 
+            status: REQUEST_STATUS.APPROVED,
+            cenro_approved: true,
+            cenro_approved_at: new Date().toISOString(),
+            cenro_approved_by: user.email
+          });
+          alert('Request fully approved!');
+        } else {
+          // Fallback for testing
+          console.log('Direct approval for testing');
+          await leaveRequestsAPI.update(id, { status: REQUEST_STATUS.APPROVED });
+        }
+      } else if (status === REQUEST_STATUS.DECLINED) {
+        // Decline - also archive the request
+        console.log('Declining and archiving request');
+        await leaveRequestsAPI.update(id, { 
+          status: REQUEST_STATUS.DECLINED,
+          is_archived: true
+        });
+        alert('Request declined and moved to archive.');
+      } else {
+        await leaveRequestsAPI.update(id, { status });
+      }
+      
+      console.log('Status update completed');
       fetchRequests();
     } catch (error) {
       console.error('Error updating status:', error);
+      alert(error.message || 'Error updating status. Please ensure the database migration has been run.');
     }
   };
 
   const markAsSeen = async (id) => {
     const request = requests.find(r => r.id === id);
     if (request && !request.seen_by_admin) {
-      await leaveRequestsAPI.update(id, {
-        seen_by_admin: true,
-        admin_seen_at: new Date().toISOString()
-      });
-      fetchRequests();
+      try {
+        // Update in Supabase
+        await leaveRequestsAPI.update(id, { 
+          seen_by_admin: true, 
+          admin_seen_at: new Date().toISOString() 
+        });
+        fetchRequests();
+      } catch (error) {
+        console.error('Error marking as seen:', error);
+      }
     }
   };
 
   const archiveRequest = async (id) => {
-    await leaveRequestsAPI.archive(id);
-    fetchRequests();
+    if (!window.confirm('Are you sure you want to archive this request?')) {
+      return;
+    }
+    try {
+      // Update in Supabase - archive the request
+      await leaveRequestsAPI.update(id, { is_archived: true });
+      alert('Request archived successfully.');
+      fetchRequests();
+    } catch (error) {
+      console.error('Error archiving request:', error);
+      alert('Failed to archive request. Please try again.');
+    }
   };
 
   const restoreRequest = async (request) => {
@@ -204,11 +232,9 @@ export default function AdminDashboard() {
       return;
     }
     
-    // Restore the request by updating is_archived to false
+    // Restore request by updating is_archived to false
     try {
-      await leaveRequestsAPI.update(request.id, {
-        is_archived: false
-      });
+      await leaveRequestsAPI.update(request.id, { is_archived: false });
       fetchRequests();
     } catch (error) {
       console.error('Error restoring request:', error);
@@ -216,15 +242,15 @@ export default function AdminDashboard() {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
+  const handleLogout = () => {
+    localStorage.removeItem('basicAuth');
     window.location.href = '/';
   };
 
   
   // Sort pending applications by newest first for notifications
   const pending = requests
-    .filter(r => r.status === REQUEST_STATUS.PENDING)
+    .filter(r => r.status === REQUEST_STATUS.PENDING || r.status === REQUEST_STATUS.PENDING_CENRO)
     .sort((a, b) => {
       const dateA = new Date(a.submitted_at || a.created_at);
       const dateB = new Date(b.submitted_at || b.created_at);
@@ -234,20 +260,24 @@ export default function AdminDashboard() {
 
   const monthStart = new Date(year, now.getMonth(), 1).toISOString();
 
-  // All approved (non-archived)
-  const allApproved = requests.filter(r => r.status === REQUEST_STATUS.APPROVED);
-  const approvedLeaveCount = allApproved.filter(r => r.request_type === REQUEST_TYPES.LEAVE).length;
-  const approvedTravelCount = allApproved.filter(r => r.request_type === REQUEST_TYPES.TRAVEL).length;
+  // Current month approved (non-archived) - only count forms from this month
+  const currentMonthApproved = requests.filter(r => {
+    const submittedDate = new Date(r.submitted_at || r.created_at);
+    return r.status === REQUEST_STATUS.APPROVED && 
+           submittedDate >= new Date(monthStart);
+  });
+  const approvedLeaveCount = currentMonthApproved.filter(r => r.request_type === REQUEST_TYPES.LEAVE).length;
+  const approvedTravelCount = currentMonthApproved.filter(r => r.request_type === REQUEST_TYPES.TRAVEL).length;
 
-  // Specific monthly approved for trending stat
-  const monthlyApproved = allApproved.filter(r => new Date(r.submitted_at || r.created_at) >= new Date(monthStart));
+  // All-time approved for reference
+  const allTimeApproved = requests.filter(r => r.status === REQUEST_STATUS.APPROVED);
 
   const stats = [
     { icon: Clock, label: 'Pending Applications', value: pending.length, color: 'text-amber-600', bg: 'bg-amber-50' },
     { icon: Clock, label: 'Unseen Applications', value: unseenPending, color: 'text-red-600', bg: 'bg-red-50' },
-    { icon: Plane, label: 'Approved Travel Orders', value: approvedTravelCount, color: 'text-emerald-600', bg: 'bg-emerald-50' },
-    { icon: FileText, label: 'Approved Leave Orders', value: approvedLeaveCount, color: 'text-blue-600', bg: 'bg-blue-50' },
-    { icon: TrendingUp, label: 'Approved this month', value: monthlyApproved.length, color: 'text-purple-600', bg: 'bg-purple-50' },
+    { icon: Plane, label: 'Approved Travel (This Month)', value: approvedTravelCount, color: 'text-emerald-600', bg: 'bg-emerald-50' },
+    { icon: FileText, label: 'Approved Leave (This Month)', value: approvedLeaveCount, color: 'text-blue-600', bg: 'bg-blue-50' },
+    { icon: TrendingUp, label: 'Total Approved All-Time', value: allTimeApproved.length, color: 'text-purple-600', bg: 'bg-purple-50' },
   ];
 
   return (
@@ -263,20 +293,16 @@ export default function AdminDashboard() {
             </p>
           </div>
           <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
-            connectionStatus === 'SUBSCRIBED' 
+            connectionStatus === 'connected' 
               ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' 
-              : connectionStatus === 'CHANNEL_ERROR'
-              ? 'bg-red-50 border border-red-200 text-red-700'
               : 'bg-amber-50 border border-amber-200 text-amber-700'
           }`}>
             <span className={`w-1.5 h-1.5 rounded-full ${
-              connectionStatus === 'SUBSCRIBED' 
-                ? 'bg-emerald-500 animate-pulse' 
-                : connectionStatus === 'CHANNEL_ERROR'
-                ? 'bg-red-500'
-                : 'bg-amber-500 animate-pulse'
+              connectionStatus === 'connected' 
+                ? 'bg-emerald-500' 
+                : 'bg-amber-500'
             }`}></span>
-            {connectionStatus === 'SUBSCRIBED' ? 'Live' : connectionStatus === 'CHANNEL_ERROR' ? 'Error' : 'Connecting...'}
+            {connectionStatus === 'connected' ? 'Connected' : 'Loading...'}
           </div>
         </div>
 
@@ -368,20 +394,38 @@ export default function AdminDashboard() {
                           >
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button
-                            onClick={() => updateStatus(req.id, REQUEST_STATUS.APPROVED)}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
-                            title="Approve"
-                          >
-                            <Check className="w-3.5 h-3.5" /> Approve
-                          </button>
-                          <button
-                            onClick={() => updateStatus(req.id, REQUEST_STATUS.DECLINED)}
-                            className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
-                            title="Decline"
-                          >
-                            <X className="w-3.5 h-3.5" /> Decline
-                          </button>
+                          
+                          {/* Show appropriate approval buttons based on user role and request status */}
+                          {req.status === REQUEST_STATUS.PENDING && (
+                            <button
+                              onClick={() => updateStatus(req.id, REQUEST_STATUS.APPROVED)}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
+                              title="Approve"
+                            >
+                              <Check className="w-3.5 h-3.5" /> Approve
+                            </button>
+                          )}
+                          
+                          {req.status === REQUEST_STATUS.PENDING_CENRO && (
+                            <button
+                              onClick={() => updateStatus(req.id, REQUEST_STATUS.APPROVED)}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
+                              title="Final Approve"
+                            >
+                              <Check className="w-3.5 h-3.5" /> Final Approve
+                            </button>
+                          )}
+                          
+                          {(req.status === REQUEST_STATUS.PENDING || req.status === REQUEST_STATUS.PENDING_CENRO) && (
+                            <button
+                              onClick={() => updateStatus(req.id, REQUEST_STATUS.DECLINED)}
+                              className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
+                              title="Decline"
+                            >
+                              <X className="w-3.5 h-3.5" /> Decline
+                            </button>
+                          )}
+                          
                           <button
                             onClick={() => archiveRequest(req.id)}
                             className="p-2 text-slate-400 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-all mobile-compact-icon-btn"

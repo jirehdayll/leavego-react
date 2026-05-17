@@ -97,6 +97,10 @@ class ErrorHandlingService {
         return `${baseMessage}Request timed out. Please try again.`;
       
       default:
+        // Return original error message if available, otherwise generic message
+        if (error?.message && !error.message.includes('undefined')) {
+          return `${baseMessage}${error.message}`;
+        }
         return `${baseMessage}An unexpected error occurred. Please try again.`;
     }
   }

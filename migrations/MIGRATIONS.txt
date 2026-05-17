@@ -1,0 +1,16 @@
+Supabase SQL (run in Dashboard → SQL Editor)
+============================================
+
+1. Run the ENTIRE file: fix_auth_grant_and_profiles_rls.sql
+   (grants, auth.users NULL tokens, profiles RLS, handle_new_user trigger, then diagnostics SELECTs)
+
+2. Only if you never ran it on this project: add_separate_name_fields.sql
+
+3. Run: add_dual_approval_fields.sql
+   (adds admin_approved, admin_approved_at, admin_approved_by, cenro_approved, cenro_approved_at, cenro_approved_by fields to leave_requests table)
+
+4. If section 4 (handle_new_user) errors because your profiles columns differ, open
+   fix_auth_grant_and_profiles_rls.sql, comment out from "-- 4) LeaveGo" through the
+   CREATE TRIGGER line, re-run the file, then add a trigger manually to match your schema.
+
+We cannot run these against your hosted project from this repo — you must paste and Run in Supabase.

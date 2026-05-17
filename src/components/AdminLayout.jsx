@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import {
   LayoutDashboard, CheckSquare, Archive, CalendarDays,
-  Users, BookOpen, LogOut, ChevronLeft, ChevronRight, Menu, X, Camera
+  Users, BookOpen, LogOut, ChevronLeft, ChevronRight, Menu, X, Camera, FileSpreadsheet
 } from 'lucide-react';
 import { useAuth } from '../hooks/useAuth';
 import QRScanner from './QRScanner';
@@ -116,8 +116,8 @@ export default function AdminLayout({ children }) {
       )}
 
       {/* Mobile Sidebar */}
-      <aside className={`fixed inset-y-0 left-0 z-50 w-64 sm:w-72 bg-gradient-to-b from-[#1a3530] to-[#0f211d] shadow-2xl transform transition-transform duration-300 ease-in-out lg:hidden ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
-        <button onClick={() => setMobileOpen(false)} className="absolute top-4 right-4 text-white/60 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors">
+      <aside className={`fixed inset-y-0 left-0 z-50 w-64 sm:w-72 bg-gradient-to-b from-[#1a3530] to-[#0f211d] shadow-2xl transform transition-transform duration-300 ease-in-out lg:hidden flex flex-col ${mobileOpen ? 'translate-x-0' : '-translate-x-full'}`}>
+        <button onClick={() => setMobileOpen(false)} className="absolute top-4 right-4 text-white/60 hover:text-white p-1 rounded-lg hover:bg-white/10 transition-colors z-10">
           <X className="w-5 h-5" />
         </button>
         <SidebarContent />

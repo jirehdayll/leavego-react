@@ -1,13 +1,11 @@
 import React, { useEffect, useState, useCallback } from 'react';
-import { supabase } from '../lib/supabaseClient';
-import { authAPI } from '../api/auth';
-import { profilesAPI } from '../api/profiles';
-import { POSITIONS, USER_ROLES } from '../constants';
+import { useAuth } from '../hooks/useAuth';
+import { POSITIONS, USER_ROLES, DEPARTMENTS } from '../constants';
 import AdminLayout from '../components/AdminLayout';
 import {
   UserPlus, Search, Shield, User,
   Mail, Briefcase, Loader2, Power, XCircle,
-  AlertCircle, Pencil, KeyRound, CheckCircle2
+  AlertCircle, Pencil, KeyRound, CheckCircle2, Trash2, Eye, EyeOff
 } from 'lucide-react';
 
 // ─── Reusable Input ───────────────────────────────────────────────────────────
@@ -69,10 +67,13 @@ function ConfirmationModal({ title, message, confirmText, cancelText, onConfirm,
 
 // ─── Create Account Modal ─────────────────────────────────────────────────────
 function CreateAccountModal({ onClose, onSuccess }) {
+  const { createAccount } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
-    fullName: '', email: '', password: '', position: '', role: USER_ROLES.EMPLOYEE
+    firstName: '', middleName: '', surname: '', email: '', password: '', confirmPassword: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, salary_range: '', department: ''
   });
 
   const set = (k, v) => setFormData(p => ({ ...p, [k]: v }));
@@ -82,66 +83,78 @@ function CreateAccountModal({ onClose, onSuccess }) {
     setLoading(true);
     setError(null);
 
-    try {
-      // Check duplicate in profiles table (client-safe)
-      const duplicateResult = await profilesAPI.checkDuplicate(
-        formData.email, formData.fullName
-      );
-      if (duplicateResult.exists) {
-        const field = duplicateResult.type === 'profile' && duplicateResult.data.denr_email === formData.email 
-          ? 'email' 
-          : duplicateResult.type === 'profile' && duplicateResult.data.full_name === formData.fullName
-          ? 'full name'
-          : 'email';
-        setError(`An account with that ${field} already exists.`);
-        return;
-      }
+    // Validate required fields
+    if (!formData.firstName.trim() || !formData.surname.trim()) {
+      setError('First name and surname are required.');
+      setLoading(false);
+      return;
+    }
 
-      // Create auth user using admin API for faster creation
-      const { data: authData, error: createError } = await authAPI.createUser(
+    if (!formData.position.trim()) {
+      setError('Position is required.');
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.salary_range.trim()) {
+      setError('Salary range is required.');
+      setLoading(false);
+      return;
+    }
+
+    // Validate password confirmation
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match.');
+      setLoading(false);
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters long.');
+      setLoading(false);
+      return;
+    }
+
+    try {
+      const fullName = `${formData.firstName} ${formData.middleName} ${formData.surname}`.trim();
+      
+      const result = createAccount(
         formData.email,
         formData.password,
-        {
-          full_name: formData.fullName,
-          role: formData.role,
-          position: formData.position
-        }
+        fullName,
+        formData.role
       );
 
-      if (createError) {
-        setError(
-          createError.message.includes('already registered')
-            ? 'Account already exists.'
-            : createError.message
-        );
-        return;
-      }
-
-      if (authData?.user) {
-        // Create profile entry immediately
-        const { error: profileError } = await profilesAPI.create({
-          id: authData.user.id,
-          email: formData.email,
-          denr_email: formData.email,
-          full_name: formData.fullName,
-          position: formData.position,
-          role: formData.role,
-          is_active: true
+      if (result.success) {
+        // Update the created account with additional fields
+        const existingAccounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+        const updatedAccounts = existingAccounts.map(acc => {
+          if (acc.email === formData.email) {
+            return {
+              ...acc,
+              first_name: formData.firstName,
+              middle_name: formData.middleName,
+              surname: formData.surname,
+              full_name: fullName,
+              position: formData.position,
+              salary_range: formData.salary_range,
+              department: formData.department
+            };
+          }
+          return acc;
         });
-
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-          // Don't fail the whole process if profile creation fails
-        }
-
+        localStorage.setItem('userAccounts', JSON.stringify(updatedAccounts));
+        
         onSuccess();
         onClose();
+        setFormData({
+          firstName: '', middleName: '', surname: '', email: '', password: '', confirmPassword: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, salary_range: '', department: ''
+        });
       } else {
-        setError('Failed to create user account.');
+        setError(result.error);
       }
     } catch (err) {
-      console.error('Account creation error:', err);
-      setError(err.message || 'Failed to create account.');
+      setError(err.message || 'Failed to create account. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -149,27 +162,69 @@ function CreateAccountModal({ onClose, onSuccess }) {
 
   return (
     <Modal title="Create Account" subtitle="Register a new system user" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="p-7 space-y-4">
+      <form onSubmit={handleSubmit} className="p-7 space-y-4 overflow-visible">
         {error && <ErrorBanner message={error} />}
-        <Field label="Full Name">
-          <input required className={inputCls} placeholder="Juan Dela Cruz"
-            value={formData.fullName} onChange={e => set('fullName', e.target.value)} />
-        </Field>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+          <Field label="First Name">
+            <input required className={inputCls} placeholder="Juan"
+              value={formData.firstName} onChange={e => set('firstName', e.target.value)} />
+          </Field>
+          <Field label="Middle Name">
+            <input className={inputCls} placeholder="Santos"
+              value={formData.middleName} onChange={e => set('middleName', e.target.value)} />
+          </Field>
+          <Field label="Surname">
+            <input required className={inputCls} placeholder="Dela Cruz"
+              value={formData.surname} onChange={e => set('surname', e.target.value)} />
+          </Field>
+        </div>
         <Field label="Email Address">
           <input required type="email" className={inputCls} placeholder="juan@denr.gov.ph"
             value={formData.email} onChange={e => set('email', e.target.value)} />
         </Field>
         <Field label="Password">
-          <input required type="password" minLength={6} className={inputCls}
-            placeholder="Min. 6 characters"
-            value={formData.password} onChange={e => set('password', e.target.value)} />
+          <div className="relative">
+            <input required type={showPassword ? "text" : "password"} minLength={6} className={inputCls + ' pr-12'}
+              placeholder="Min. 6 characters"
+              value={formData.password} onChange={e => set('password', e.target.value)} />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
+        </Field>
+        <Field label="Confirm Password">
+          <div className="relative">
+            <input required type={showConfirmPassword ? "text" : "password"} minLength={6} className={inputCls + ' pr-12'}
+              placeholder="Confirm password"
+              value={formData.confirmPassword} onChange={e => set('confirmPassword', e.target.value)} />
+            <button
+              type="button"
+              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+            </button>
+          </div>
         </Field>
         <Field label="Position">
-          <select className={inputCls} value={formData.position}
+          <select required className={inputCls} value={formData.position}
             onChange={e => set('position', e.target.value)}>
             <option value="">Select Position...</option>
             {POSITIONS.map(pos => (
               <option key={pos} value={pos}>{pos}</option>
+            ))}
+          </select>
+        </Field>
+        <Field label="Department">
+          <select className={inputCls} value={formData.department}
+            onChange={e => set('department', e.target.value)}>
+            <option value="">Select Department...</option>
+            {DEPARTMENTS.map(dept => (
+              <option key={dept} value={dept}>{dept}</option>
             ))}
           </select>
         </Field>
@@ -178,7 +233,31 @@ function CreateAccountModal({ onClose, onSuccess }) {
             onChange={e => set('role', e.target.value)}>
             <option value={USER_ROLES.EMPLOYEE}>Employee</option>
             <option value={USER_ROLES.ADMIN}>Administrator</option>
+            <option value={USER_ROLES.CENRO}>CENRO</option>
           </select>
+        </Field>
+        <Field label="Salary Range">
+          <div className="relative">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-semibold z-10">
+              ₱
+            </span>
+            <input
+              type="text"
+              value={formData.salary_range}
+              onChange={(e) => {
+                let value = e.target.value;
+                // Remove non-digit characters except comma
+                const cleanValue = value.replace(/[^\d,]/g, '');
+                // Remove all commas first, then re-add them for proper formatting
+                const digitsOnly = cleanValue.replace(/,/g, '');
+                // Apply comma formatting for mathematical decimal usage
+                value = digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                set('salary_range', value);
+              }}
+              placeholder="0"
+              className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white transition"
+            />
+          </div>
         </Field>
         <SubmitButton loading={loading} label="Create Account" loadingLabel="Creating…"
           icon={<UserPlus className="w-4 h-4" />} />
@@ -187,20 +266,30 @@ function CreateAccountModal({ onClose, onSuccess }) {
   );
 }
 
+
 // ─── Edit Account Modal ───────────────────────────────────────────────────────
 function EditAccountModal({ account, onClose, onSuccess }) {
+  const { resetPassword } = useAuth();
   const [loading, setLoading]   = useState(false);
-  const [pwLoading, setPwLoading] = useState(false);
   const [error, setError]       = useState(null);
   const [success, setSuccess]   = useState(null);
-  const [newPassword, setNewPassword] = useState('');
-  const [showPwField, setShowPwField] = useState(false);
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
 
+  // Parse existing full_name into separate fields
+  const nameParts = (account.full_name || account.name || '').split(' ');
   const [formData, setFormData] = useState({
-    full_name: account.full_name  || '',
-    email:     account.denr_email || account.email || '',
-    position:  account.position   || '',
-    role:      account.role       || USER_ROLES.EMPLOYEE
+    firstName: account.first_name || nameParts[0] || '',
+    middleName: account.middle_name || (nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : (nameParts[1] || '')),
+    surname: account.surname || (nameParts.length > 1 ? nameParts[nameParts.length - 1] : ''),
+    email: account.denr_email || account.email || '',
+    position: account.position || POSITIONS[0] || '',
+    role: account.role || USER_ROLES.EMPLOYEE,
+    salary_range: account.salary_range || '',
+    department: account.department || '',
+    newPassword: '',
+    confirmPassword: ''
   });
 
   const set = (k, v) => setFormData(p => ({ ...p, [k]: v }));
@@ -211,58 +300,77 @@ function EditAccountModal({ account, onClose, onSuccess }) {
     setError(null);
     setSuccess(null);
 
+    // Validate required fields
+    if (!formData.firstName.trim() || !formData.surname.trim()) {
+      setError('First name and surname are required.');
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.position.trim()) {
+      setError('Position is required.');
+      setLoading(false);
+      return;
+    }
+
+    if (!formData.salary_range.trim()) {
+      setError('Salary range is required.');
+      setLoading(false);
+      return;
+    }
+
+    // Validate password fields if password section is shown
+    if (showPasswordSection) {
+      if (formData.newPassword !== formData.confirmPassword) {
+        setError('Passwords do not match.');
+        setLoading(false);
+        return;
+      }
+
+      if (formData.newPassword.length < 6) {
+        setError('Password must be at least 6 characters long.');
+        setLoading(false);
+        return;
+      }
+    }
+
     try {
-      // Update profiles table
-      const { error: profileErr } = await profilesAPI.update(account.id, {
-        full_name:  formData.full_name,
-        denr_email: formData.email,
-        email:      formData.email,
-        position:   formData.position,
-        role:       formData.role
-      });
-
-      if (profileErr) throw profileErr;
-
-      // Also update auth user metadata (best-effort)
-      await authAPI.updateUser(account.id, {
-        email: formData.email,
-        user_metadata: {
-          full_name: formData.full_name,
-          position:  formData.position,
-          role:      formData.role
+      // Update in localStorage
+      const existingAccounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+      const updatedAccounts = existingAccounts.map(acc => {
+        if (acc.id === account.id) {
+          const fullName = `${formData.firstName} ${formData.middleName} ${formData.surname}`.trim();
+          return {
+            ...acc,
+            first_name: formData.firstName,
+            middle_name: formData.middleName,
+            surname: formData.surname,
+            full_name: fullName,
+            denr_email: formData.email,
+            email: formData.email,
+            position: formData.position,
+            role: formData.role,
+            salary_range: formData.salary_range,
+            department: formData.department,
+            ...(showPasswordSection && formData.newPassword && { password: formData.newPassword })
+          };
         }
+        return acc;
       });
-
-      setSuccess('Account updated successfully.');
+      
+      localStorage.setItem('userAccounts', JSON.stringify(updatedAccounts));
+      
+      if (showPasswordSection && formData.newPassword) {
+        setSuccess('Account and password updated successfully.');
+      } else {
+        setSuccess('Account updated successfully.');
+      }
+      
       onSuccess();
     } catch (err) {
       setError(err.message || 'Failed to update account.');
     } finally {
       setLoading(false);
-    }
-  };
-
-  const handlePasswordReset = async () => {
-    if (!newPassword || newPassword.length < 6) {
-      setError('Password must be at least 6 characters.');
-      return;
-    }
-    setPwLoading(true);
-    setError(null);
-    setSuccess(null);
-
-    try {
-      const { error: pwErr } = await authAPI.updateUser(account.id, {
-        password: newPassword
-      });
-      if (pwErr) throw pwErr;
-      setSuccess('Password reset successfully.');
-      setNewPassword('');
-      setShowPwField(false);
-    } catch (err) {
-      setError(err.message || 'Failed to reset password.');
-    } finally {
-      setPwLoading(false);
     }
   };
 
@@ -272,21 +380,40 @@ function EditAccountModal({ account, onClose, onSuccess }) {
         {error   && <ErrorBanner   message={error}   />}
         {success && <SuccessBanner message={success} />}
 
-        <form onSubmit={handleSave} className="space-y-4">
-          <Field label="Full Name">
-            <input className={inputCls} value={formData.full_name}
-              onChange={e => set('full_name', e.target.value)} />
-          </Field>
+        <form onSubmit={handleSave} className="space-y-4 overflow-visible">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <Field label="First Name">
+              <input className={inputCls} value={formData.firstName}
+                onChange={e => set('firstName', e.target.value)} />
+            </Field>
+            <Field label="Middle Name">
+              <input className={inputCls} value={formData.middleName}
+                onChange={e => set('middleName', e.target.value)} />
+            </Field>
+            <Field label="Surname">
+              <input className={inputCls} value={formData.surname}
+                onChange={e => set('surname', e.target.value)} />
+            </Field>
+          </div>
           <Field label="Email Address">
             <input type="email" className={inputCls} value={formData.email}
               onChange={e => set('email', e.target.value)} />
           </Field>
           <Field label="Position">
-            <select className={inputCls} value={formData.position}
+            <select required className={inputCls} value={formData.position}
               onChange={e => set('position', e.target.value)}>
               <option value="">Select Position...</option>
               {POSITIONS.map(pos => (
                 <option key={pos} value={pos}>{pos}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Department">
+            <select className={inputCls} value={formData.department}
+              onChange={e => set('department', e.target.value)}>
+              <option value="">Select Department...</option>
+              {DEPARTMENTS.map(dept => (
+                <option key={dept} value={dept}>{dept}</option>
               ))}
             </select>
           </Field>
@@ -295,47 +422,91 @@ function EditAccountModal({ account, onClose, onSuccess }) {
               onChange={e => set('role', e.target.value)}>
               <option value={USER_ROLES.EMPLOYEE}>Employee</option>
               <option value={USER_ROLES.ADMIN}>Administrator</option>
+              <option value={USER_ROLES.CENRO}>CENRO</option>
             </select>
           </Field>
+          <Field label="Salary Range">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-semibold z-10">
+                ₱
+              </span>
+              <input
+                type="text"
+                value={formData.salary_range}
+                onChange={(e) => {
+                  let value = e.target.value;
+                  // Remove non-digit characters except comma
+                  const cleanValue = value.replace(/[^\d,]/g, '');
+                  // Remove all commas first, then re-add them for proper formatting
+                  const digitsOnly = cleanValue.replace(/,/g, '');
+                  // Apply comma formatting for mathematical decimal usage
+                  value = digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+                  set('salary_range', value);
+                }}
+                placeholder="0"
+                className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white transition"
+              />
+            </div>
+          </Field>
+          
+          {/* Password Reset Section */}
+          <div className="border-t border-slate-200 pt-4">
+            <button
+              type="button"
+              onClick={() => setShowPasswordSection(!showPasswordSection)}
+              className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors mb-3"
+            >
+              <KeyRound className="w-4 h-4" />
+              {showPasswordSection ? 'Cancel Password Reset' : 'Reset Password'}
+            </button>
+            
+            {showPasswordSection && (
+              <div className="space-y-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
+                <Field label="New Password">
+                  <div className="relative">
+                    <input 
+                      type={showPassword ? "text" : "password"} 
+                      minLength={6} 
+                      className={inputCls + ' pr-12'}
+                      placeholder="Min. 6 characters"
+                      value={formData.newPassword} 
+                      onChange={e => set('newPassword', e.target.value)} 
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </Field>
+                <Field label="Confirm New Password">
+                  <div className="relative">
+                    <input 
+                      type={showConfirmPassword ? "text" : "password"} 
+                      minLength={6} 
+                      className={inputCls + ' pr-12'}
+                      placeholder="Confirm new password"
+                      value={formData.confirmPassword} 
+                      onChange={e => set('confirmPassword', e.target.value)} 
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </Field>
+              </div>
+            )}
+          </div>
+          
           <SubmitButton loading={loading} label="Save Changes" loadingLabel="Saving…"
             icon={<Pencil className="w-4 h-4" />} />
         </form>
-
-        {/* Password Reset Section */}
-        <div className="border-t border-slate-100 pt-4">
-          <button
-            type="button"
-            onClick={() => setShowPwField(p => !p)}
-            className="flex items-center gap-2 text-sm text-slate-500 hover:text-slate-700 font-semibold transition"
-          >
-            <KeyRound className="w-4 h-4" />
-            {showPwField ? 'Cancel Password Reset' : 'Reset Password'}
-          </button>
-
-          {showPwField && (
-            <div className="mt-3 flex gap-2">
-              <input
-                type="password"
-                minLength={6}
-                className={inputCls + ' flex-1'}
-                placeholder="New password (min. 6 chars)"
-                value={newPassword}
-                onChange={e => setNewPassword(e.target.value)}
-              />
-              <button
-                type="button"
-                onClick={handlePasswordReset}
-                disabled={pwLoading}
-                className="px-4 py-3 rounded-xl bg-slate-800 text-white text-sm font-bold hover:bg-slate-700 transition flex items-center gap-1.5 whitespace-nowrap"
-              >
-                {pwLoading
-                  ? <Loader2 className="w-4 h-4 animate-spin" />
-                  : <KeyRound className="w-4 h-4" />}
-                Set
-              </button>
-            </div>
-          )}
-        </div>
       </div>
     </Modal>
   );
@@ -346,7 +517,7 @@ function Modal({ title, subtitle, onClose, children }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md animate-[fadeIn_0.2s_ease-out]">
         <div className="bg-gradient-to-r from-[#1a3530] to-[#0f211d] px-7 py-5 flex items-center justify-between text-white">
           <div>
             <h3 className="text-lg font-black">{title}</h3>
@@ -393,29 +564,35 @@ function SubmitButton({ loading, label, loadingLabel, icon }) {
   );
 }
 
-// ─── Account Card ─────────────────────────────────────────────────────────────
-function AccountCard({ acc, isAdmin, onToggle, onEdit }) {
-  const [showConfirm, setShowConfirm] = useState(false);
-  
-  const accent = isAdmin
-    ? { bg: 'bg-purple-100', text: 'text-purple-700', dot: 'bg-purple-500' }
-    : { bg: 'bg-blue-100',   text: 'text-blue-700',   dot: 'bg-blue-500'   };
 
-  const initial = acc.full_name?.charAt(0)?.toUpperCase() || '?';
+// ─── Account Card Component ─────────────────────────────────────────────────────
+function AccountCard({ acc, isAdmin, onToggle, onEdit, onDelete }) {
+  const [showConfirm, setShowConfirm] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  
+  const displayName = acc.full_name || acc.name || acc.email || 'Unknown';
+  const initial = displayName.charAt(0).toUpperCase();
+  
+  const accent = isAdmin 
+    ? { bg: 'bg-purple-100', text: 'text-purple-700' }
+    : { bg: 'bg-blue-100', text: 'text-blue-700' };
 
   const handleToggleClick = () => {
-    if (acc.is_active) {
-      // Show confirmation for deactivation
-      setShowConfirm(true);
-    } else {
-      // Activate immediately (no confirmation needed)
-      onToggle(acc.id, acc.is_active);
-    }
+    setShowConfirm(true);
   };
 
   const handleConfirmToggle = () => {
     onToggle(acc.id, acc.is_active);
     setShowConfirm(false);
+  };
+
+  const handleDeleteClick = () => {
+    setShowDeleteConfirm(true);
+  };
+
+  const handleConfirmDelete = () => {
+    onDelete(acc.id);
+    setShowDeleteConfirm(false);
   };
 
   return (
@@ -428,7 +605,7 @@ function AccountCard({ acc, isAdmin, onToggle, onEdit }) {
             </div>
             <div>
               <p className="text-sm font-bold text-slate-800 leading-tight">
-                {acc.full_name || 'Unnamed Account'}
+                {displayName}
               </p>
               <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider ${accent.bg} ${accent.text} mt-1`}>
                 {isAdmin ? <Shield className="w-2.5 h-2.5" /> : <User className="w-2.5 h-2.5" />}
@@ -445,6 +622,13 @@ function AccountCard({ acc, isAdmin, onToggle, onEdit }) {
               title="Edit account"
             >
               <Pencil className="w-4 h-4" />
+            </button>
+            <button
+              onClick={handleDeleteClick}
+              className="p-2 rounded-xl bg-red-50 text-red-600 hover:bg-red-100 transition-all"
+              title="Delete account"
+            >
+              <Trash2 className="w-4 h-4" />
             </button>
             <button
               onClick={handleToggleClick}
@@ -469,6 +653,12 @@ function AccountCard({ acc, isAdmin, onToggle, onEdit }) {
             <Briefcase className="w-3 h-3 flex-shrink-0" />
             <span className="truncate">{acc.position || 'No position set'}</span>
           </div>
+          {acc.salary_range && (
+            <div className="flex items-center gap-2 text-slate-500">
+              <span className="text-xs font-semibold text-slate-400">💰</span>
+              <span className="truncate text-xs">{acc.salary_range}</span>
+            </div>
+          )}
           <div>
             <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold ${
               acc.is_active
@@ -485,12 +675,25 @@ function AccountCard({ acc, isAdmin, onToggle, onEdit }) {
       {/* Confirmation Modal */}
       {showConfirm && (
         <ConfirmationModal
-          title="Deactivate Account?"
-          message={`Are you sure you want to deactivate ${acc.full_name || acc.email}? This will remove their access to the system but won't delete their data.`}
-          confirmText="Yes, Deactivate"
+          title={acc.is_active ? "Deactivate Account?" : "Activate Account?"}
+          message={`Are you sure you want to ${acc.is_active ? 'deactivate' : 'activate'} ${acc.full_name || acc.email}? This will ${acc.is_active ? 'remove' : 'restore'} their access to the system.`}
+          confirmText={`Yes, ${acc.is_active ? 'Deactivate' : 'Activate'}`}
           cancelText="Cancel"
           onConfirm={handleConfirmToggle}
           onCancel={() => setShowConfirm(false)}
+          type={acc.is_active ? "danger" : "success"}
+        />
+      )}
+
+      {/* Delete Confirmation Modal */}
+      {showDeleteConfirm && (
+        <ConfirmationModal
+          title="Delete Account?"
+          message={`Are you sure you want to permanently delete ${acc.full_name || acc.email}? This action cannot be undone and will remove all associated data.`}
+          confirmText="Yes, Delete"
+          cancelText="Cancel"
+          onConfirm={handleConfirmDelete}
+          onCancel={() => setShowDeleteConfirm(false)}
           type="danger"
         />
       )}
@@ -515,69 +718,56 @@ function SectionHeader({ icon, label, count, color }) {
   );
 }
 
-// ─── Main Page ────────────────────────────────────────────────────────────────
 export default function AccountManagement() {
-  const [accounts, setAccounts]         = useState([]);
-  const [loading, setLoading]           = useState(true);
-  const [error, setError]               = useState(null);
-  const [searchTerm, setSearchTerm]     = useState('');
+  const { createAccount, getAccounts, deleteAccount } = useAuth();
+  const [accounts, setAccounts] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
-  const [editingAccount, setEditingAccount]   = useState(null);
+  const [editingAccount, setEditingAccount] = useState(null);
 
-  // ── Fetch directly from profiles table (client-safe, no service role needed)
-  const fetchAccounts = useCallback(async () => {
+  // Fetch accounts from localStorage
+  const fetchAccounts = useCallback(() => {
     setLoading(true);
     setError(null);
-
+    
     try {
-      const { data, error: fetchError } = await supabase
-        .from('profiles')
-        .select('id, full_name, denr_email, email, role, position, is_active, created_at, updated_at')
-        .order('created_at', { ascending: false });
-
-      if (fetchError) throw fetchError;
-
-      setAccounts(data || []);
+      const userAccounts = getAccounts();
+      setAccounts(userAccounts);
     } catch (err) {
       console.error('fetchAccounts error:', err);
-      setError(
-        err.code === '42501'
-          ? 'Permission denied. Make sure the RLS fix SQL has been run in Supabase.'
-          : err.message || 'Failed to load accounts.'
-      );
+      setError('Failed to load accounts.');
       setAccounts([]);
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [getAccounts]);
 
   useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
 
-  // ── Toggle active / inactive
-  const toggleAccountStatus = async (id, currentStatus) => {
+  // Toggle active / inactive
+  const toggleAccountStatus = (id, currentStatus) => {
     const newStatus = !currentStatus;
     
-    // Optimistic UI update
-    setAccounts(prev =>
-      prev.map(a => a.id === id ? { ...a, is_active: newStatus } : a)
+    // Update in localStorage
+    const updatedAccounts = accounts.map(a => 
+      a.id === id ? { ...a, is_active: newStatus } : a
     );
+    setAccounts(updatedAccounts);
+    localStorage.setItem('userAccounts', JSON.stringify(updatedAccounts));
+  };
 
-    try {
-      const { error: toggleError } = await profilesAPI.toggleActive(id, currentStatus);
-      if (toggleError) {
-        console.error('Toggle error:', toggleError);
-        // Revert on failure
-        setAccounts(prev =>
-          prev.map(a => a.id === id ? { ...a, is_active: currentStatus } : a)
-        );
-        throw toggleError;
-      }
+  // ── Delete account
+  const handleDeleteAccount = (id) => {
+    if (window.confirm('Are you sure you want to delete this account? This action cannot be undone.')) {
+      // Remove from list
+      setAccounts(prev => prev.filter(a => a.id !== id));
       
-      // Success - the optimistic update is already correct
-      console.log(`Account ${id} ${newStatus ? 'activated' : 'deactivated'} successfully`);
-    } catch (err) {
-      console.error('Failed to toggle account status:', err);
-      // Error handling is done above with revert
+      // Remove from localStorage
+      deleteAccount(id);
+      
+      alert('Account deleted successfully.');
     }
   };
 
@@ -588,8 +778,8 @@ export default function AccountManagement() {
     acc.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const admins    = filtered.filter(a => a.role === USER_ROLES.ADMIN);
-  const employees = filtered.filter(a => a.role !== USER_ROLES.ADMIN);
+  const admins    = filtered.filter(a => a.role === USER_ROLES.ADMIN || a.role === USER_ROLES.CENRO);
+  const employees = filtered.filter(a => a.role !== USER_ROLES.ADMIN && a.role !== USER_ROLES.CENRO);
 
   return (
     <AdminLayout>
@@ -663,6 +853,7 @@ export default function AccountManagement() {
                       isAdmin
                       onToggle={toggleAccountStatus}
                       onEdit={setEditingAccount}
+                      onDelete={handleDeleteAccount}
                     />
                   ))}
                 </div>
@@ -688,6 +879,7 @@ export default function AccountManagement() {
                       isAdmin={false}
                       onToggle={toggleAccountStatus}
                       onEdit={setEditingAccount}
+                      onDelete={handleDeleteAccount}
                     />
                   ))}
                 </div>

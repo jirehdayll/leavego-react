@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { canAccessAdmin, resolveRoleFromProfile } from '../utils/auth';
 import { USER_ROLES, UserRole } from '../constants';
+import { generateUUID } from '../utils/uuid';
 
 interface AuthState {
   user: any | null;
@@ -21,120 +22,179 @@ const defaultAuthState: AuthState = {
 
 export function useAuth() {
   const [user, setUser] = useState<any | null>(null);
-  const [role, setRole] = useState<UserRole | null>(null);
-  const [profile, setProfile] = useState<any | null>(null);
-  const [isActive, setIsActive] = useState<boolean>(true);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const resetAuthState = useCallback(() => {
-    setUser(null);
-    setRole(null);
-    setProfile(null);
-    setIsActive(true);
-  }, []);
-
-  const fetchProfile = useCallback(async (currentUser: any) => {
-    try {
-      // Use a timeout to prevent hanging indefinitely due to RLS recursion
-      const timeoutPromise = new Promise((_, reject) => 
-        setTimeout(() => reject(new Error('Profile fetch timeout')), 5000)
-      );
-      
-      const queryPromise = supabase
-        .from('profiles')
-        .select('id, email, denr_email, full_name, role, is_active')
-        .eq('id', currentUser.id)
-        .maybeSingle();
-
-      const { data: profileData, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
-
-      if (error) {
-        console.error('[useAuth.fetchProfile]', error);
-      }
-
-      const isProfileActive = profileData?.is_active !== false;
-      const resolvedRole = resolveRoleFromProfile(profileData, currentUser?.email) as UserRole;
-
-      return {
-        profile: profileData,
-        role: resolvedRole,
-        isActive: isProfileActive,
-      };
-    } catch (err) {
-      console.error('[useAuth.fetchProfile] unexpected error', err);
-      return {
-        profile: null,
-        role: resolveRoleFromProfile(null, currentUser?.email) as UserRole,
-        isActive: true,
-      };
-    }
-  }, []);
-
-  const applyUserState = useCallback(async (currentUser: any) => {
-    if (!currentUser) {
-      resetAuthState();
-      return;
-    }
-
-    setUser(currentUser);
-
-    const profileState = await fetchProfile(currentUser);
-
-    if (profileState.isActive === false) {
-      await supabase.auth.signOut();
-      resetAuthState();
-      return;
-    }
-
-    setProfile(profileState.profile);
-    setRole(profileState.role);
-    setIsActive(profileState.isActive);
-  }, [fetchProfile, resetAuthState]);
-
+  // Initialize default accounts on first load
   useEffect(() => {
-    let mounted = true;
+    const existingAccounts = localStorage.getItem('userAccounts');
+    if (!existingAccounts) {
+      const defaultAccounts = [
+        {
+          id: generateUUID(),
+          email: 'admin@denr.gov.ph',
+          password: 'admin',
+          role: 'admin',
+          fullName: 'Admin User',
+          isActive: true,
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: generateUUID(),
+          email: 'employee@denr.gov.ph',
+          password: 'employee',
+          role: 'employee',
+          fullName: 'Employee User',
+          isActive: true,
+          createdAt: new Date().toISOString()
+        },
+        {
+          id: generateUUID(),
+          email: 'cenro@denr.gov.ph',
+          password: 'cenro123',
+          role: 'cenro',
+          fullName: 'CENRO User',
+          isActive: true,
+          createdAt: new Date().toISOString()
+        }
+      ];
+      localStorage.setItem('userAccounts', JSON.stringify(defaultAccounts));
+    }
+  }, []);
 
-    const initAuth = async () => {
+  // Check for existing auth on mount
+  useEffect(() => {
+    const storedAuth = localStorage.getItem('basicAuth');
+    if (storedAuth) {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
-        if (!mounted) return;
-
-        await applyUserState(session?.user ?? null);
-      } catch (err) {
-        console.error('[useAuth.initAuth]', err);
-        if (mounted) {
-          resetAuthState();
-        }
-      } finally {
-        if (mounted) {
-          setLoading(false);
-        }
+        const authData = JSON.parse(storedAuth);
+        setUser(authData);
+      } catch (error) {
+        localStorage.removeItem('basicAuth');
       }
+    }
+    setLoading(false);
+  }, []);
+
+  const login = useCallback((email: string, password: string) => {
+    // Get stored accounts from localStorage
+    const storedAccounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+    
+    // Check hardcoded credentials first (for default accounts)
+    const validCredentials = [
+      { email: 'admin@denr.gov.ph', password: 'admin', role: 'admin', name: 'Admin User' },
+      { email: 'employee@denr.gov.ph', password: 'employee', role: 'employee', name: 'Employee User' },
+      { email: 'cenro@denr.gov.ph', password: 'cenro123', role: 'cenro', name: 'CENRO User' }
+    ];
+
+    const hardcodedCredential = validCredentials.find(cred => cred.email === email && cred.password === password);
+    
+    if (hardcodedCredential) {
+      const userData = {
+        id: generateUUID(),
+        email: hardcodedCredential.email,
+        role: hardcodedCredential.role,
+        full_name: hardcodedCredential.name,
+        isActive: true
+      };
+      
+      setUser(userData);
+      localStorage.setItem('basicAuth', JSON.stringify(userData));
+      return { success: true, user: userData };
+    }
+
+    // Check stored accounts
+    const storedAccount = storedAccounts.find((acc: any) => acc.email === email && acc.password === password);
+    
+    if (storedAccount) {
+      // Check if account is active
+      if (storedAccount.is_active === false) {
+        return { success: false, error: 'Account is deactivated. Please contact administrator.' };
+      }
+      
+      const userData = {
+        id: storedAccount.id,
+        email: storedAccount.email,
+        role: storedAccount.role,
+        full_name: storedAccount.full_name || storedAccount.fullName,
+        isActive: storedAccount.is_active !== false
+      };
+      
+      setUser(userData);
+      localStorage.setItem('basicAuth', JSON.stringify(userData));
+      return { success: true, user: userData };
+    }
+    
+    return { success: false, error: 'Invalid email or password' };
+  }, []);
+
+  const logout = useCallback(() => {
+    setUser(null);
+    localStorage.removeItem('basicAuth');
+  }, []);
+
+  const createAccount = useCallback((email: string, password: string, fullName: string, role: string) => {
+    // Get existing accounts from localStorage
+    const existingAccounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+    
+    // Check if email already exists
+    if (existingAccounts.find((acc: any) => acc.email === email)) {
+      return { success: false, error: 'Email already exists' };
+    }
+
+    // Create new account
+    const newAccount = {
+      id: generateUUID(),
+      email,
+      password,
+      role,
+      fullName,
+      isActive: true,
+      createdAt: new Date().toISOString()
     };
 
-    initAuth();
+    // Save to localStorage
+    existingAccounts.push(newAccount);
+    localStorage.setItem('userAccounts', JSON.stringify(existingAccounts));
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
-      if (!mounted) return;
-      await applyUserState(session?.user ?? null);
-      if (mounted) {
-        setLoading(false);
+    return { success: true, account: newAccount };
+  }, []);
+
+  const getAccounts = useCallback(() => {
+    return JSON.parse(localStorage.getItem('userAccounts') || '[]');
+  }, []);
+
+  const deleteAccount = useCallback((accountId: string) => {
+    const existingAccounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+    const updatedAccounts = existingAccounts.filter((acc: any) => acc.id !== accountId);
+    localStorage.setItem('userAccounts', JSON.stringify(updatedAccounts));
+    return { success: true };
+  }, []);
+
+  const resetPassword = useCallback((accountId: string, newPassword: string) => {
+    const existingAccounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+    const updatedAccounts = existingAccounts.map((acc: any) => {
+      if (acc.id === accountId) {
+        return { ...acc, password: newPassword };
       }
+      return acc;
     });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
-  }, [applyUserState, resetAuthState]);
+    localStorage.setItem('userAccounts', JSON.stringify(updatedAccounts));
+    return { success: true };
+  }, []);
 
   return {
     user,
-    role,
-    profile,
-    isActive,
-    isAdmin: canAccessAdmin(role, isActive),
-    isEmployee: isActive && role === USER_ROLES.EMPLOYEE,
+    role: user?.role || null,
+    profile: user,
+    isActive: user?.isActive !== false,
+    isAdmin: user?.role === 'admin' || user?.role === 'cenro',
+    isEmployee: user?.role === 'employee',
     loading,
+    login,
+    logout,
+    createAccount,
+    getAccounts,
+    deleteAccount,
+    resetPassword
   };
 }

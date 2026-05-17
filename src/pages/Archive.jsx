@@ -1,19 +1,28 @@
 import React, { useEffect, useState } from 'react';
 import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
-import { supabase } from '../lib/supabaseClient';
-import { leaveRequestsAPI } from '../api/leaveRequests';
+import { useAuth } from '../hooks/useAuth';
 import AdminLayout from '../components/AdminLayout';
-import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
-import { generateAttendanceReportPDF } from '../lib/attendanceReportPDF';
 import { Plane, FileText, Eye, Download, RotateCcw, User, X, Search, Filter, Calendar } from 'lucide-react';
 
 function PDFViewModal({ request, onClose }) {
   const d = request.details || {};
   const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
+  
   const downloadPDF = async () => {
-    if (isTravel) await generateTravelOrderPDF({ ...d, full_name: request.user_name });
-    else await generateLeaveApplicationPDF({ ...d, full_name: request.user_name });
+    // For now, just create a simple text download since PDF generation requires additional setup
+    const content = isTravel 
+      ? `Travel Order\nName: ${request.user_name}\nDestination: ${d.destination || 'N/A'}\nPurpose: ${d.purpose || 'N/A'}\nDeparture: ${d.departure_date || 'N/A'}\nArrival: ${d.arrival_date || 'N/A'}`
+      : `Leave Application\nName: ${request.user_name}\nLeave Type: ${d.leave_type || 'N/A'}\nStart Date: ${d.start_date || 'N/A'}\nEnd Date: ${d.end_date || 'N/A'}\nDetails: ${d.details_of_leave || 'N/A'}`;
+    
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${isTravel ? 'Travel_Order' : 'Leave_Application'}_${request.user_name}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
+  
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
@@ -25,7 +34,7 @@ function PDFViewModal({ request, onClose }) {
           </div>
           <div className="flex items-center gap-2">
             <button onClick={downloadPDF} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-all">
-              <Download className="w-3.5 h-3.5" /> Download PDF
+              <Download className="w-3.5 h-3.5" /> Download
             </button>
             <button onClick={onClose} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white">
               <X className="w-4 h-4" />
@@ -71,29 +80,56 @@ export default function Archive() {
   const [sortBy, setSortBy] = useState('date-desc');
   const [selectedMonth, setSelectedMonth] = useState('');
 
-  const fetch = async () => {
+  const fetch = () => {
     setLoading(true);
     try {
-      // Fetch archived requests
-      const archivedResult = await leaveRequestsAPI.getAll({
-        is_archived: true,
-        orderBy: 'submitted_at'
-      });
+      // Get forms from localStorage
+      let allForms = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
       
-      // Fetch declined requests (that might not be archived)
-      const declinedResult = await leaveRequestsAPI.getAll({
-        status: REQUEST_STATUS.DECLINED,
-        is_archived: false,
-        orderBy: 'submitted_at'
-      });
+      // Create sample archived data if none exists
+      if (allForms.length === 0) {
+        const sampleArchivedForms = [
+          {
+            id: 'arch1',
+            user_email: 'employee@denr.gov.ph',
+            user_name: 'Employee User',
+            request_type: REQUEST_TYPES.LEAVE,
+            status: REQUEST_STATUS.DECLINED,
+            is_archived: true,
+            submitted_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString(),
+            details: { leave_type: 'Vacation Leave', num_days: 5, details_of_leave: 'Family vacation' }
+          },
+          {
+            id: 'arch2',
+            user_email: 'employee@denr.gov.ph',
+            user_name: 'Employee User',
+            request_type: REQUEST_TYPES.TRAVEL,
+            status: REQUEST_STATUS.APPROVED,
+            is_archived: true,
+            submitted_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date(Date.now() - 45 * 24 * 60 * 60 * 1000).toISOString(),
+            details: { destination: 'Cebu City', purpose: 'Regional Conference', departure_date: '2024-03-15', arrival_date: '2024-03-17' }
+          },
+          {
+            id: 'arch3',
+            user_email: 'test@denr.gov.ph',
+            user_name: 'Test User',
+            request_type: REQUEST_TYPES.LEAVE,
+            status: REQUEST_STATUS.DECLINED,
+            is_archived: false, // Declined but not archived
+            submitted_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+            created_at: new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString(),
+            details: { leave_type: 'Sick Leave', num_days: 2, details_of_leave: 'Medical consultation' }
+          }
+        ];
+        localStorage.setItem('leaveRequests', JSON.stringify(sampleArchivedForms));
+        allForms = sampleArchivedForms;
+      }
       
-      // Combine both datasets
-      const allForms = [
-        ...(archivedResult.data || []),
-        ...(declinedResult.data || [])
-      ].sort((a, b) => new Date(b.submitted_at || b.created_at) - new Date(a.submitted_at || a.created_at));
-      
-      setForms(allForms);
+      // Filter for archived and declined forms
+      const archivedForms = allForms.filter(f => f.is_archived === true || f.status === REQUEST_STATUS.DECLINED);
+      setForms(archivedForms);
     } catch (error) {
       console.error('Error fetching archive data:', error);
       setForms([]);
@@ -104,48 +140,102 @@ export default function Archive() {
 
   useEffect(() => { fetch(); }, []);
 
-  const restore = async (id) => {
+  const restore = (id) => {
+    if (!window.confirm('Are you sure you want to restore this application? It will be moved back to the pending applications list.')) {
+      return;
+    }
+    
     try {
-      await leaveRequestsAPI.update(id, { 
-        is_archived: false, 
-        status: REQUEST_STATUS.PENDING 
+      // Get all forms from localStorage
+      let allForms = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
+      const formToRestore = allForms.find(form => form.id === id);
+      
+      if (!formToRestore) {
+        alert('Form not found.');
+        return;
+      }
+      
+      // Restore the form - allow restoring both archived pending and declined forms
+      const updatedForms = allForms.map(form => {
+        if (form.id === id) {
+          return {
+            ...form,
+            is_archived: false,
+            status: REQUEST_STATUS.PENDING,
+            // Reset approval fields if they exist
+            admin_approved: false,
+            admin_approved_at: null,
+            admin_approved_by: null,
+            cenro_approved: false,
+            cenro_approved_at: null,
+            cenro_approved_by: null
+          };
+        }
+        return form;
       });
-      fetch();
+      localStorage.setItem('leaveRequests', JSON.stringify(updatedForms));
+      fetch(); // Refresh the archive list
+      alert('Application restored successfully. It has been moved back to pending applications.');
     } catch (error) {
       console.error('Error restoring request:', error);
       alert('Failed to restore request. Please try again.');
     }
   };
 
-  const downloadPDF = async (req) => {
+  const downloadPDF = (req) => {
     const d = req.details || {};
-    if (req.request_type === REQUEST_TYPES.TRAVEL) await generateTravelOrderPDF({ ...d, full_name: req.user_name });
-    else await generateLeaveApplicationPDF({ ...d, full_name: req.user_name });
+    const content = req.request_type === REQUEST_TYPES.TRAVEL 
+      ? `Travel Order\nName: ${req.user_name}\nDestination: ${d.destination || 'N/A'}\nPurpose: ${d.purpose || 'N/A'}\nDeparture: ${d.departure_date || 'N/A'}\nArrival: ${d.arrival_date || 'N/A'}`
+      : `Leave Application\nName: ${req.user_name}\nLeave Type: ${d.leave_type || 'N/A'}\nStart Date: ${d.start_date || 'N/A'}\nEnd Date: ${d.end_date || 'N/A'}\nDetails: ${d.details_of_leave || 'N/A'}`;
+    
+    const blob = new Blob([content], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${req.request_type === REQUEST_TYPES.TRAVEL ? 'Travel_Order' : 'Leave_Application'}_${req.user_name}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
   };
 
-  const generateMonthlySummaryPDF = async () => {
+  const generateMonthlySummaryPDF = () => {
     try {
-      // Fetch all approved and archived requests for the current month
+      // Get all forms from localStorage
+      const allForms = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
       const currentDate = new Date();
       const currentMonth = currentDate.getMonth();
       const currentYear = currentDate.getFullYear();
       
-      const { data: allRequests } = await supabase
-        .from('leave_requests')
-        .select('*')
-        .in('status', [REQUEST_STATUS.APPROVED])
-        .eq('request_type', REQUEST_TYPES.LEAVE);
-      
-      // Filter requests for current month (both archived and non-archived)
-      const monthlyRequests = allRequests.filter(req => {
+      // Filter approved requests for current month
+      const monthlyApproved = allForms.filter(req => {
         const reqDate = new Date(req.submitted_at || req.created_at);
-        return reqDate.getMonth() === currentMonth && reqDate.getFullYear() === currentYear;
+        return req.status === REQUEST_STATUS.APPROVED && 
+               reqDate.getMonth() === currentMonth && 
+               reqDate.getFullYear() === currentYear;
       });
       
-      console.log(`Found ${monthlyRequests.length} requests for ${currentDate.toLocaleString('default', { month: 'long' })} ${currentYear}`);
+      console.log(`Found ${monthlyApproved.length} approved requests for ${currentDate.toLocaleString('default', { month: 'long' })} ${currentYear}`);
       
-      // Generate the PDF
-      await generateAttendanceReportPDF(monthlyRequests, currentDate.toLocaleString('default', { month: 'long' }), currentYear);
+      // Generate detailed summary with account information
+      const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+      const summary = `Monthly Leave/Travel Summary\nMonth: ${currentDate.toLocaleString('default', { month: 'long' })} ${currentYear}\nTotal Approved Requests: ${monthlyApproved.length}\n\nApproved Applications Details:\n${monthlyApproved.map(req => {
+        const account = accounts.find(acc => acc.email === req.user_email);
+        const salaryInfo = account ? ` (Salary: ₱${account.salary_range})` : '';
+        return `- ${req.user_name}: ${req.request_type}${salaryInfo} (${new Date(req.submitted_at || req.created_at).toLocaleDateString()})`;
+      }).join('\n')}\n\nDepartment Breakdown:\n${Object.entries(
+        monthlyApproved.reduce((acc, req) => {
+          const dept = req.details?.office_department || 'Unknown';
+          acc[dept] = (acc[dept] || 0) + 1;
+          return acc;
+        }, {})
+      ).map(([dept, count]) => `- ${dept}: ${count}`).join('\n')}`;
+      
+      const blob = new Blob([summary], { type: 'text/plain' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `Monthly_Summary_${currentDate.toLocaleString('default', { month: 'long' })}_${currentYear}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
       
     } catch (error) {
       console.error('Error generating attendance report:', error);

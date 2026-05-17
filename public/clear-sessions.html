@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clear Sessions</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; text-align: center; }
+        button { background: #dc3545; color: white; padding: 15px 30px; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; margin: 10px; }
+        button:hover { background: #c82333; }
+        .success { color: green; font-size: 18px; margin: 20px; }
+        .warning { color: orange; font-size: 16px; margin: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Clear All Sessions & Data</h1>
+    <p class="warning">⚠️ This will clear all accounts, requests, and session data!</p>
+    
+    <button onclick="clearAllData()">Clear All Data</button>
+    <button onclick="clearSessionsOnly()">Clear Sessions Only</button>
+    <button onclick="createFreshAccounts()">Create Fresh Accounts</button>
+    
+    <div id="results"></div>
+    
+    <script>
+        function clearAllData() {
+            if (confirm('This will delete ALL data including accounts, requests, and sessions. Are you sure?')) {
+                localStorage.clear();
+                document.getElementById('results').innerHTML = '<h2 class="success">✅ All data cleared!</h2>';
+                setTimeout(() => {
+                    window.location.reload();
+                }, 2000);
+            }
+        }
+        
+        function clearSessionsOnly() {
+            localStorage.removeItem('basicAuth');
+            localStorage.removeItem('supabase.auth.token');
+            document.getElementById('results').innerHTML = '<h2 class="success">✅ Sessions cleared!</h2>';
+            setTimeout(() => {
+                window.location.reload();
+            }, 2000);
+        }
+        
+        function createFreshAccounts() {
+            // Clear existing accounts first
+            localStorage.removeItem('userAccounts');
+            
+            // Create fresh employee accounts
+            const employees = [
+                { id: 'emp_1', email: 'john.doe@denr.gov.ph', password: 'password123', name: 'John Doe', position: 'Environmental Management Specialist', salary: '25000-35000', dept: 'Forest Management' },
+                { id: 'emp_2', email: 'jane.smith@denr.gov.ph', password: 'password123', name: 'Jane Smith', position: 'HR Management Officer', salary: '35000-45000', dept: 'Human Resource Management Unit' },
+                { id: 'emp_3', email: 'carlos.rodriguez@denr.gov.ph', password: 'password123', name: 'Carlos Rodriguez', position: 'Forest Ranger', salary: '18000-25000', dept: 'Forest Management' },
+                { id: 'emp_4', email: 'maria.santos@denr.gov.ph', password: 'password123', name: 'Maria Santos', position: 'Records Officer / Custodian', salary: '20000-30000', dept: 'Records Management' },
+                { id: 'emp_5', email: 'robert.chen@denr.gov.ph', password: 'password123', name: 'Robert Chen', position: 'Land Management Officer', salary: '30000-40000', dept: 'Land Management' },
+                { id: 'emp_6', email: 'lisa.garcia@denr.gov.ph', password: 'password123', name: 'Lisa Garcia', position: 'Administrative Officer', salary: '22000-32000', dept: 'Administrative Section' },
+                { id: 'emp_7', email: 'ahmed.hassan@denr.gov.ph', password: 'password123', name: 'Ahmed Hassan', position: 'IT Specialist', salary: '28000-38000', dept: 'IT Management' },
+                { id: 'emp_8', email: 'sarah.wilson@denr.gov.ph', password: 'password123', name: 'Sarah Wilson', position: 'Finance Officer', salary: '32000-42000', dept: 'Finance/Accounting' },
+                { id: 'emp_9', email: 'david.martinez@denr.gov.ph', password: 'password123', name: 'David Martinez', position: 'Biodiversity Specialist', salary: '26000-36000', dept: 'Biodiversity & Wildlife Conservation' },
+                { id: 'emp_10', email: 'emily.thompson@denr.gov.ph', password: 'password123', name: 'Emily Thompson', position: 'Coastal Resources Manager', salary: '29000-39000', dept: 'Coastal & Marine Resources Management' }
+            ];
+            
+            const accounts = [
+                {
+                    id: 'admin001',
+                    email: 'admin@denr.gov.ph',
+                    password: 'admin',
+                    role: 'admin',
+                    fullName: 'Admin User',
+                    isActive: true,
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    id: 'emp001',
+                    email: 'employee@denr.gov.ph',
+                    password: 'employee',
+                    role: 'employee',
+                    fullName: 'Employee User',
+                    isActive: true,
+                    createdAt: new Date().toISOString()
+                },
+                {
+                    id: 'cenro001',
+                    email: 'cenro@denr.gov.ph',
+                    password: 'cenro123',
+                    role: 'cenro',
+                    fullName: 'CENRO User',
+                    isActive: true,
+                    createdAt: new Date().toISOString()
+                }
+            ];
+            
+            // Add employee accounts
+            employees.forEach(emp => {
+                accounts.push({
+                    id: emp.id,
+                    email: emp.email,
+                    password: emp.password,
+                    full_name: emp.name,
+                    first_name: emp.name.split(' ')[0],
+                    middle_name: emp.name.split(' ')[1] || '',
+                    surname: emp.name.split(' ').slice(-1)[0],
+                    position: emp.position,
+                    role: 'employee',
+                    salary_range: emp.salary,
+                    department: emp.dept,
+                    is_active: true
+                });
+            });
+            
+            localStorage.setItem('userAccounts', JSON.stringify(accounts));
+            
+            document.getElementById('results').innerHTML = `
+                <h2 class="success">✅ Fresh accounts created!</h2>
+                <p>Created ${employees.length} employee accounts + 3 admin accounts</p>
+                <h3>Ready to use:</h3>
+                <div style="text-align: left; max-width: 600px; margin: 0 auto;">
+                    <p><strong>Admin:</strong> admin@denr.gov.ph / admin</p>
+                    <p><strong>CENRO:</strong> cenro@denr.gov.ph / cenro123</p>
+                    <p><strong>Employees:</strong> All use password123</p>
+                </div>
+                <p><a href="/" style="color: blue;">Go to Login Page</a></p>
+            `;
+        }
+    </script>
+</body>
+</html>

@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
-import { leaveRequestsAPI } from '../api/leaveRequests';
 import { useAuth } from '../hooks/useAuth';
-import { LEAVE_TYPES, DEPARTMENTS, POSITIONS, SALARY_RANGES } from '../constants';
+import { LEAVE_TYPES, DEPARTMENTS, POSITIONS, REQUEST_TYPES } from '../constants';
+import SalaryRangeInput from '../components/SalaryRangeInput';
 import { ArrowLeft, Send, ChevronDown, Edit } from 'lucide-react';
+import { leaveRequestsAPI } from '../api/leaveRequests';
 
 const InputField = ({ label, required, children }) => (
   <div>
@@ -39,20 +39,27 @@ export default function LeaveForm() {
   });
 
   useEffect(() => {
-    // Auto-fill profile data if not in view mode and profile is available
-    if (!location.state?.viewMode && profile) {
-      const nameParts = (profile.full_name || '').split(' ');
-      setFormData(prev => ({
-        ...prev,
-        first_name: nameParts[0] || '',
-        last_name: nameParts.length > 1 ? nameParts[nameParts.length - 1] : '',
-        middle_name: nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '',
-        position: profile.position || '',
-        office_department: profile.office_department || '',
-        salary: profile.salary || ''
-      }));
+    // Auto-fill account data if not in view mode and user is available
+    if (!location.state?.viewMode && user) {
+      // Get account information from localStorage
+      const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+      const currentAccount = accounts.find(acc => acc.email === user.email);
+      
+      if (currentAccount) {
+        setFormData(prev => ({
+          ...prev,
+          first_name: currentAccount.first_name || '',
+          last_name: currentAccount.surname || '',
+          middle_name: currentAccount.middle_name || '',
+          position: currentAccount.position || '',
+          salary: currentAccount.salary_range || '',
+          office_department: currentAccount.department || ''
+        }));
+      }
     }
-    
+  }, [user, location.state?.viewMode]);
+
+  useEffect(() => {
     if (location.state?.viewMode && location.state?.requestData) {
       setViewMode(true);
       const requestData = location.state.requestData.details;
@@ -73,7 +80,7 @@ export default function LeaveForm() {
     } else if (location.state?.defaultLeaveType) {
       setFormData(prev => ({ ...prev, leave_type: location.state.defaultLeaveType }));
     }
-  }, [location.state, profile]);
+  }, [location.state]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -96,16 +103,8 @@ export default function LeaveForm() {
   };
 
   const validateDates = () => {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
     const startDate = new Date(formData.start_date);
     const endDate = new Date(formData.end_date);
-    
-    if (startDate < today) {
-      alert('Start date cannot be in the past.');
-      return false;
-    }
     
     if (endDate < startDate) {
       alert('End date cannot be before start date.');
@@ -125,45 +124,64 @@ export default function LeaveForm() {
     setLoading(true);
 
     try {
-      // Get current session more reliably
-      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
-      if (sessionError || !session?.user) {
-        console.error('Session error:', sessionError);
+      if (!user) {
         throw new Error('You must be logged in to submit a request.');
       }
 
       const fullName = `${formData.first_name} ${formData.middle_name} ${formData.last_name}`.trim();
       
-      console.log('Submitting leave request:', {
-        user_id: session.user.id,
-        user_email: session.user.email,
+      // Create leave request object for API
+      const leaveRequest = {
+        user_id: user.id,
+        user_email: user.email,
         user_name: fullName,
-        request_type: 'Leave',
-        department: formData.office_department,
-        details: formData
-      });
-
-      const { data, error } = await leaveRequestsAPI.create({
-        user_id: session.user.id,
-        user_email: session.user.email,
-        user_name: fullName,
-        request_type: 'Leave',
-        department: formData.office_department,
-        details: formData,
-      });
-
-      console.log('Create response:', { data, error });
-
-      if (error) {
-        console.error('Create error:', error);
-        throw error;
-      }
+        request_type: REQUEST_TYPES.LEAVE,
+        details: {
+          office_department: formData.office_department,
+          first_name: formData.first_name,
+          last_name: formData.last_name,
+          middle_name: formData.middle_name,
+          position: formData.position,
+          salary: formData.salary,
+          leave_type: formData.leave_type,
+          details_of_leave: formData.details_of_leave,
+          num_days: formData.num_days,
+          start_date: formData.start_date,
+          end_date: formData.end_date,
+          date_of_filing: formData.date_of_filing
+        }
+      };
       
-      console.log('Leave request submitted successfully');
+      console.log('Submitting leave request:', leaveRequest);
+      
+      // Save to Supabase via API
+      const result = await leaveRequestsAPI.create(leaveRequest);
+      
+      console.log('Leave request submitted successfully:', result);
       navigate('/success', { state: { type: 'Leave', data: formData } });
     } catch (err) {
       console.error('Submit error:', err);
-      alert(err.message || 'Error submitting form. Please try again.');
+      console.error('Error details:', JSON.stringify(err, null, 2));
+      
+      // Extract more specific error message
+      let errorMessage = 'Error submitting form. Please try again.';
+      if (err.message) {
+        errorMessage = err.message;
+      } else if (err.originalError) {
+        errorMessage = err.originalError.message || errorMessage;
+      }
+      
+      // Check for specific Supabase error patterns
+      const errorStr = JSON.stringify(err);
+      if (errorStr.includes('duplicate')) {
+        errorMessage = 'A similar request already exists. Please check your submission.';
+      } else if (errorStr.includes('permission')) {
+        errorMessage = 'You do not have permission to submit requests. Please contact support.';
+      } else if (errorStr.includes('network') || errorStr.includes('fetch')) {
+        errorMessage = 'Network error. Please check your internet connection and try again.';
+      }
+      
+      alert(errorMessage);
       setLoading(false);
     }
   };
@@ -184,10 +202,10 @@ export default function LeaveForm() {
             </div>
             <div>
               <h2 className="text-2xl font-black text-white">
-                {viewMode ? 'View Sick Leave Form' : 'Sick Leave Form'}
+                {viewMode ? 'View Leave Application' : 'Leave Application'}
               </h2>
               <p className="text-blue-100/80 text-sm mt-1">
-                {viewMode ? 'Viewing submitted application details.' : 'Civil Service Form No. 6 — Official Sick Leave Application.'}
+                {viewMode ? 'Viewing submitted application details.' : 'Civil Service Form No. 6 — Official Leave Application.'}
               </p>
             </div>
             <div className="ml-auto flex-shrink-0">
@@ -232,13 +250,13 @@ export default function LeaveForm() {
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                 <InputField label="Last Name" required>
-                  <input type="text" name="last_name" required value={formData.last_name} onChange={handleChange} className={inputCls} placeholder="Dela Cruz" />
+                  <input type="text" name="last_name" required value={formData.last_name} onChange={handleChange} className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`} placeholder="Dela Cruz" readOnly={viewMode} />
                 </InputField>
                 <InputField label="First Name" required>
-                  <input type="text" name="first_name" required value={formData.first_name} onChange={handleChange} className={inputCls} placeholder="Juan" />
+                  <input type="text" name="first_name" required value={formData.first_name} onChange={handleChange} className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`} placeholder="Juan" readOnly={viewMode} />
                 </InputField>
                 <InputField label="Middle Name">
-                  <input type="text" name="middle_name" value={formData.middle_name} onChange={handleChange} className={inputCls} placeholder="Santos" />
+                  <input type="text" name="middle_name" value={formData.middle_name} onChange={handleChange} className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`} placeholder="Santos" readOnly={viewMode} />
                 </InputField>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
@@ -249,7 +267,8 @@ export default function LeaveForm() {
                       required
                       value={formData.position}
                       onChange={handleChange}
-                      className={`${inputCls} appearance-none pr-10`}
+                      disabled={viewMode}
+                      className={`${inputCls} appearance-none pr-10 ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`}
                     >
                       <option value="">Select Position...</option>
                       {POSITIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}
@@ -258,18 +277,12 @@ export default function LeaveForm() {
                   </div>
                 </InputField>
                 <InputField label="Salary (Monthly)">
-                  <div className="relative">
-                    <select
-                      name="salary"
-                      value={formData.salary}
-                      onChange={handleChange}
-                      className={`${inputCls} appearance-none pr-10`}
-                    >
-                      <option value="">Select Salary Range...</option>
-                      {SALARY_RANGES.map(range => <option key={range} value={range}>{range}</option>)}
-                    </select>
-                    <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
-                  </div>
+                  <SalaryRangeInput
+                    value={formData.salary}
+                    onChange={(value) => setFormData(prev => ({ ...prev, salary: value }))}
+                    placeholder="Select or type salary range..."
+                    disabled={viewMode}
+                  />
                 </InputField>
               </div>
             </div>
@@ -288,7 +301,8 @@ export default function LeaveForm() {
                   required
                   value={formData.leave_type}
                   onChange={handleChange}
-                  className={`${inputCls} appearance-none pr-10`}
+                  disabled={viewMode}
+                  className={`${inputCls} appearance-none pr-10 ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`}
                 >
                   <option value="">Select Leave Type...</option>
                   {LEAVE_TYPES.map(lt => <option key={lt} value={lt}>{lt}</option>)}
@@ -302,8 +316,9 @@ export default function LeaveForm() {
                   required
                   value={formData.details_of_leave}
                   onChange={handleChange}
-                  className={`${inputCls} mt-3 resize-none`}
+                  className={`${inputCls} mt-3 resize-none ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`}
                   placeholder="e.g. In Hospital – Appendicitis; Within Philippines – Batangas"
+                  readOnly={viewMode}
                 />
               </InputField>
             </div>
@@ -324,8 +339,8 @@ export default function LeaveForm() {
                     required 
                     value={formData.start_date} 
                     onChange={handleChange} 
-                    min={new Date().toISOString().split('T')[0]}
-                    className={inputCls} 
+                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`} 
+                    readOnly={viewMode}
                   />
                 </InputField>
                 <InputField label="End Date" required>
@@ -335,12 +350,13 @@ export default function LeaveForm() {
                     required 
                     value={formData.end_date} 
                     onChange={handleChange} 
-                    min={formData.start_date || new Date().toISOString().split('T')[0]}
-                    className={inputCls} 
+                    min={formData.start_date}
+                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`} 
+                    readOnly={viewMode}
                   />
                 </InputField>
                 <InputField label="Number of Working Days" required>
-                  <input type="number" name="num_days" required min="1" value={formData.num_days} onChange={handleChange} className={inputCls} placeholder="e.g. 3" />
+                  <input type="number" name="num_days" required min="1" value={formData.num_days} onChange={handleChange} className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`} placeholder="e.g. 3" readOnly={viewMode} />
                 </InputField>
               </div>
             </div>

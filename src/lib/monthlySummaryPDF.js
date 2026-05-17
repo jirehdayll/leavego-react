@@ -243,6 +243,15 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
   pdf.text('FIII/Chief, CDS and in concurrent capacity as Chief, PSU', 125, footerY + 55);
   pdf.text('CENRO', 580, footerY + 55);
 
+  // Noted by
+  pdf.setFontSize(10);
+  pdf.setFont('times', 'normal');
+  pdf.text('Noted by:', 350, footerY + 80);
+  
+  pdf.setFontSize(11);
+  pdf.setFont('times', 'bold');
+  pdf.text('(Appropriate Officer)', 350, footerY + 120);
+
   // Save Name
   pdf.save(`Monthly_Summary_${reportMonth}_${reportYear}.pdf`);
 };

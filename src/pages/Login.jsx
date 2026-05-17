@@ -1,7 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { supabase } from '../lib/supabaseClient';
-import { getDefaultRouteForRole, isBootstrapAdminEmail, resolveRoleFromProfile } from '../utils/auth';
+import { useAuth } from '../hooks/useAuth';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, X, AlertTriangle } from 'lucide-react';
 
 // Deactivated Account Modal
@@ -31,116 +30,6 @@ function DeactivatedModal({ onClose }) {
 }
 
 
-function ForgotPasswordModal({ onClose }) {
-  const [email, setEmail] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [sent, setSent] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
-    setError('');
-    try {
-      const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}/reset-password`,
-      });
-      if (resetErr) throw resetErr;
-      setSent(true);
-    } catch (err) {
-      setError(err.message || 'Failed to send reset email. Please try again.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md overflow-hidden animate-[fadeIn_0.2s_ease-out]">
-        {/* Header */}
-        <div className="bg-gradient-to-r from-[#1a3530] to-[#0f211d] px-7 py-5 flex items-center justify-between">
-          <div>
-            <h3 className="text-lg font-black text-white">Forgot Password</h3>
-            <p className="text-emerald-300/70 text-xs mt-0.5">We'll send you a reset link</p>
-          </div>
-          <button
-            onClick={onClose}
-            className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-
-        <div className="p-7">
-          {sent ? (
-            <div className="text-center py-4">
-              <div className="w-16 h-16 bg-emerald-50 rounded-full flex items-center justify-center mx-auto mb-4">
-                <CheckCircle2 className="w-8 h-8 text-emerald-500" />
-              </div>
-              <h4 className="text-slate-800 font-bold text-lg mb-2">Check Your Email</h4>
-              <p className="text-slate-500 text-sm leading-relaxed">
-                A password reset link has been sent to <strong>{email}</strong>.
-                Please check your inbox and follow the instructions.
-              </p>
-              <button
-                onClick={onClose}
-                className="mt-6 w-full py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-lg hover:from-emerald-500 hover:to-teal-500 transition-all"
-              >
-                Back to Login
-              </button>
-            </div>
-          ) : (
-            <form onSubmit={handleSubmit} className="space-y-4">
-              <p className="text-slate-500 text-sm">
-                Enter the email address linked to your account and we'll send you a link to reset your password.
-              </p>
-
-              {error && (
-                <div className="flex items-start gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm">
-                  <AlertCircle className="w-4 h-4 flex-shrink-0 mt-0.5" />
-                  <span>{error}</span>
-                </div>
-              )}
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Email Address</label>
-                <div className="relative">
-                  <Mail className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
-                  <input
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="your.email@gmail.com"
-                    className="w-full pl-11 pr-4 py-3.5 rounded-2xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400 focus:border-transparent transition-all shadow-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="flex gap-3 pt-1">
-                <button
-                  type="button"
-                  onClick={onClose}
-                  className="flex-1 py-3 rounded-2xl border border-slate-200 text-sm font-semibold text-slate-600 hover:bg-slate-50 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  disabled={loading}
-                  className="flex-1 py-3 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-bold text-sm shadow-lg hover:from-emerald-500 hover:to-teal-500 transition-all disabled:opacity-60 disabled:cursor-not-allowed"
-                >
-                  {loading ? 'Sending...' : 'Send Reset Link'}
-                </button>
-              </div>
-            </form>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -148,18 +37,9 @@ export default function Login() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
-  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
   const navigate = useNavigate();
-
-  // Check for stored auth error on component mount
-  useEffect(() => {
-    const storedError = sessionStorage.getItem('authError');
-    if (storedError) {
-      setError(storedError);
-      sessionStorage.removeItem('authError');
-    }
-  }, []);
+  const { login } = useAuth();
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -167,59 +47,20 @@ export default function Login() {
     setError(null);
 
     try {
-      const { data, error: authError } = await supabase.auth.signInWithPassword({ email, password });
-      if (authError) throw authError;
-
-      if (data.user) {
-        const userEmail = data.user.email;
-        
-        // Fetch profile to check role and activity status
-        // We use a try-catch for the profile fetch specifically to handle RLS/Policy errors gracefully
-        let profile = null;
-        try {
-          const { data: pData, error: profileErr } = await supabase
-            .from('profiles')
-            .select('role, is_active')
-            .eq('id', data.user.id)
-            .single();
-          
-          if (profileErr) {
-            console.error('Profile fetch error during login:', profileErr);
-            // If it's a policy error, we might still want to allow the main admin in
-          } else {
-            profile = pData;
-          }
-        } catch (pEx) {
-          console.error('Profile fetch crash during login:', pEx);
+      const result = await login(email, password);
+      
+      if (result.success) {
+        // Navigate based on user role
+        if (result.user.role === 'admin' || result.user.role === 'cenro') {
+          navigate('/admin/dashboard');
+        } else {
+          navigate('/dashboard');
         }
-
-        // Check if account is active (if we have a profile)
-        if (profile && profile.is_active === false) {
-          await supabase.auth.signOut();
-          setShowDeactivatedModal(true);
-          setLoading(false);
-          return;
-        }
-
-        // Only allow bootstrap fallback for the real admin account when the profile row is missing.
-        if (!profile && !isBootstrapAdminEmail(userEmail)) {
-          await supabase.auth.signOut();
-          setError('Account profile not found. Please contact an administrator.');
-          setLoading(false);
-          return;
-        }
-
-        const role = resolveRoleFromProfile(profile, userEmail);
-        navigate(getDefaultRouteForRole(role));
+      } else {
+        setError(result.error);
       }
     } catch (err) {
-      if (err.message?.toLowerCase().includes('invalid login')) {
-        setError('Incorrect email or password. Please try again.');
-      } else if (err.message?.toLowerCase().includes('email not confirmed')) {
-        setError('Your account email has not been confirmed. Please check your inbox or contact an administrator.');
-      } else {
-        setError(err.message || 'An error occurred during sign in.');
-      }
+      setError('An error occurred during sign in.');
     } finally {
       setLoading(false);
     }
@@ -333,16 +174,7 @@ export default function Login() {
               </div>
             </div>
 
-            <div className="flex justify-end">
-              <button
-                type="button"
-                onClick={() => setShowForgotPassword(true)}
-                className="text-xs text-emerald-600 hover:text-emerald-700 font-medium transition-colors"
-              >
-                Forgot password?
-              </button>
-            </div>
-
+            
             <button
               type="submit"
               disabled={loading}
@@ -360,14 +192,12 @@ export default function Login() {
             </button>
           </form>
 
+          
           <p className="mt-8 text-center text-xs text-slate-400">
             Need help? Contact <a href="mailto:it@denr.gov.ph" className="text-emerald-600 hover:underline">it@denr.gov.ph</a>
           </p>
         </div>
       </div>
-
-      {/* Forgot Password Modal */}
-      {showForgotPassword && <ForgotPasswordModal onClose={() => setShowForgotPassword(false)} />}
 
       {/* Deactivated Account Modal */}
       {showDeactivatedModal && (

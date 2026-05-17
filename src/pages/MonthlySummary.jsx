@@ -2,8 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
-import { ChevronLeft, ChevronRight, Calendar, X, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, X, Download, FileSpreadsheet } from 'lucide-react';
 import { generateMonthlySummaryPDF } from '../lib/monthlySummaryPDF';
+import { generateMonthlySummaryExcel } from '../lib/excelGenerator';
 import html2canvas from 'html2canvas';
 
 const TYPE_COLORS = {
@@ -23,6 +24,7 @@ export default function MonthlySummary() {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
   const now = new Date();
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [viewYear, setViewYear] = useState(now.getFullYear());
@@ -48,6 +50,18 @@ export default function MonthlySummary() {
     } finally {
       setIsGeneratingPDF(false);
       console.log('PDF generation completed');
+    }
+  };
+
+  const downloadExcel = () => {
+    setIsGeneratingExcel(true);
+    try {
+      generateMonthlySummaryExcel(monthForms, MONTHS[viewMonth], viewYear);
+    } catch (error) {
+      console.error('Error generating Excel:', error);
+      alert('Failed to generate Excel. Please try again.\n\nError: ' + error.message);
+    } finally {
+      setIsGeneratingExcel(false);
     }
   };
 
@@ -105,19 +119,27 @@ export default function MonthlySummary() {
   const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
   const firstDayOfMonth = new Date(viewYear, viewMonth, 1).getDay();
 
-  // Map of date → list of forms
-  const dateMap = {};
-  monthForms.forEach(f => {
+  // Group applications by their date ranges for continuous display
+  const continuousApplications = monthForms.map(f => {
     const d = f.details || {};
     const start = new Date(d.start_date || d.departure_date || f.submitted_at);
     const end = new Date(d.end_date || d.arrival_date || f.submitted_at);
+    
+    // Calculate the days in current month that this application spans
+    const daysInMonthSpan = [];
     for (let cur = new Date(start); cur <= end; cur.setDate(cur.getDate() + 1)) {
       if (cur.getMonth() === viewMonth && cur.getFullYear() === viewYear) {
-        const key = cur.getDate();
-        if (!dateMap[key]) dateMap[key] = [];
-        dateMap[key].push(f);
+        daysInMonthSpan.push(cur.getDate());
       }
     }
+    
+    return {
+      ...f,
+      start,
+      end,
+      daysInMonthSpan,
+      color: getLeaveColor(f)
+    };
   });
 
   const isWeekend = (day) => {
@@ -134,6 +156,30 @@ export default function MonthlySummary() {
             <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Color-coded leave calendar for approved applications</p>
           </div>
           <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+            <button
+              onClick={downloadExcel}
+              disabled={isGeneratingExcel}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold rounded-xl transition-all shadow-sm ${
+                isGeneratingExcel 
+                  ? 'bg-gray-400 text-white cursor-not-allowed' 
+                  : 'bg-green-600 hover:bg-green-700 text-white'
+              }`}
+              title="Download as Excel"
+            >
+              {isGeneratingExcel ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span className="hidden sm:inline">Generating...</span>
+                  <span className="sm:hidden">...</span>
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span className="hidden sm:inline">Download Excel</span>
+                  <span className="sm:hidden">Excel</span>
+                </>
+              )}
+            </button>
             <button
               onClick={downloadPDF}
               disabled={isGeneratingPDF}
@@ -203,26 +249,45 @@ export default function MonthlySummary() {
                 {Array.from({ length: daysInMonth }, (_, i) => {
                   const day = i + 1;
                   const weekend = isWeekend(day);
-                  const dayForms = monthForms.filter(f => {
-                    const d = new Date(f.submitted_at || f.created_at);
-                    return d.getDate() === day && d.getMonth() === viewMonth && d.getFullYear() === viewYear;
-                  });
+
                   return (
                     <div key={day} className={`h-12 sm:h-16 lg:h-24 border-b border-r border-slate-50 ${weekend ? 'bg-slate-50/30' : 'bg-white'} relative group`}>
                       <div className="text-[10px] sm:text-xs font-medium text-slate-600 p-0.5 sm:p-1">{day}</div>
+                      
+                      {/* Original shape labels with background behind */}
                       <div className="space-y-0.5 p-0.5 sm:p-1 overflow-y-auto max-h-8 sm:max-h-12 lg:max-h-16">
-                        {dayForms.slice(0, 1).map((req, i) => {
-                          const col = getLeaveColor(req);
-                          const applicantName = req.user_name || req.user_email?.split('@')[0] || 'Unknown';
+                        {continuousApplications.filter(app => app.daysInMonthSpan[0] === day).map((app, appIndex) => {
+                          const applicantName = app.user_name || app.user_email?.split('@')[0] || 'Unknown';
                           const displayName = applicantName.length > 8 ? applicantName.substring(0, 8) + '...' : applicantName;
+                          
                           return (
-                            <div key={i} className={`text-[6px] sm:text-[8px] lg:text-[10px] leading-none px-0.5 py-0.5 rounded truncate ${col.bg} ${col.text} ${col.border}`}>
-                              <span className="hidden lg:inline">{displayName} - {col.label}</span>
+                            <div key={`label-${app.id || appIndex}`} className={`text-[6px] sm:text-[8px] lg:text-[10px] leading-none px-0.5 py-0.5 rounded truncate ${app.color.bg} ${app.color.text} ${app.color.border} relative z-10`}>
+                              <span className="hidden lg:inline">{displayName} - {app.color.label}</span>
                               <span className="lg:hidden">{displayName.split(' ')[0]}</span>
                             </div>
                           );
                         })}
-                        {dayForms.length > 1 && <div className="text-[6px] sm:text-[8px] lg:text-[9px] text-slate-400 font-medium">+{dayForms.length - 1}</div>}
+                      </div>
+                      
+                      {/* Background directly behind labels */}
+                      <div className="absolute inset-0 pointer-events-none">
+                        {continuousApplications.map((app, appIndex) => {
+                          if (app.daysInMonthSpan.includes(day)) {
+                            return (
+                              <div
+                                key={`bg-${app.id || appIndex}`}
+                                className={`absolute left-0 right-0 ${app.color.bg} opacity-20`}
+                                style={{ 
+                                  zIndex: 1, // Always behind labels
+                                  top: `${appIndex * 16 + 8}px`,
+                                  height: '20px', // Match label height exactly
+                                  margin: '0 -1px' // Extend through table lines
+                                }}
+                              />
+                            );
+                          }
+                          return null;
+                        })}
                       </div>
                     </div>
                   );

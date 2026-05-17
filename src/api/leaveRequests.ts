@@ -270,6 +270,86 @@ export const leaveRequestsAPI = {
       const result = await query.order('submitted_at', { ascending: false });
       return handleResult<LeaveRequest[]>(result, 'searching leave requests');
     }, 'Searching leave requests');
+  },
+
+  // Dual approval functions
+  // Admin approval - first stage
+  adminApprove: async (id: string, adminEmail: string): Promise<ApiResponse<LeaveRequest[]>> => {
+    return handleApiCall(async () => {
+      const result = await supabase
+        .from('leave_requests')
+        .update({
+          admin_approved: true,
+          admin_approved_at: new Date().toISOString(),
+          admin_approved_by: adminEmail,
+          status: 'Pending CENRO Approval'
+        })
+        .eq('id', id);
+
+      return handleResult<LeaveRequest[]>(result, 'admin approval');
+    }, 'Admin approving request');
+  },
+
+  // CENRO approval - second stage
+  cenroApprove: async (id: string, cenroEmail: string): Promise<ApiResponse<LeaveRequest[]>> => {
+    return handleApiCall(async () => {
+      // First check if admin has approved
+      const { data: request } = await supabase
+        .from('leave_requests')
+        .select('admin_approved')
+        .eq('id', id)
+        .single();
+
+      if (!request?.admin_approved) {
+        throw new Error('Admin approval required before CENRO approval');
+      }
+
+      const result = await supabase
+        .from('leave_requests')
+        .update({
+          cenro_approved: true,
+          cenro_approved_at: new Date().toISOString(),
+          cenro_approved_by: cenroEmail,
+          status: 'Approved'
+        })
+        .eq('id', id);
+
+      return handleResult<LeaveRequest[]>(result, 'CENRO approval');
+    }, 'CENRO approving request');
+  },
+
+  // Get pending requests for specific approver
+  getPendingForApprover: async (approverEmail: string): Promise<ApiResponse<LeaveRequest[]>> => {
+    return handleApiCall(async () => {
+      let query = supabase.from('leave_requests').select('*');
+
+      if (approverEmail === 'admin@denr.gov.ph') {
+        // Admin sees pending requests that haven't been admin approved yet
+        query = query.eq('status', 'Pending').eq('admin_approved', false);
+      } else if (approverEmail === 'cenro@denr.gov.ph') {
+        // CENRO sees requests that are pending CENRO approval
+        query = query.eq('status', 'Pending CENRO Approval').eq('cenro_approved', false);
+      }
+
+      const result = await query.order('submitted_at', { ascending: false });
+      return handleResult<LeaveRequest[]>(result, 'fetching pending requests for approver');
+    }, 'Fetching pending requests for approver');
+  },
+
+  // Get travel order number for a request
+  getTravelOrderNumber: async (id: string): Promise<{ data: string | null; error: any }> => {
+    return handleApiCall(async () => {
+      const result = await supabase
+        .from('leave_requests')
+        .select('travel_order_number')
+        .eq('id', id)
+        .single();
+
+      return {
+        data: result.data?.travel_order_number || null,
+        error: result.error
+      };
+    }, 'Getting travel order number');
   }
 };
 

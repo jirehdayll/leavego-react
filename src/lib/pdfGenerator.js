@@ -401,12 +401,31 @@ export async function generateLeaveApplicationPDF(data) {
   doc.text('', tblX + 2, tblY + 3.5);
   doc.text('Vacation Leave', tblX + 36, tblY + 3.5);
   doc.text('Sick Leave', tblX + 51, tblY + 3.5);
+  
+  // Leave balance data
+  const vacationBalance = data.vacation_balance || '';
+  const sickBalance = data.sick_balance || '';
+  const daysApplied = parseInt(data.num_days) || 0;
+  
   ['Total Earned', 'Less this application', 'Balance'].forEach((label, i) => {
     const rowY = tblY + 5 + i * 5;
     doc.rect(tblX, rowY, 35, 5);
     doc.rect(tblX + 35, rowY, 15, 5);
     doc.rect(tblX + 50, rowY, 15, 5);
     doc.text(label, tblX + 2, rowY + 3.5);
+    
+    // Add values for vacation and sick leave
+    if (i === 0) {
+      // Total Earned - leave blank for manual entry
+    } else if (i === 1) {
+      // Less this application
+      doc.text(daysApplied.toString(), tblX + 36, rowY + 3.5);
+      doc.text(daysApplied.toString(), tblX + 51, rowY + 3.5);
+    } else if (i === 2) {
+      // Balance - show actual balance if available
+      doc.text(vacationBalance, tblX + 36, rowY + 3.5);
+      doc.text(sickBalance, tblX + 51, rowY + 3.5);
+    }
   });
 
   const sigY = y + row7H - 12;
@@ -439,7 +458,7 @@ export async function generateLeaveApplicationPDF(data) {
     doc.line(left + col1 + 4, y + 12 + i * 5, right - 2, y + 12 + i * 5);
   }
 
-  const apprY = y + row7cdH - 10;
+  const apprY = y + row7cdH - 18;
   cellText('EDWARD V. SERNADILLA, RPF, DPA /', W / 2, apprY, { align: 'center', size: 8, bold: true });
   cellText('OIC, CENR Officer', W / 2, apprY + 4.5, { align: 'center', size: 7.5 });
   y += row7cdH;

@@ -1,23 +1,19 @@
-import { createClient, SupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@supabase/supabase-js';
 
 const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
 const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-const supabaseServiceRoleKey = import.meta.env.VITE_SUPABASE_SERVICE_ROLE_KEY as string;
 
-if (!supabaseUrl || !supabaseAnonKey) {
-  throw new Error('Supabase env vars are missing');
+if (!supabaseUrl?.trim() || !supabaseAnonKey?.trim()) {
+  console.error(
+    '[LeaveGo] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Copy .env.example to .env and set values from the Supabase dashboard.'
+  );
 }
 
-// Regular client for normal operations
-export const supabase: SupabaseClient = createClient(supabaseUrl, supabaseAnonKey);
-
-// Admin client with service role privileges for user management
-// Fallback to regular client if service role key is not available
-export const supabaseAdmin: SupabaseClient = supabaseServiceRoleKey && supabaseServiceRoleKey !== 'your_service_role_key_here'
-  ? createClient(supabaseUrl, supabaseServiceRoleKey, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false
-      }
-    })
-  : supabase; // Fallback to regular client
+/**
+ * Browser-only Supabase client (anon key). Never put the service role key in Vite —
+ * it is embedded in the JS bundle and is a full database bypass.
+ *
+ * Admin auth operations: Supabase Dashboard → Authentication, or use the Node scripts
+ * in /scripts with a local-only env file (see scripts/README.txt).
+ */
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);

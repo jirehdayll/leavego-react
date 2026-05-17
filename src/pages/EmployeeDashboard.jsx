@@ -111,7 +111,7 @@ function RequestCard({ request, onView, isRecent = false, isNewlyApproved = fals
 
 export default function EmployeeDashboard() {
   const navigate = useNavigate();
-  const { user, profile, isAdmin } = useAuth();
+  const { user, profile, logout } = useAuth();
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -146,65 +146,34 @@ export default function EmployeeDashboard() {
   }, []);
 
   const fetchEmployeeData = useCallback(async () => {
-    if (!user?.id) return;
+    if (!user?.id) {
+      setLoading(false);
+      return;
+    }
+    
     setLoading(true);
+    
     try {
-      const baseFilter = { user_id: user.id };
-      const [result, totalRes, pendingRes, approvedRes, declinedRes] = await Promise.all([
-        leaveRequestsAPI.getAll(baseFilter),
-        leaveRequestsAPI.getCount(baseFilter),
-        leaveRequestsAPI.getCount({ ...baseFilter, status: REQUEST_STATUS.PENDING }),
-        leaveRequestsAPI.getCount({ ...baseFilter, status: REQUEST_STATUS.APPROVED }),
-        leaveRequestsAPI.getCount({ ...baseFilter, status: REQUEST_STATUS.DECLINED })
-      ]);
-
-      if (result.data) {
-        // Sort all requests by newest first (submitted_at or created_at)
-        const sortedRequests = result.data.sort((a, b) => {
-          const dateA = new Date(a.submitted_at || a.created_at);
-          const dateB = new Date(b.submitted_at || b.created_at);
-          return dateB.getTime() - dateA.getTime();
-        });
-        
-        setRequests(sortedRequests);
-        
-        // Calculate this month requests from the local filtered data
-        const now = new Date();
-        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-        const thisMonthCount = sortedRequests.filter(req => 
-          new Date(req.submitted_at) >= new Date(monthStart)
-        ).length;
-
-        setStats({
-          total: totalRes.count || 0,
-          pending: pendingRes.count || 0,
-          approved: approvedRes.count || 0,
-          declined: declinedRes.count || 0,
-          thisMonth: thisMonthCount
-        });
+      // Fetch real data from Supabase API
+      const { data, error } = await leaveRequestsAPI.getAll({ user_id: user.id });
+      
+      if (error) {
+        console.error('Error fetching employee requests:', error);
+        setRequests([]);
+      } else {
+        setRequests(data || []);
+        calculateStats(data || []);
         
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        const recentStatusChanges = sortedRequests.filter(req => 
+        const recentStatusChanges = (data || []).filter(req => 
           (req.status === REQUEST_STATUS.APPROVED || req.status === REQUEST_STATUS.DECLINED) && 
           new Date(req.updated_at || req.submitted_at) > oneDayAgo
-        ).sort((a, b) => {
-          const dateA = new Date(a.updated_at || a.submitted_at);
-          const dateB = new Date(b.updated_at || b.submitted_at);
-          return dateB.getTime() - dateA.getTime();
-        });
+        );
         setNewlyApproved(recentStatusChanges);
       }
     } catch (error) {
-      console.error('Error loading applications:', error);
+      console.error('Fetch employee data error:', error);
       setRequests([]);
-      setStats({
-        total: 0,
-        pending: 0,
-        approved: 0,
-        declined: 0,
-        thisMonth: 0
-      });
-      setNewlyApproved([]);
     } finally {
       setLoading(false);
     }
@@ -213,7 +182,6 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     fetchEmployeeData();
   }, [fetchEmployeeData]);
-
 
 
   const handleViewRequest = (request) => {
@@ -228,9 +196,9 @@ export default function EmployeeDashboard() {
     }
   };
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    navigate('/');
+  const handleLogout = () => {
+    logout();
+    navigate('/login');
   };
 
 
@@ -267,7 +235,7 @@ export default function EmployeeDashboard() {
             </div>
             <div>
               <h1 className="text-base sm:text-lg lg:text-xl font-black text-slate-800">Employee Dashboard</h1>
-              <p className="text-xs text-slate-500 truncate max-w-[200px] sm:max-w-none">Welcome back, {profile?.full_name || user?.email}</p>
+              <p className="text-xs text-slate-500 truncate max-w-[200px] sm:max-w-none">Welcome back, {profile?.full_name || user?.email || 'User'}</p>
             </div>
           </div>
           
