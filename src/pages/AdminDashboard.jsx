@@ -10,11 +10,17 @@ import {
 import AdminLayout from '../components/AdminLayout';
 import ConfirmationModal from '../components/ConfirmationModal';
 
-function ViewRequestModal({ request, onClose }) {
+function ViewRequestModal({ request, onClose, onApprove, onDecline, user }) {
   if (!request) return null;
   
   const d = request.details || {};
   const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
+  
+  const isAdmin = user?.role === 'admin' || user?.email === 'admin@denr.gov.ph';
+  const isCenro = user?.role === 'cenro' || user?.email === 'cenro@denr.gov.ph';
+  
+  // Check if form is already approved by admin but awaiting CENRO final approval
+  const isAlreadyAdminApproved = request.status === REQUEST_STATUS.PENDING_CENRO && isAdmin;
   
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 min-h-screen">
@@ -31,6 +37,16 @@ function ViewRequestModal({ request, onClose }) {
         </div>
         
         <div className="overflow-y-auto flex-1 p-7 space-y-4">
+          {/* Warning Banner if already admin-approved */}
+          {isAlreadyAdminApproved && (
+            <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-2xl flex items-start gap-3">
+              <Info className="w-5 h-5 text-emerald-600 flex-shrink-0 mt-0.5 animate-bounce" />
+              <div className="text-sm font-semibold leading-relaxed">
+                Form is already approved by admin, CENRO will now review the application for Final Approval
+              </div>
+            </div>
+          )}
+
           {/* Basic Information */}
           <div className="bg-slate-50 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div><p className="text-xs text-slate-400">Name</p><p className="text-sm font-semibold text-slate-800">{request.user_name}</p></div>
@@ -41,7 +57,7 @@ function ViewRequestModal({ request, onClose }) {
                 request.status === REQUEST_STATUS.PENDING_CENRO ? 'bg-blue-100 text-blue-700' :
                 request.status === REQUEST_STATUS.APPROVED ? 'bg-emerald-100 text-emerald-700' :
                 'bg-red-100 text-red-700'
-              }`}>{request.status}</span>
+              }`}>{request.status === REQUEST_STATUS.PENDING_CENRO ? 'Pending CENRO Approval' : request.status}</span>
             </div>
             <div><p className="text-xs text-slate-400">Submitted</p><p className="text-sm font-semibold text-slate-800">{new Date(request.submitted_at || request.created_at).toLocaleDateString('en-PH')}</p></div>
             <div><p className="text-xs text-slate-400">Position</p><p className="text-sm font-semibold text-slate-800">{d.position || 'N/A'}</p></div>
@@ -75,6 +91,40 @@ function ViewRequestModal({ request, onClose }) {
             )}
           </div>
         </div>
+
+        {/* Modal Action Footer */}
+        <div className="px-7 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-sm transition-all"
+          >
+            Close
+          </button>
+          
+          {!isAlreadyAdminApproved && (
+            <>
+              {/* Show Approve if PENDING (for Admin) or PENDING_CENRO (for CENRO) */}
+              {((request.status === REQUEST_STATUS.PENDING && isAdmin) || (request.status === REQUEST_STATUS.PENDING_CENRO && isCenro)) && (
+                <button
+                  onClick={() => { onClose(); onApprove(request); }}
+                  className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center gap-1.5 font-bold"
+                >
+                  <Check className="w-4 h-4" /> {request.status === REQUEST_STATUS.PENDING_CENRO ? 'Final Approve' : 'Approve'}
+                </button>
+              )}
+              
+              {/* Decline button */}
+              {((request.status === REQUEST_STATUS.PENDING && isAdmin) || (request.status === REQUEST_STATUS.PENDING_CENRO && isCenro)) && (
+                <button
+                  onClick={() => { onClose(); onDecline(request); }}
+                  className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center gap-1.5 font-bold"
+                >
+                  <X className="w-4 h-4" /> Decline
+                </button>
+              )}
+            </>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -96,6 +146,8 @@ function StatCard({ icon: Icon, label, value, color, bg }) {
 
 export default function AdminDashboard() {
   const { user } = useAuth();
+  const isAdmin = user?.role === 'admin' || user?.email === 'admin@denr.gov.ph';
+  const isCenro = user?.role === 'cenro' || user?.email === 'cenro@denr.gov.ph';
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selectedRequest, setSelectedRequest] = useState(null);
@@ -494,7 +546,7 @@ export default function AdminDashboard() {
                           </button>
                           
                           {/* Show appropriate approval buttons based on user role and request status */}
-                          {req.status === REQUEST_STATUS.PENDING && (
+                          {req.status === REQUEST_STATUS.PENDING && isAdmin && (
                             <button
                               onClick={() => handleApproveClick(req)}
                               className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
@@ -504,7 +556,7 @@ export default function AdminDashboard() {
                             </button>
                           )}
                           
-                          {req.status === REQUEST_STATUS.PENDING_CENRO && (
+                          {req.status === REQUEST_STATUS.PENDING_CENRO && isCenro && (
                             <button
                               onClick={() => handleApproveClick(req)}
                               className="flex items-center gap-1 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
@@ -514,7 +566,7 @@ export default function AdminDashboard() {
                             </button>
                           )}
                           
-                          {(req.status === REQUEST_STATUS.PENDING || req.status === REQUEST_STATUS.PENDING_CENRO) && (
+                          {((req.status === REQUEST_STATUS.PENDING && isAdmin) || (req.status === REQUEST_STATUS.PENDING_CENRO && isCenro)) && (
                             <button
                               onClick={() => handleDeclineClick(req)}
                               className="flex items-center gap-1 px-3 py-1.5 bg-red-50 hover:bg-red-100 text-red-700 text-xs font-bold rounded-xl transition-all mobile-compact-btn"
@@ -541,7 +593,15 @@ export default function AdminDashboard() {
           )}
         </div>
       </div>
-      {selectedRequest && <ViewRequestModal request={selectedRequest} onClose={() => setSelectedRequest(null)} />}
+      {selectedRequest && (
+      <ViewRequestModal 
+        request={selectedRequest} 
+        onClose={() => setSelectedRequest(null)} 
+        onApprove={handleApproveClick}
+        onDecline={handleDeclineClick}
+        user={user}
+      />
+    )}
       
       {/* Confirmation Modal */}
       <ConfirmationModal
