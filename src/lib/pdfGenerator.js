@@ -31,12 +31,12 @@ export async function generateTravelOrderPDF(data) {
   try {
     const denrLogo = await loadImageAsBase64('/denr-logo.png');
     doc.addImage(denrLogo, 'PNG', 15, 8, 22, 22);
-  } catch (_) {}
+  } catch (_) { }
 
   try {
     const bagongLogo = await loadImageAsBase64('/bagong-pilipinas.png');
     doc.addImage(bagongLogo, 'PNG', W - 37, 8, 22, 22);
-  } catch (_) {}
+  } catch (_) { }
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
@@ -138,10 +138,10 @@ export async function generateTravelOrderPDF(data) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('EDWARD V. SERNADILLA, RPF, DPA', left, y);
-  y += 5;
+  y + row7cdH - 1;
   doc.setFont('helvetica', 'normal');
   doc.text('OIC, CENRO', left, y);
-  y += 15;
+  y + row7H - 1;
 
   // ── Authorization ───────────────────────────────────────────────────────────
   doc.setLineWidth(0.5);
@@ -183,7 +183,7 @@ export async function generateLeaveApplicationPDF(data) {
   try {
     const denrLogo = await loadImageAsBase64('/denr-logo.png');
     doc.addImage(denrLogo, 'PNG', 15, 6, 20, 20);
-  } catch (_) {}
+  } catch (_) { }
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
@@ -401,19 +401,19 @@ export async function generateLeaveApplicationPDF(data) {
   doc.text('', tblX + 2, tblY + 3.5);
   doc.text('Vacation Leave', tblX + 36, tblY + 3.5);
   doc.text('Sick Leave', tblX + 51, tblY + 3.5);
-  
+
   // Leave balance data
   const vacationBalance = data.vacation_balance || '';
   const sickBalance = data.sick_balance || '';
   const daysApplied = parseInt(data.num_days) || 0;
-  
+
   ['Total Earned', 'Less this application', 'Balance'].forEach((label, i) => {
     const rowY = tblY + 5 + i * 5;
     doc.rect(tblX, rowY, 35, 5);
     doc.rect(tblX + 35, rowY, 15, 5);
     doc.rect(tblX + 50, rowY, 15, 5);
     doc.text(label, tblX + 2, rowY + 3.5);
-    
+
     // Add values for vacation and sick leave
     if (i === 0) {
       // Total Earned - leave blank for manual entry
@@ -428,7 +428,7 @@ export async function generateLeaveApplicationPDF(data) {
     }
   });
 
-  const sigY = y + row7H - 7;
+  const sigY = y + row7H - 4;
   cellText('DAISY A. FABILEÑA', left + col1 / 2, sigY, { align: 'center', size: 7, bold: true });
   cellText('"AO IV/HRMO"', left + col1 / 2, sigY + 4, { align: 'center', size: 7 });
 
@@ -458,7 +458,7 @@ export async function generateLeaveApplicationPDF(data) {
     doc.line(left + col1 + 4, y + 12 + i * 5, right - 2, y + 12 + i * 5);
   }
 
-  const apprY = y + row7cdH - 10;
+  const apprY = y + row7cdH - 6;
   cellText('EDWARD V. SERNADILLA, RPF, DPA /', W / 2, apprY, { align: 'center', size: 8, bold: true });
   cellText('OIC, CENR Officer', W / 2, apprY + 4.5, { align: 'center', size: 7.5 });
   y += row7cdH;

@@ -4,24 +4,15 @@ import { useAuth } from '../hooks/useAuth';
 import AdminLayout from '../components/AdminLayout';
 import { Plane, FileText, Eye, Download, RotateCcw, User, X, Search, Filter, Calendar, XCircle, CheckCircle2 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
+import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
 
 function PDFViewModal({ request, onClose }) {
   const d = request.details || {};
   const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
   
   const downloadPDF = async () => {
-    // For now, just create a simple text download since PDF generation requires additional setup
-    const content = isTravel 
-      ? `Travel Order\nName: ${request.user_name}\nDestination: ${d.destination || 'N/A'}\nPurpose: ${d.purpose || 'N/A'}\nDeparture: ${d.departure_date || 'N/A'}\nArrival: ${d.arrival_date || 'N/A'}`
-      : `Leave Application\nName: ${request.user_name}\nLeave Type: ${d.leave_type || 'N/A'}\nStart Date: ${d.start_date || 'N/A'}\nEnd Date: ${d.end_date || 'N/A'}\nDetails: ${d.details_of_leave || 'N/A'}`;
-    
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${isTravel ? 'Travel_Order' : 'Leave_Application'}_${request.user_name}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (isTravel) await generateTravelOrderPDF({ ...d, full_name: request.user_name });
+    else await generateLeaveApplicationPDF({ ...d, full_name: request.user_name });
   };
   
   return (
@@ -171,19 +162,10 @@ export default function Archive() {
     });
   };
 
-  const downloadPDF = (req) => {
+  const downloadPDF = async (req) => {
     const d = req.details || {};
-    const content = req.request_type === REQUEST_TYPES.TRAVEL 
-      ? `Travel Order\nName: ${req.user_name}\nDestination: ${d.destination || 'N/A'}\nPurpose: ${d.purpose || 'N/A'}\nDeparture: ${d.departure_date || 'N/A'}\nArrival: ${d.arrival_date || 'N/A'}`
-      : `Leave Application\nName: ${req.user_name}\nLeave Type: ${d.leave_type || 'N/A'}\nStart Date: ${d.start_date || 'N/A'}\nEnd Date: ${d.end_date || 'N/A'}\nDetails: ${d.details_of_leave || 'N/A'}`;
-    
-    const blob = new Blob([content], { type: 'text/plain' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `${req.request_type === REQUEST_TYPES.TRAVEL ? 'Travel_Order' : 'Leave_Application'}_${req.user_name}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+    if (req.request_type === REQUEST_TYPES.TRAVEL) await generateTravelOrderPDF({ ...d, full_name: req.user_name });
+    else await generateLeaveApplicationPDF({ ...d, full_name: req.user_name });
   };
 
   const generateMonthlySummaryPDF = () => {

@@ -6,8 +6,9 @@ import AdminLayout from '../components/AdminLayout';
 import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
 import {
   Grid3X3, List, Download, Eye, Plane, FileText,
-  Search, SlidersHorizontal, X, User, Mail, Calendar, Filter, Archive
+  Search, SlidersHorizontal, X, User, Mail, Calendar, Filter, Archive, CheckCircle2, XCircle
 } from 'lucide-react';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 function FileCard({ req, view, onClick, onDownload, onArchive }) {
   const isTravel = req.request_type === REQUEST_TYPES.TRAVEL;
@@ -142,6 +143,16 @@ export default function ApprovedForms() {
   const [sortBy, setSortBy] = useState('date-desc');
   const [selectedMonth, setSelectedMonth] = useState('');
   const [selected, setSelected] = useState(null);
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false });
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = (message, type = 'success') => {
+    const id = Date.now() + Math.random().toString(36).substr(2, 9);
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4500);
+  };
 
   const now = new Date();
 
@@ -171,23 +182,34 @@ export default function ApprovedForms() {
     else await generateLeaveApplicationPDF({ ...d, full_name: req.user_name });
   };
 
-  const archiveForm = async (req) => {
-    if (window.confirm(`Are you sure you want to archive this approved form from ${req.user_name || req.user_email}?`)) {
-      try {
-        await leaveRequestsAPI.archive(req.id);
-        
-        // Refresh the forms list
-        const result = await leaveRequestsAPI.getAll({
-          status: REQUEST_STATUS.APPROVED,
-          is_archived: false,
-          orderBy: 'submitted_at'
-        });
-        setForms(result.data || []);
-      } catch (error) {
-        console.error('Error archiving form:', error);
-        alert('Failed to archive form. Please try again.');
+  const archiveForm = (req) => {
+    setConfirmModal({
+      isOpen: true,
+      type: 'warning',
+      title: 'Archive Approved Form',
+      message: `Are you sure you want to archive this approved form from ${req.user_name || req.user_email}? Archived forms can be restored later.`,
+      confirmText: 'Archive Form',
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+        try {
+          await leaveRequestsAPI.archive(req.id);
+          showToast('Form archived successfully.', 'success');
+          
+          // Refresh the forms list
+          const result = await leaveRequestsAPI.getAll({
+            status: REQUEST_STATUS.APPROVED,
+            is_archived: false,
+            orderBy: 'submitted_at'
+          });
+          setForms(result.data || []);
+        } catch (error) {
+          console.error('Error archiving form:', error);
+          showToast('Failed to archive form. Please try again.', 'danger');
+        } finally {
+          setConfirmModal({ isOpen: false });
+        }
       }
-    }
+    });
   };
 
   let filtered = forms.filter(f => {
@@ -274,6 +296,47 @@ export default function ApprovedForms() {
         )}
       </div>
       {selected && <PDFViewModal request={selected} onClose={() => setSelected(null)} />}
+      
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        type={confirmModal.type}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        isLoading={confirmModal.isLoading}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal({ isOpen: false })}
+      />
+
+      {/* Toast Notification Container */}
+      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col gap-3 w-full max-w-sm">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className="flex items-start gap-3 p-4 bg-white border rounded-2xl shadow-xl animate-slide-in-right transition-all border-slate-100"
+          >
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              t.type === 'danger' ? 'bg-rose-100' : 'bg-emerald-100'
+            }`}>
+              {t.type === 'danger' ? (
+                <XCircle className="w-4.5 h-4.5 text-rose-600" />
+              ) : (
+                <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
+              )}
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-slate-800 leading-snug">{t.message}</p>
+            </div>
+            <button
+              onClick={() => setToasts(prev => prev.filter(toast => toast.id !== t.id))}
+              className="text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
     </AdminLayout>
   );
 }
