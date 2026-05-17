@@ -326,11 +326,11 @@ export default function AdminDashboard() {
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
         try {
           await leaveRequestsAPI.update(request.id, { is_archived: true });
-          alert('Request archived successfully.');
+          showToast('Request archived successfully.', 'success');
           fetchRequests();
         } catch (error) {
           console.error('Error archiving request:', error);
-          alert('Failed to archive request. Please try again.');
+          showToast('Failed to archive request. Please try again.', 'danger');
         } finally {
           setActionLoading(false);
           setConfirmModal({ isOpen: false });

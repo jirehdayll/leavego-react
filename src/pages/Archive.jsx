@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 import AdminLayout from '../components/AdminLayout';
-import { Plane, FileText, Eye, Download, RotateCcw, User, X, Search, Filter, Calendar } from 'lucide-react';
+import { Plane, FileText, Eye, Download, RotateCcw, User, X, Search, Filter, Calendar, XCircle, CheckCircle2 } from 'lucide-react';
+import ConfirmationModal from '../components/ConfirmationModal';
 
 function PDFViewModal({ request, onClose }) {
   const d = request.details || {};
@@ -79,6 +80,16 @@ export default function Archive() {
   const [filterType, setFilterType] = useState('all');
   const [sortBy, setSortBy] = useState('date-desc');
   const [selectedMonth, setSelectedMonth] = useState('');
+  const [confirmModal, setConfirmModal] = useState({ isOpen: false });
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = (message, type = 'success') => {
+    const id = Date.now() + Math.random().toString(36).substr(2, 9);
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4500);
+  };
 
   const fetch = async () => {
     setLoading(true);
@@ -115,41 +126,49 @@ export default function Archive() {
 
   useEffect(() => { fetch(); }, []);
 
-  const restore = async (id) => {
-    if (!window.confirm('Are you sure you want to restore this application? It will be moved back to the pending applications list.')) {
-      return;
-    }
-    
-    try {
-      // Import supabase client
-      const { supabase } = await import('../lib/supabaseClient');
-      
-      // Update the form in Supabase
-      const { error } = await supabase
-        .from('leave_requests')
-        .update({
-          is_archived: false,
-          status: REQUEST_STATUS.PENDING,
-          // Reset approval fields if they exist
-          admin_approved: false,
-          admin_approved_at: null,
-          admin_approved_by: null,
-          cenro_approved: false,
-          cenro_approved_at: null,
-          cenro_approved_by: null
-        })
-        .eq('id', id);
-      
-      if (error) {
-        throw error;
+  const restore = (id) => {
+    setConfirmModal({
+      isOpen: true,
+      type: 'warning',
+      title: 'Restore Application',
+      message: 'Are you sure you want to restore this application? It will be moved back to the pending applications list.',
+      confirmText: 'Restore Application',
+      onConfirm: async () => {
+        setConfirmModal(prev => ({ ...prev, isLoading: true }));
+        try {
+          // Import supabase client
+          const { supabase } = await import('../lib/supabaseClient');
+          
+          // Update the form in Supabase
+          const { error } = await supabase
+            .from('leave_requests')
+            .update({
+              is_archived: false,
+              status: REQUEST_STATUS.PENDING,
+              // Reset approval fields if they exist
+              admin_approved: false,
+              admin_approved_at: null,
+              admin_approved_by: null,
+              cenro_approved: false,
+              cenro_approved_at: null,
+              cenro_approved_by: null
+            })
+            .eq('id', id);
+          
+          if (error) {
+            throw error;
+          }
+          
+          fetch(); // Refresh the archive list
+          showToast('Application restored successfully. It has been moved back to pending applications.', 'success');
+        } catch (error) {
+          console.error('Error restoring request:', error);
+          showToast('Failed to restore request. Please try again.', 'danger');
+        } finally {
+          setConfirmModal({ isOpen: false });
+        }
       }
-      
-      fetch(); // Refresh the archive list
-      alert('Application restored successfully. It has been moved back to pending applications.');
-    } catch (error) {
-      console.error('Error restoring request:', error);
-      alert('Failed to restore request. Please try again.');
-    }
+    });
   };
 
   const downloadPDF = (req) => {
@@ -357,6 +376,47 @@ export default function Archive() {
         </div>
       </div>
       {selected && <PDFViewModal request={selected} onClose={() => setSelected(null)} />}
+      
+      {/* Confirmation Modal */}
+      <ConfirmationModal
+        isOpen={confirmModal.isOpen}
+        type={confirmModal.type}
+        title={confirmModal.title}
+        message={confirmModal.message}
+        confirmText={confirmModal.confirmText}
+        isLoading={confirmModal.isLoading}
+        onConfirm={confirmModal.onConfirm}
+        onCancel={() => setConfirmModal({ isOpen: false })}
+      />
+
+      {/* Toast Notification Container */}
+      <div className="fixed bottom-5 right-5 z-[9999] flex flex-col gap-3 w-full max-w-sm">
+        {toasts.map(t => (
+          <div
+            key={t.id}
+            className="flex items-start gap-3 p-4 bg-white border rounded-2xl shadow-xl animate-slide-in-right transition-all border-slate-100"
+          >
+            <div className={`w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0 ${
+              t.type === 'danger' ? 'bg-rose-100' : 'bg-emerald-100'
+            }`}>
+              {t.type === 'danger' ? (
+                <XCircle className="w-4.5 h-4.5 text-rose-600" />
+              ) : (
+                <CheckCircle2 className="w-4.5 h-4.5 text-emerald-600" />
+              )}
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-slate-800 leading-snug">{t.message}</p>
+            </div>
+            <button
+              onClick={() => setToasts(prev => prev.filter(toast => toast.id !== t.id))}
+              className="text-slate-400 hover:text-slate-600 transition-colors"
+            >
+              <X className="w-4 h-4" />
+            </button>
+          </div>
+        ))}
+      </div>
     </AdminLayout>
   );
 }

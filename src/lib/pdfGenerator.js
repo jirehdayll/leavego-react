@@ -428,9 +428,9 @@ export async function generateLeaveApplicationPDF(data) {
     }
   });
 
-  const sigY = y + row7H - 12;
+  const sigY = y + row7H - 7;
   cellText('DAISY A. FABILEÑA', left + col1 / 2, sigY, { align: 'center', size: 7, bold: true });
-  cellText('− AO IV/HRMO', left + col1 / 2, sigY + 4, { align: 'center', size: 7 });
+  cellText('"AO IV/HRMO"', left + col1 / 2, sigY + 4, { align: 'center', size: 7 });
 
   cellText('7B RECOMMENDATION', left + col1 + 2, y + 5, { size: 7, bold: true });
   doc.setFontSize(7);
@@ -458,7 +458,7 @@ export async function generateLeaveApplicationPDF(data) {
     doc.line(left + col1 + 4, y + 12 + i * 5, right - 2, y + 12 + i * 5);
   }
 
-  const apprY = y + row7cdH - 18;
+  const apprY = y + row7cdH - 10;
   cellText('EDWARD V. SERNADILLA, RPF, DPA /', W / 2, apprY, { align: 'center', size: 8, bold: true });
   cellText('OIC, CENR Officer', W / 2, apprY + 4.5, { align: 'center', size: 7.5 });
   y += row7cdH;
