@@ -5,7 +5,7 @@ import autoTable from 'jspdf-autotable';
 const LEAVE_COLORS = {
   'SL': { color: [244, 63, 94], label: 'SICK LEAVE', text: [255, 255, 255] }, // Rose-500
   'Maternity': { color: [5, 150, 105], label: 'MATERNITY', text: [255, 255, 255] }, // Emerald-600
-  'OB': { color: [245, 158, 11], label: 'OFFICIAL BUSINESS', text: [255, 255, 255] }, // Amber-500
+  'OB': { color: [255, 235, 59], label: 'OFFICIAL BUSINESS', text: [0, 0, 0] }, // Yellow, black text
   'FL': { color: [14, 165, 233], label: 'FL/SPL/VL', text: [255, 255, 255] }, // Sky-500
   'SPL': { color: [14, 165, 233], label: 'FL/SPL/VL', text: [255, 255, 255] },
   'VL': { color: [14, 165, 233], label: 'FL/SPL/VL', text: [255, 255, 255] },
@@ -144,7 +144,7 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
       0: { cellWidth: 25, halign: 'center', fontStyle: 'bold' }, // Index
       1: { cellWidth: 150, fontStyle: 'bold' }, // Name
       33: { cellWidth: 60 }, // Undertime
-      34: { cellWidth: 120 } // Remarks
+      34: { cellWidth: 90 } // Remarks
     },
     margin: { left: 15, right: 20 },
     didParseCell: function (data) {
@@ -184,6 +184,16 @@ export const generateMonthlySummaryPDF = async (data, month, year) => {
         // Check if this is the start of a leave period
         const leaveInfo = employeeMap[employeeName]?.leaves[day];
         if (leaveInfo && leaveInfo.type !== 'Weekend') {
+          const prevLeave = employeeMap[employeeName]?.leaves[day - 1];
+          const isStartOfPeriod = !prevLeave || prevLeave.type !== leaveInfo.type;
+          
+          if (!isStartOfPeriod) {
+            // Skip drawing entirely as it is already covered by the merged block drawn on the start day
+            data.cell.text = [];
+            data.cell.styles.fillColor = false;
+            return;
+          }
+          
           // Find the duration of this leave period
           let duration = 1;
           let currentDay = day + 1;

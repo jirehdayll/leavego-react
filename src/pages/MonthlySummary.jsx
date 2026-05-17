@@ -7,7 +7,7 @@ import { generateMonthlySummaryPDF } from '../lib/monthlySummaryPDF';
 import html2canvas from 'html2canvas';
 
 const TYPE_COLORS = {
-  [REQUEST_TYPES.TRAVEL]: { bg: 'bg-amber-500', text: 'text-black', border: 'border-amber-600', label: 'Travel Order' },
+  [REQUEST_TYPES.TRAVEL]: { bg: 'bg-yellow-500', text: 'text-black', border: 'border-amber-600', label: 'Travel Order' },
   [REQUEST_TYPES.LEAVE]: { bg: 'bg-rose-200', text: 'text-black', border: 'border-rose-600', label: 'Leave Application' },
   Maternity: { bg: 'bg-emerald-600', text: 'text-black', border: 'border-emerald-700', label: 'Maternity Leave' },
 };
@@ -97,7 +97,7 @@ export default function MonthlySummary() {
   });
 
   const legend = [
-    { color: 'bg-orange-500 border-amber-600 text-white', label: 'Travel Order / Official Business' },
+    { color: 'bg-yellow-500 border-amber-600 text-white', label: 'Travel Order / Official Business' },
     { color: 'bg-red-500 border-rose-400 text-white', label: 'Sick Leave / Leave Application' },
     { color: 'bg-green-700 border-emerald-700 text-white', label: 'Maternity / Paternity Leave' },
     { color: 'bg-purple-100 border-purple-200 text-purple-800', label: 'Weekends / Holidays' },
