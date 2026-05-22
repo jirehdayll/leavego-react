@@ -11,8 +11,9 @@ function PDFViewModal({ request, onClose }) {
   const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
   
   const downloadPDF = async () => {
-    if (isTravel) await generateTravelOrderPDF({ ...d, full_name: request.user_name });
-    else await generateLeaveApplicationPDF({ ...d, full_name: request.user_name });
+    const appNo = d.control_number || d.travel_no;
+    if (isTravel) await generateTravelOrderPDF({ ...d, full_name: request.user_name, travel_no: appNo, control_number: appNo });
+    else await generateLeaveApplicationPDF({ ...d, full_name: request.user_name, control_number: appNo, travel_no: appNo });
   };
   
   return (
@@ -164,53 +165,11 @@ export default function Archive() {
 
   const downloadPDF = async (req) => {
     const d = req.details || {};
-    if (req.request_type === REQUEST_TYPES.TRAVEL) await generateTravelOrderPDF({ ...d, full_name: req.user_name });
-    else await generateLeaveApplicationPDF({ ...d, full_name: req.user_name });
-  };
-
-  const generateMonthlySummaryPDF = () => {
-    try {
-      // Get all forms from localStorage
-      const allForms = JSON.parse(localStorage.getItem('leaveRequests') || '[]');
-      const currentDate = new Date();
-      const currentMonth = currentDate.getMonth();
-      const currentYear = currentDate.getFullYear();
-      
-      // Filter approved requests for current month
-      const monthlyApproved = allForms.filter(req => {
-        const reqDate = new Date(req.submitted_at || req.created_at);
-        return req.status === REQUEST_STATUS.APPROVED && 
-               reqDate.getMonth() === currentMonth && 
-               reqDate.getFullYear() === currentYear;
-      });
-      
-      console.log(`Found ${monthlyApproved.length} approved requests for ${currentDate.toLocaleString('default', { month: 'long' })} ${currentYear}`);
-      
-      // Generate detailed summary with account information
-      const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
-      const summary = `Monthly Leave/Travel Summary\nMonth: ${currentDate.toLocaleString('default', { month: 'long' })} ${currentYear}\nTotal Approved Requests: ${monthlyApproved.length}\n\nApproved Applications Details:\n${monthlyApproved.map(req => {
-        const account = accounts.find(acc => acc.email === req.user_email);
-        const salaryInfo = account ? ` (Salary: ₱${account.salary_range})` : '';
-        return `- ${req.user_name}: ${req.request_type}${salaryInfo} (${new Date(req.submitted_at || req.created_at).toLocaleDateString()})`;
-      }).join('\n')}\n\nDepartment Breakdown:\n${Object.entries(
-        monthlyApproved.reduce((acc, req) => {
-          const dept = req.details?.office_department || 'Unknown';
-          acc[dept] = (acc[dept] || 0) + 1;
-          return acc;
-        }, {})
-      ).map(([dept, count]) => `- ${dept}: ${count}`).join('\n')}`;
-      
-      const blob = new Blob([summary], { type: 'text/plain' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `Monthly_Summary_${currentDate.toLocaleString('default', { month: 'long' })}_${currentYear}.txt`;
-      a.click();
-      URL.revokeObjectURL(url);
-      
-    } catch (error) {
-      console.error('Error generating attendance report:', error);
-      alert('Failed to generate attendance report. Please try again.');
+    const appNo = d.control_number || d.travel_no;
+    if (req.request_type === REQUEST_TYPES.TRAVEL) {
+      await generateTravelOrderPDF({ ...d, full_name: req.user_name, travel_no: appNo, control_number: appNo });
+    } else {
+      await generateLeaveApplicationPDF({ ...d, full_name: req.user_name, control_number: appNo, travel_no: appNo });
     }
   };
 
@@ -244,13 +203,6 @@ export default function Archive() {
               <h2 className="text-2xl font-black text-slate-800">Archive</h2>
               <p className="text-slate-500 text-sm mt-0.5">Declined or hidden forms - {forms.length} total</p>
             </div>
-            <button
-              onClick={() => generateMonthlySummaryPDF()}
-              className="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold rounded-xl transition-all shadow-sm"
-            >
-              <Download className="w-4 h-4" />
-              Download PDF
-            </button>
           </div>
         </div>
 

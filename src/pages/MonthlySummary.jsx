@@ -2,8 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
-import { ChevronLeft, ChevronRight, Calendar, X, Download } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Calendar, X, Download, FileSpreadsheet } from 'lucide-react';
 import { generateMonthlySummaryPDF } from '../lib/monthlySummaryPDF';
+import { generateMonthlySummaryExcel } from '../lib/excelGenerator';
 import html2canvas from 'html2canvas';
 
 const TYPE_COLORS = {
@@ -23,6 +24,7 @@ export default function MonthlySummary() {
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
+  const [isGeneratingExcel, setIsGeneratingExcel] = useState(false);
   const now = new Date();
   const [viewMonth, setViewMonth] = useState(now.getMonth());
   const [viewYear, setViewYear] = useState(now.getFullYear());
@@ -37,7 +39,7 @@ export default function MonthlySummary() {
       console.log('Starting professional PDF generation...');
 
       // Generate PDF using the new professional format
-      await generateMonthlySummaryPDF(monthForms, MONTHS[viewMonth], viewYear);
+      await generateMonthlySummaryPDF(monthForms, MONTHS[viewMonth], viewYear, forms);
 
       console.log('PDF generated successfully');
 
@@ -48,6 +50,23 @@ export default function MonthlySummary() {
     } finally {
       setIsGeneratingPDF(false);
       console.log('PDF generation completed');
+    }
+  };
+
+  const downloadExcel = async () => {
+    console.log('Excel download triggered');
+    setIsGeneratingExcel(true);
+
+    try {
+      console.log('Starting professional Excel generation...');
+      await generateMonthlySummaryExcel(monthForms, MONTHS[viewMonth], viewYear, forms);
+      console.log('Excel generated successfully');
+    } catch (error) {
+      console.error('Error generating Excel:', error);
+      alert('Failed to generate Excel. Please try again.\n\nError: ' + error.message);
+    } finally {
+      setIsGeneratingExcel(false);
+      console.log('Excel generation completed');
     }
   };
 
@@ -195,6 +214,29 @@ export default function MonthlySummary() {
                   <Download className="w-4 h-4" />
                   <span className="hidden sm:inline">Download PDF</span>
                   <span className="sm:hidden">PDF</span>
+                </>
+              )}
+            </button>
+            <button
+              onClick={downloadExcel}
+              disabled={isGeneratingExcel}
+              className={`flex items-center gap-2 px-3 sm:px-4 py-2 text-sm font-semibold rounded-xl transition-all shadow-sm ${isGeneratingExcel
+                ? 'bg-gray-400 text-white cursor-not-allowed'
+                : 'bg-teal-600 hover:bg-teal-700 text-white'
+                }`}
+              title="Download as Excel"
+            >
+              {isGeneratingExcel ? (
+                <>
+                  <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  <span className="hidden sm:inline">Generating...</span>
+                  <span className="sm:hidden">...</span>
+                </>
+              ) : (
+                <>
+                  <FileSpreadsheet className="w-4 h-4" />
+                  <span className="hidden sm:inline">Download Excel</span>
+                  <span className="sm:hidden">Excel</span>
                 </>
               )}
             </button>

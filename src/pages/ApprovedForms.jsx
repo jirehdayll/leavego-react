@@ -82,8 +82,9 @@ function PDFViewModal({ request, onClose }) {
   const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
 
   const downloadPDF = async () => {
-    if (isTravel) await generateTravelOrderPDF({ ...d, full_name: request.user_name });
-    else await generateLeaveApplicationPDF({ ...d, full_name: request.user_name });
+    const appNo = d.control_number || d.travel_no;
+    if (isTravel) await generateTravelOrderPDF({ ...d, full_name: request.user_name, travel_no: appNo, control_number: appNo });
+    else await generateLeaveApplicationPDF({ ...d, full_name: request.user_name, control_number: appNo, travel_no: appNo });
   };
 
   return (
@@ -178,8 +179,12 @@ export default function ApprovedForms() {
 
   const downloadPDF = async (req) => {
     const d = req.details || {};
-    if (req.request_type === REQUEST_TYPES.TRAVEL) await generateTravelOrderPDF({ ...d, full_name: req.user_name });
-    else await generateLeaveApplicationPDF({ ...d, full_name: req.user_name });
+    const appNo = d.control_number || d.travel_no;
+    if (req.request_type === REQUEST_TYPES.TRAVEL) {
+      await generateTravelOrderPDF({ ...d, full_name: req.user_name, travel_no: appNo, control_number: appNo });
+    } else {
+      await generateLeaveApplicationPDF({ ...d, full_name: req.user_name, control_number: appNo, travel_no: appNo });
+    }
   };
 
   const archiveForm = (req) => {

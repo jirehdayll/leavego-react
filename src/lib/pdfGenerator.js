@@ -1,23 +1,15 @@
 import jsPDF from 'jspdf';
 
-/**
- * Converts an image URL/path to a base64 data URL
- */
-async function loadImageAsBase64(url) {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-    img.onload = () => {
-      const canvas = document.createElement('canvas');
-      canvas.width = img.naturalWidth;
-      canvas.height = img.naturalHeight;
-      const ctx = canvas.getContext('2d');
-      ctx.drawImage(img, 0, 0);
-      resolve(canvas.toDataURL('image/png'));
-    };
-    img.onerror = reject;
-    img.src = url;
-  });
+function drawControlNumberStamp(doc, W, controlNumber) {
+  if (!controlNumber) return;
+  doc.setFillColor(255, 238, 0);
+  doc.rect(W - 45, 8, 30, 10, 'F');
+  doc.setDrawColor(0, 0, 0);
+  doc.rect(W - 45, 8, 30, 10);
+  doc.setFont('helvetica', 'bold');
+  doc.setFontSize(8);
+  doc.setTextColor(0, 0, 0);
+  doc.text(String(controlNumber), W - 30, 14.5, { align: 'center' });
 }
 
 /**
@@ -26,17 +18,7 @@ async function loadImageAsBase64(url) {
 export async function generateTravelOrderPDF(data) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210;
-
-  // ── Header ──────────────────────────────────────────────────────────────────
-  try {
-    const denrLogo = await loadImageAsBase64('/denr-logo.png');
-    doc.addImage(denrLogo, 'PNG', 15, 8, 22, 22);
-  } catch (_) { }
-
-  try {
-    const bagongLogo = await loadImageAsBase64('/bagong-pilipinas.png');
-    doc.addImage(bagongLogo, 'PNG', W - 37, 8, 22, 22);
-  } catch (_) { }
+  const travelNo = data.travel_no || data.control_number || '';
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
@@ -58,7 +40,8 @@ export async function generateTravelOrderPDF(data) {
   doc.text('TRAVEL ORDER', W / 2, 43, { align: 'center' });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(10);
-  doc.text(`NO. ${data.travel_no || '___________'}`, W / 2, 50, { align: 'center' });
+  drawControlNumberStamp(doc, W, travelNo);
+  doc.text(`NO. ${travelNo || '___________'}`, W / 2, 50, { align: 'center' });
   doc.line(W / 2 - 10, 51, W / 2 + 30, 51);
 
   // ── Fields ──────────────────────────────────────────────────────────────────
@@ -179,16 +162,14 @@ export async function generateLeaveApplicationPDF(data) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210;
 
-  // ── Header ──────────────────────────────────────────────────────────────────
-  try {
-    const denrLogo = await loadImageAsBase64('/denr-logo.png');
-    doc.addImage(denrLogo, 'PNG', 15, 6, 20, 20);
-  } catch (_) { }
+  const controlNumber = data.control_number || data.travel_no || '';
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
   doc.text('Civil Service Form No. 6', 15, 5);
   doc.text('Revised 2020', 15, 8.5);
+
+  drawControlNumberStamp(doc, W, controlNumber);
 
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(8);
@@ -196,12 +177,6 @@ export async function generateLeaveApplicationPDF(data) {
   doc.text('Department of Environment and Natural Resources', W / 2, 14.5, { align: 'center' });
   doc.text('PROVINCIAL ENVIRONMENT AND NATURAL RESOURCES OFFICE', W / 2, 19, { align: 'center' });
   doc.text('REGION III, Iba, Zambales', W / 2, 23.5, { align: 'center' });
-
-  // Stamp box
-  doc.setFont('helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.rect(W - 45, 8, 30, 10);
-  doc.text('Stamp of Date of Receipt', W - 30, 14, { align: 'center' });
 
   // Title
   doc.setFont('helvetica', 'bold');

@@ -9,6 +9,10 @@ import {
 } from 'lucide-react';
 import AdminLayout from '../components/AdminLayout';
 import ConfirmationModal from '../components/ConfirmationModal';
+import {
+  getNextApplicationNumber,
+  buildDetailsWithApplicationNumber,
+} from '../lib/applicationNumber';
 
 function ViewRequestModal({ request, onClose, onApprove, onDecline, user }) {
   if (!request) return null;
@@ -224,19 +228,25 @@ export default function AdminDashboard() {
           });
           showToast('Request approved and sent to CENRO for final approval.', 'success');
         } else if (user?.role === 'cenro' || user?.email === 'cenro@denr.gov.ph') {
-          // CENRO approves - final approval
           console.log('CENRO approving request - final approval');
-          await leaveRequestsAPI.update(id, { 
+          const approvedResult = await leaveRequestsAPI.getAll({ status: REQUEST_STATUS.APPROVED });
+          const appNumber = getNextApplicationNumber(approvedResult.data || [], new Date());
+          await leaveRequestsAPI.update(id, {
             status: REQUEST_STATUS.APPROVED,
             cenro_approved: true,
             cenro_approved_at: new Date().toISOString(),
-            cenro_approved_by: user.email
+            cenro_approved_by: user.email,
+            details: buildDetailsWithApplicationNumber(request.details || {}, appNumber),
           });
           showToast('Request fully approved! The application is now finalized.', 'success');
         } else {
-          // Fallback for testing
           console.log('Direct approval for testing');
-          await leaveRequestsAPI.update(id, { status: REQUEST_STATUS.APPROVED });
+          const approvedResult = await leaveRequestsAPI.getAll({ status: REQUEST_STATUS.APPROVED });
+          const appNumber = getNextApplicationNumber(approvedResult.data || [], new Date());
+          await leaveRequestsAPI.update(id, {
+            status: REQUEST_STATUS.APPROVED,
+            details: buildDetailsWithApplicationNumber(request.details || {}, appNumber),
+          });
         }
       } else if (status === REQUEST_STATUS.DECLINED) {
         // Decline - also archive the request
