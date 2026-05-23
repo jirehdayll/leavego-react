@@ -52,9 +52,9 @@ export default function Login() {
       if (result.success) {
         // Navigate based on user role
         if (result.user.role === 'admin' || result.user.role === 'cenro') {
-          navigate('/admin/dashboard');
+          navigate('/admin/dashboard', { replace: true });
         } else {
-          navigate('/dashboard');
+          navigate('/dashboard', { replace: true });
         }
       } else {
         setError(result.error);

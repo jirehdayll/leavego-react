@@ -382,7 +382,7 @@ export default function QRScanner({ isOpen, onClose }) {
                   QR Code Scanned Successfully!
                 </h3>
                 <p className="text-slate-600 mb-4">
-                  Redirecting to employee profile...
+                  Redirecting to employee records...
                 </p>
                 <div className="animate-pulse">
                   <div className="w-8 h-1 bg-emerald-600 rounded-full mx-auto"></div>

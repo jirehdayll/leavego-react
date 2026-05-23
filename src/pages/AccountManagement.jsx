@@ -138,7 +138,9 @@ function CreateAccountModal({ onClose, onSuccess }) {
               full_name: fullName,
               position: formData.position,
               salary_range: formData.salary_range,
-              department: formData.department
+              department: formData.department,
+              is_active: true,
+              isActive: true,
             };
           }
           return acc;
@@ -655,7 +657,7 @@ function AccountCard({ acc, isAdmin, onToggle, onEdit, onDelete }) {
           </div>
           {acc.salary_range && (
             <div className="flex items-center gap-2 text-slate-500">
-              <span className="text-xs font-semibold text-slate-400">💰</span>
+              <span className="text-xs font-semibold text-emerald-600">₱</span>
               <span className="truncate text-xs">{acc.salary_range}</span>
             </div>
           )}

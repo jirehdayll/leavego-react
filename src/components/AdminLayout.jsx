@@ -25,14 +25,15 @@ export default function AdminLayout({ children }) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const [showQRScanner, setShowQRScanner] = useState(false);
 
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, logout } = useAuth();
   const adminEmail = user?.email || '—';
 
   if (authLoading) return null; // or a smaller spinner
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/');
+    logout();
+    navigate('/login', { replace: true });
   };
 
   const SidebarContent = () => (

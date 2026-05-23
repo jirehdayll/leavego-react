@@ -5,7 +5,8 @@ import AdminLayout from '../components/AdminLayout';
 import { ChevronLeft, ChevronRight, Calendar, X, Download, FileSpreadsheet } from 'lucide-react';
 import { generateMonthlySummaryPDF } from '../lib/monthlySummaryPDF';
 import { generateMonthlySummaryExcel } from '../lib/excelGenerator';
-import html2canvas from 'html2canvas';
+import { useAuth } from '../hooks/useAuth';
+import { getCalendarEventLabels } from '../utils/calendarLabels';
 
 const TYPE_COLORS = {
   [REQUEST_TYPES.TRAVEL]: { bg: 'bg-yellow-500', text: 'text-black', border: 'border-amber-600', label: 'Travel Order' },
@@ -20,7 +21,10 @@ function getLeaveColor(req) {
   return TYPE_COLORS[REQUEST_TYPES.LEAVE];
 }
 
+const CALENDAR_FONT = "'Source Sans 3', 'Segoe UI', system-ui, sans-serif";
+
 export default function MonthlySummary() {
+  const { getAccounts } = useAuth();
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [isGeneratingPDF, setIsGeneratingPDF] = useState(false);
@@ -102,6 +106,7 @@ export default function MonthlySummary() {
     setShowCalendar(false);
   };
 
+  const accounts = getAccounts();
   const monthForms = forms.filter(f => {
     const d = new Date(f.submitted_at || f.created_at);
     return d.getMonth() === viewMonth && d.getFullYear() === viewYear;
@@ -287,27 +292,23 @@ export default function MonthlySummary() {
                   const weekend = isWeekend(day);
 
                   return (
-                    <div key={day} className={`h-12 sm:h-16 lg:h-24 border-b border-r border-slate-50 ${weekend ? 'bg-slate-50/30' : 'bg-white'} relative group overflow-hidden`}>
+                    <div key={day} className={`h-14 sm:h-20 lg:h-28 border-b border-r border-slate-50 ${weekend ? 'bg-slate-50/30' : 'bg-white'} relative group overflow-hidden`}>
                       <div className="text-[10px] sm:text-xs font-semibold text-slate-500 p-0.5 sm:p-1 flex justify-between items-center relative z-20">
                         <span>{day}</span>
                       </div>
 
                       {/* Google Calendar-Style Event Lanes */}
-                      <div className="absolute inset-x-0 bottom-1 top-5 flex flex-col gap-0.5 sm:gap-1 px-0.5 pointer-events-none">
+                      <div className="absolute inset-x-0 bottom-0.5 top-5 flex flex-col gap-0.5 sm:gap-1 px-0.5 pointer-events-none">
                         {Array.from({ length: Math.min(lanes.length, 3) }).map((_, laneIndex) => {
                           const app = sortedApps.find(a => a.lane === laneIndex && a.daysInMonthSpan.includes(day));
 
                           if (!app) {
-                            return <div key={`empty-lane-${laneIndex}`} className="h-3 sm:h-4 lg:h-5" />;
+                            return <div key={`empty-lane-${laneIndex}`} className="h-4 sm:h-5 lg:h-7" />;
                           }
 
                           const isStart = app.daysInMonthSpan[0] === day;
                           const isEnd = app.daysInMonthSpan[app.daysInMonthSpan.length - 1] === day;
-
-                          const applicantName = app.user_name || app.user_email?.split('@')[0] || 'Unknown';
-                          const displayName = applicantName.split(' ')[0];
-                          const isTravel = app.request_type === REQUEST_TYPES.TRAVEL;
-                          const appType = isTravel ? 'Travel' : (app.details?.leave_type?.split(' ')[0] || 'Leave');
+                          const { displayName, controlNumber, typeLabel } = getCalendarEventLabels(app, accounts, forms);
 
                           let roundedClass = 'rounded-none';
                           if (isStart && isEnd) roundedClass = 'rounded-md';
@@ -316,17 +317,21 @@ export default function MonthlySummary() {
 
                           return (
                             <div
-                              key={`app-${app.id}`}
-                              className={`h-3 sm:h-4 lg:h-5 text-[6px] sm:text-[8px] lg:text-[10px] font-extrabold leading-none flex items-center px-1 border-y border-black/5 ${roundedClass} ${app.color.bg} ${app.color.text} ${app.color.border} pointer-events-auto cursor-pointer shadow-sm`}
-                              title={`${app.user_name} - ${app.color.label} (${app.daysInMonthSpan.length} Days)`}
+                              key={`app-${app.id}-lane-${laneIndex}`}
+                              className={`h-4 sm:h-5 lg:h-7 min-h-[1rem] text-[5px] sm:text-[7px] lg:text-[8px] font-light leading-tight flex items-center px-1 border-y border-black/5 ${roundedClass} ${app.color.bg} ${app.color.text} ${app.color.border} pointer-events-auto cursor-pointer shadow-sm`}
+                              title={`${displayName} · ${controlNumber} · ${typeLabel} (${app.daysInMonthSpan.length} day(s))`}
                               style={{
                                 margin: '0 -2px',
-                                zIndex: 10
+                                zIndex: 10,
+                                fontFamily: CALENDAR_FONT,
                               }}
                             >
                               {isStart ? (
-                                <span className="truncate w-full block">
-                                  {displayName} ({appType})
+                                <span className="w-full block overflow-hidden">
+                                  <span className="block truncate font-normal">{displayName}</span>
+                                  <span className="block truncate opacity-90 text-[4px] sm:text-[6px] lg:text-[7px]">
+                                    {controlNumber} · {typeLabel}
+                                  </span>
                                 </span>
                               ) : (
                                 <span className="opacity-0">—</span>

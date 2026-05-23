@@ -1,5 +1,38 @@
 import jsPDF from 'jspdf';
 
+const DENR_LOGO_PATH = '/denr-logo.png';
+
+function loadImageAsDataUrl(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width = img.naturalWidth || img.width;
+      canvas.height = img.naturalHeight || img.height;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) {
+        reject(new Error('Canvas not supported'));
+        return;
+      }
+      ctx.drawImage(img, 0, 0);
+      resolve(canvas.toDataURL('image/png'));
+    };
+    img.onerror = () => reject(new Error(`Failed to load image: ${src}`));
+    img.src = src;
+  });
+}
+
+async function addDenrLogo(doc, x, y, sizeMm = 22) {
+  try {
+    const dataUrl = await loadImageAsDataUrl(DENR_LOGO_PATH);
+    doc.addImage(dataUrl, 'PNG', x, y, sizeMm, sizeMm);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 function drawControlNumberStamp(doc, W, controlNumber) {
   if (!controlNumber) return;
   doc.setFillColor(255, 238, 0);
@@ -12,6 +45,27 @@ function drawControlNumberStamp(doc, W, controlNumber) {
   doc.text(String(controlNumber), W - 30, 14.5, { align: 'center' });
 }
 
+function parseEmployeeName(data) {
+  if (data.surname || data.first_name) {
+    return {
+      lastName: data.surname || '',
+      firstName: data.first_name || '',
+      middleName: data.middle_name || '',
+    };
+  }
+  const nameParts = (data.full_name || '').trim().split(/\s+/).filter(Boolean);
+  if (nameParts.length === 0) return { lastName: '', firstName: '', middleName: '' };
+  if (nameParts.length === 1) return { lastName: '', firstName: nameParts[0], middleName: '' };
+  if (nameParts.length === 2) {
+    return { firstName: nameParts[0], middleName: '', lastName: nameParts[1] };
+  }
+  return {
+    firstName: nameParts[0],
+    middleName: nameParts.slice(1, -1).join(' '),
+    lastName: nameParts[nameParts.length - 1],
+  };
+}
+
 /**
  * Generates a Travel Order PDF matching the government format.
  */
@@ -20,6 +74,8 @@ export async function generateTravelOrderPDF(data) {
   const W = 210;
   const travelNo = data.travel_no || data.control_number || '';
 
+  await addDenrLogo(doc, 15, 8, 20);
+
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('Department of Environment and Natural Resources', W / 2, 12, { align: 'center' });
@@ -27,14 +83,12 @@ export async function generateTravelOrderPDF(data) {
   doc.setFontSize(8);
   doc.text('Community Environment and Natural Resources Office, Olongapo City', W / 2, 17, { align: 'center' });
 
-  // Red line separator
   doc.setDrawColor(180, 0, 0);
   doc.setLineWidth(1.2);
   doc.line(15, 33, W - 15, 33);
   doc.setLineWidth(0.3);
   doc.setDrawColor(0, 0, 0);
 
-  // ── Title ───────────────────────────────────────────────────────────────────
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.text('TRAVEL ORDER', W / 2, 43, { align: 'center' });
@@ -44,7 +98,6 @@ export async function generateTravelOrderPDF(data) {
   doc.text(`NO. ${travelNo || '___________'}`, W / 2, 50, { align: 'center' });
   doc.line(W / 2 - 10, 51, W / 2 + 30, 51);
 
-  // ── Fields ──────────────────────────────────────────────────────────────────
   const left = 15;
   const mid = W / 2 + 5;
   let y = 62;
@@ -54,19 +107,20 @@ export async function generateTravelOrderPDF(data) {
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(9);
     doc.text(`${label}:`, x, row_y);
-    doc.setFont('helvetica', 'normal');
-    doc.text(value || '', x + doc.getTextWidth(label + ': ') + 2, row_y);
+    doc.text(value || '', x + doc.getTextWidth(`${label}: `) + 1, row_y);
     doc.setDrawColor(180, 180, 180);
-    doc.line(x + doc.getTextWidth(label + ': ') + 1, row_y + 0.5, x + width, row_y + 0.5);
+    doc.line(x + doc.getTextWidth(`${label}: `), row_y + 0.5, x + width, row_y + 0.5);
     doc.setDrawColor(0, 0, 0);
   };
+
+  const officeLabel = data.office || data.office_department || data.department || 'CENRO';
 
   field('Name', data.full_name || '', left, 85, y);
   field('Salary', data.salary || '', mid, 85, y);
   y += lineH;
 
   field('Position/Designation', data.position || '', left, 85, y);
-  field('Office', data.office || 'CENRO', mid, 85, y);
+  field('Office', officeLabel, mid, 85, y);
   y += lineH;
 
   field('Departure Date', data.departure_date || data.start_date || '', left, 85, y);
@@ -80,13 +134,11 @@ export async function generateTravelOrderPDF(data) {
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.text('PURPOSE :', left, y);
-  doc.setFont('helvetica', 'normal');
   const purposeText = data.purpose || '';
   const wrapped = doc.splitTextToSize(purposeText, W - left - 20);
   doc.text(wrapped, left + 22, y);
   y += Math.max(wrapped.length * 5, 8) + 8;
 
-  // ── Per Diems ───────────────────────────────────────────────────────────────
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.text(`Per Diems/Expenses Allowed : ${data.per_diems !== false ? 'YES' : 'NO'}`, left, y);
@@ -98,19 +150,18 @@ export async function generateTravelOrderPDF(data) {
   doc.text(`Remarks or special instructions : ${data.remarks || 'Gather documentation and prepare the necessary report.'}`, left, y);
   y += 12;
 
-  // ── Certification ───────────────────────────────────────────────────────────
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('CERTIFICATION / UNDERTAKING:', left, y);
   y += 6;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  const certText = 'I certify that the above travel is necessary and is related to the official function of the said office. I further certify that the travel is true and correct to the best of my knowledge and that I bind myself to be accountable for any misrepresentation or inappropriate claims in relation to this travel order.\n\nHence, I am recommending for its approval.';
+  const certText =
+    'I certify that the above travel is necessary and is related to the official function of the said office. I further certify that the travel is true and correct to the best of my knowledge and that I bind myself to be accountable for any misrepresentation or inappropriate claims in relation to this travel order.\n\nHence, I am recommending for its approval.';
   const certWrapped = doc.splitTextToSize(certText, W - left * 2);
   doc.text(certWrapped, left, y);
   y += certWrapped.length * 4.5 + 10;
 
-  // ── Signatures ──────────────────────────────────────────────────────────────
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('Approved:', left, y);
@@ -121,18 +172,18 @@ export async function generateTravelOrderPDF(data) {
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.text('EDWARD V. SERNADILLA, RPF, DPA', left, y);
-  y + row7cdH - 1;
+  y += 5;
   doc.setFont('helvetica', 'normal');
   doc.text('OIC, CENRO', left, y);
-  y + row7H - 1;
+  y += 12;
 
-  // ── Authorization ───────────────────────────────────────────────────────────
   doc.setLineWidth(0.5);
   doc.line(left, y, W - left, y);
   y += 8;
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  const authText = 'I hereby authorize the Accountant to deduct the corresponding amount of the unliquidated cash advance from any succeeding salary for my failure to liquidate this travel within the prescribed thirty-day period upon return to my permanent official station pursuant to item 5.1.3 COA Circular 97-002 dated February 10, 1997 and Sec. 16 EO No. 248 dated May 29, 1995.';
+  const authText =
+    'I hereby authorize the Accountant to deduct the corresponding amount of the unliquidated cash advance from any succeeding salary for my failure to liquidate this travel within the prescribed thirty-day period upon return to my permanent official station pursuant to item 5.1.3 COA Circular 97-002 dated February 10, 1997 and Sec. 16 EO No. 248 dated May 29, 1995.';
   const authWrapped = doc.splitTextToSize(authText, W - left * 2);
   doc.text(authWrapped, left, y);
   y += authWrapped.length * 4.2 + 10;
@@ -142,7 +193,6 @@ export async function generateTravelOrderPDF(data) {
   doc.text((data.full_name || 'Employee Name').toUpperCase(), W - left, y, { align: 'right' });
   y += 12;
 
-  // ── Footer ──────────────────────────────────────────────────────────────────
   doc.setFont('helvetica', 'italic');
   doc.setFontSize(7.5);
   doc.text('"Malinis na Kapaligiran at Mayamang Kalikasan para sa Buong Sambayanan."', W / 2, y, { align: 'center' });
@@ -161,13 +211,16 @@ export async function generateTravelOrderPDF(data) {
 export async function generateLeaveApplicationPDF(data) {
   const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
   const W = 210;
-
   const controlNumber = data.control_number || data.travel_no || '';
+  const department = data.department || data.office_department || '';
+  const { lastName, firstName, middleName } = parseEmployeeName(data);
+
+  await addDenrLogo(doc, 12, 6, 24);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7);
-  doc.text('Civil Service Form No. 6', 15, 5);
-  doc.text('Revised 2020', 15, 8.5);
+  doc.text('Civil Service Form No. 6', 40, 8);
+  doc.text('Revised 2020', 40, 11.5);
 
   drawControlNumberStamp(doc, W, controlNumber);
 
@@ -178,12 +231,10 @@ export async function generateLeaveApplicationPDF(data) {
   doc.text('PROVINCIAL ENVIRONMENT AND NATURAL RESOURCES OFFICE', W / 2, 19, { align: 'center' });
   doc.text('REGION III, Iba, Zambales', W / 2, 23.5, { align: 'center' });
 
-  // Title
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(15);
   doc.text('APPLICATION FOR LEAVE', W / 2, 33, { align: 'center' });
 
-  // ── Table ───────────────────────────────────────────────────────────────────
   const left = 15;
   const right = W - 15;
   const tableW = right - left;
@@ -196,30 +247,23 @@ export async function generateLeaveApplicationPDF(data) {
     doc.text(text, x, yy, opts);
   };
 
-  // Row 1: Office/Dept | Name
   const row1H = 10;
   drawRect(left, y, tableW * 0.3, row1H);
   drawRect(left + tableW * 0.3, y, tableW * 0.7, row1H);
   cellText('1. OFFICE/DEPARTMENT', left + 1, y + 4, { size: 7 });
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(data.department || '', left + 3, y + 8);
+  doc.text(department, left + 3, y + 8);
   cellText('2. NAME :', left + tableW * 0.3 + 2, y + 4, { size: 7 });
   cellText('(Last)', left + tableW * 0.3 + 25, y + 4, { size: 6.5 });
   cellText('(First)', left + tableW * 0.55, y + 4, { size: 6.5 });
   cellText('(Middle)', left + tableW * 0.75, y + 4, { size: 6.5 });
-  // Parse name
-  const nameParts = (data.full_name || '').split(' ');
-  const lastName = nameParts[nameParts.length - 1] || '';
-  const firstName = nameParts[0] || '';
-  const middleName = nameParts.length > 2 ? nameParts.slice(1, -1).join(' ') : '';
   doc.setFontSize(8);
   doc.text(lastName, left + tableW * 0.3 + 25, y + 8);
   doc.text(firstName, left + tableW * 0.55, y + 8);
   doc.text(middleName, left + tableW * 0.75, y + 8);
   y += row1H;
 
-  // Row 2: Date of Filing | Position | Salary
   const row2H = 10;
   drawRect(left, y, tableW * 0.25, row2H);
   drawRect(left + tableW * 0.25, y, tableW * 0.35, row2H);
@@ -232,10 +276,10 @@ export async function generateLeaveApplicationPDF(data) {
   doc.text(data.position || '', left + tableW * 0.25 + 3, y + 8);
   cellText('5. SALARY', left + tableW * 0.6 + 2, y + 4, { size: 7 });
   doc.setFontSize(8);
-  doc.text(data.salary || '', left + tableW * 0.6 + 20, y + 8);
+  const salaryDisplay = data.salary ? (String(data.salary).startsWith('₱') ? data.salary : `₱ ${data.salary}`) : '';
+  doc.text(salaryDisplay, left + tableW * 0.6 + 20, y + 8);
   y += row2H;
 
-  // Section 6 header
   const secH = 7;
   drawRect(left, y, tableW, secH);
   doc.setFillColor(220, 220, 220);
@@ -245,7 +289,6 @@ export async function generateLeaveApplicationPDF(data) {
   cellText('6. DETAILS OF APPLICATION', W / 2, y + 5, { align: 'center', bold: true, size: 8.5 });
   y += secH;
 
-  // 6A Type of Leave | 6B Details
   const col1 = tableW * 0.5;
   const col2 = tableW * 0.5;
   const detailsH = 90;
@@ -257,10 +300,19 @@ export async function generateLeaveApplicationPDF(data) {
   ly += 5;
 
   const leaveTypes = [
-    'Vacation Leave', 'Mandatory/Forced Leave', 'Sick Leave', 'Maternity Leave',
-    'Paternity Leave', 'Special Privilege Leave', 'Solo Parent Leave', 'Study Leave',
-    '10-Day VAWC Leave', 'Rehabilitation Privilege', 'Special Leave Benefits for Women',
-    'Special Emergency (Calamity) Leave', 'Adoption Leave'
+    'Vacation Leave',
+    'Mandatory/Forced Leave',
+    'Sick Leave',
+    'Maternity Leave',
+    'Paternity Leave',
+    'Special Privilege Leave',
+    'Solo Parent Leave',
+    'Study Leave',
+    '10-Day VAWC Leave',
+    'Rehabilitation Privilege',
+    'Special Leave Benefits for Women',
+    'Special Emergency (Calamity) Leave',
+    'Adoption Leave',
   ];
   const selectedType = data.leave_type || '';
   leaveTypes.forEach((lt) => {
@@ -277,7 +329,6 @@ export async function generateLeaveApplicationPDF(data) {
     ly += 5;
   });
 
-  // 6B
   let ry = y + 5;
   const rx = left + col1 + 2;
   cellText('6B DETAILS OF LEAVE', rx, ry, { size: 7, bold: true });
@@ -320,18 +371,16 @@ export async function generateLeaveApplicationPDF(data) {
   doc.text('Terminal Leave', rx + 5, ry);
   y += detailsH;
 
-  // 6C & 6D
   const row6cdH = 26;
   drawRect(left, y, col1, row6cdH);
   drawRect(left + col1, y, col2, row6cdH);
 
-  // 6C Left Side
   cellText('6C NUMBER OF WORKING DAYS APPLIED FOR', left + 2, y + 5, { size: 7, bold: true });
   doc.setDrawColor(180, 180, 180);
   doc.line(left + 4, y + 11, left + col1 - 4, y + 11);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(data.num_days || '', left + 8, y + 10);
+  doc.text(String(data.num_days || ''), left + 8, y + 10);
 
   cellText('INCLUSIVE DATES', left + 2, y + 16, { size: 7, bold: true });
   doc.line(left + 4, y + 22, left + col1 - 4, y + 22);
@@ -339,7 +388,6 @@ export async function generateLeaveApplicationPDF(data) {
   doc.text(dates, left + 8, y + 21);
   doc.setDrawColor(0, 0, 0);
 
-  // 6D Right Side
   cellText('6D COMPUTATION', left + col1 + 2, y + 5, { size: 7, bold: true });
   doc.setFontSize(6.5);
   doc.rect(left + col1 + 5, y + 8, 3, 3);
@@ -351,7 +399,6 @@ export async function generateLeaveApplicationPDF(data) {
   doc.setFillColor(255, 255, 255);
   doc.text('Requested', left + col1 + 10, y + 15.5);
 
-  // Applicant Signature line inside 6D box
   doc.setDrawColor(180, 180, 180);
   doc.line(left + col1 + 15, y + row6cdH - 7, right - 15, y + row6cdH - 7);
   doc.setDrawColor(0, 0, 0);
@@ -359,7 +406,6 @@ export async function generateLeaveApplicationPDF(data) {
 
   y += row6cdH;
 
-  // Section 7 header
   drawRect(left, y, tableW, secH);
   doc.setFillColor(220, 220, 220);
   doc.rect(left, y, tableW, secH, 'F');
@@ -368,7 +414,6 @@ export async function generateLeaveApplicationPDF(data) {
   cellText('7. DETAILS OF ACTION ON APPLICATION', W / 2, y + 5, { align: 'center', bold: true, size: 8.5 });
   y += secH;
 
-  // 7A & 7B
   const row7H = 48;
   drawRect(left, y, col1, row7H);
   drawRect(left + col1, y, col2, row7H);
@@ -376,10 +421,9 @@ export async function generateLeaveApplicationPDF(data) {
   doc.setFontSize(7);
   doc.text('      As of _______________', left + 2, y + 9.5);
 
-  // Small table for leave credits
   const tblX = left + 5;
   const tblY = y + 12;
-  doc.rect(tblX, tblY, 35, 5); // header row
+  doc.rect(tblX, tblY, 35, 5);
   doc.rect(tblX + 35, tblY, 15, 5);
   doc.rect(tblX + 50, tblY, 15, 5);
   doc.setFontSize(6);
@@ -387,10 +431,9 @@ export async function generateLeaveApplicationPDF(data) {
   doc.text('Vacation Leave', tblX + 36, tblY + 3.5);
   doc.text('Sick Leave', tblX + 51, tblY + 3.5);
 
-  // Leave balance data
   const vacationBalance = data.vacation_balance || '';
   const sickBalance = data.sick_balance || '';
-  const daysApplied = parseInt(data.num_days) || 0;
+  const daysApplied = parseInt(data.num_days, 10) || 0;
 
   ['Total Earned', 'Less this application', 'Balance'].forEach((label, i) => {
     const rowY = tblY + 5 + i * 5;
@@ -399,28 +442,21 @@ export async function generateLeaveApplicationPDF(data) {
     doc.rect(tblX + 50, rowY, 15, 5);
     doc.text(label, tblX + 2, rowY + 3.5);
 
-    // Add values for vacation and sick leave
-    if (i === 0) {
-      // Total Earned - leave blank for manual entry
-    } else if (i === 1) {
-      // Less this application
+    if (i === 1) {
       doc.text(daysApplied.toString(), tblX + 36, rowY + 3.5);
       doc.text(daysApplied.toString(), tblX + 51, rowY + 3.5);
     } else if (i === 2) {
-      // Balance - show actual balance if available
       doc.text(vacationBalance, tblX + 36, rowY + 3.5);
       doc.text(sickBalance, tblX + 51, rowY + 3.5);
     }
   });
 
-  // Daisy signature block centered inside 7A
   doc.setDrawColor(180, 180, 180);
   doc.line(left + 15, y + row7H - 5, left + col1 - 15, y + row7H - 5);
   doc.setDrawColor(0, 0, 0);
   cellText('DAISY A. FABILEÑA', left + col1 / 2, y + row7H - 7, { align: 'center', size: 7, bold: true });
   cellText('"AO IV/HRMO"', left + col1 / 2, y + row7H - 3, { align: 'center', size: 7 });
 
-  // 7B
   cellText('7B RECOMMENDATION', left + col1 + 2, y + 5, { size: 7, bold: true });
   doc.setFontSize(7);
   doc.rect(left + col1 + 2, y + 8, 3, 3);
@@ -432,7 +468,6 @@ export async function generateLeaveApplicationPDF(data) {
   doc.rect(left + col1 + 2, y + 14, 3, 3);
   doc.text('For disapproval due to _______________________', left + col1 + 7, y + 16.5);
 
-  // Extra lines for disapproval reasons
   doc.setDrawColor(180, 180, 180);
   doc.line(left + col1 + 10, y + 22, right - 10, y + 22);
   doc.line(left + col1 + 10, y + 28, right - 10, y + 28);
@@ -441,7 +476,6 @@ export async function generateLeaveApplicationPDF(data) {
 
   y += row7H;
 
-  // 7C & 7D
   const row7cdH = 52;
   drawRect(left, y, tableW, row7cdH);
 
@@ -457,13 +491,10 @@ export async function generateLeaveApplicationPDF(data) {
     doc.line(left + col1 + 4, y + 11 + i * 5, right - 4, y + 11 + i * 5);
   }
 
-  // Edward signature block centered inside the bottom of 7C/7D box
   doc.line(W / 2 - 35, y + row7cdH - 10, W / 2 + 35, y + row7cdH - 10);
   doc.setDrawColor(0, 0, 0);
   cellText('EDWARD V. SERNADILLA, RPF, DPA /', W / 2, y + row7cdH - 12, { align: 'center', size: 8, bold: true });
   cellText('OIC, CENR Officer', W / 2, y + row7cdH - 6, { align: 'center', size: 7.5 });
-
-  y += row7cdH;
 
   doc.save(`Leave_Application_${(data.full_name || 'Employee').replace(/\s+/g, '_')}.pdf`);
 }

@@ -16,6 +16,8 @@
     "@tailwindcss/vite": "^4.2.2",
     "autoprefixer": "^10.4.27",
     "chart.js": "^4.5.1",
+    "exceljs": "^4.4.0",
+    "file-saver": "^2.0.5",
     "html2canvas": "^1.4.1",
     "html5-qrcode": "^2.3.8",
     "jspdf": "^4.2.1",

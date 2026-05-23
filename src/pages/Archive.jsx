@@ -5,15 +5,21 @@ import AdminLayout from '../components/AdminLayout';
 import { Plane, FileText, Eye, Download, RotateCcw, User, X, Search, Filter, Calendar, XCircle, CheckCircle2 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 import { generateTravelOrderPDF, generateLeaveApplicationPDF } from '../lib/pdfGenerator';
+import { buildPdfDataFromRequest } from '../lib/pdfDataBuilder';
 
-function PDFViewModal({ request, onClose }) {
+function PDFViewModal({ request, onClose, getAccounts }) {
   const d = request.details || {};
   const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
   
   const downloadPDF = async () => {
-    const appNo = d.control_number || d.travel_no;
-    if (isTravel) await generateTravelOrderPDF({ ...d, full_name: request.user_name, travel_no: appNo, control_number: appNo });
-    else await generateLeaveApplicationPDF({ ...d, full_name: request.user_name, control_number: appNo, travel_no: appNo });
+    try {
+      const pdfData = buildPdfDataFromRequest(request, getAccounts());
+      if (isTravel) await generateTravelOrderPDF(pdfData);
+      else await generateLeaveApplicationPDF(pdfData);
+    } catch (err) {
+      console.error('PDF download failed:', err);
+      alert('Failed to generate PDF. Please try again.');
+    }
   };
   
   return (
@@ -64,6 +70,7 @@ function PDFViewModal({ request, onClose }) {
 }
 
 export default function Archive() {
+  const { getAccounts } = useAuth();
   const [forms, setForms] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -164,12 +171,16 @@ export default function Archive() {
   };
 
   const downloadPDF = async (req) => {
-    const d = req.details || {};
-    const appNo = d.control_number || d.travel_no;
-    if (req.request_type === REQUEST_TYPES.TRAVEL) {
-      await generateTravelOrderPDF({ ...d, full_name: req.user_name, travel_no: appNo, control_number: appNo });
-    } else {
-      await generateLeaveApplicationPDF({ ...d, full_name: req.user_name, control_number: appNo, travel_no: appNo });
+    try {
+      const pdfData = buildPdfDataFromRequest(req, getAccounts());
+      if (req.request_type === REQUEST_TYPES.TRAVEL) {
+        await generateTravelOrderPDF(pdfData);
+      } else {
+        await generateLeaveApplicationPDF(pdfData);
+      }
+    } catch (err) {
+      console.error('PDF download failed:', err);
+      alert('Failed to generate PDF. Please try again.');
     }
   };
 
@@ -309,7 +320,7 @@ export default function Archive() {
           )}
         </div>
       </div>
-      {selected && <PDFViewModal request={selected} onClose={() => setSelected(null)} />}
+      {selected && <PDFViewModal request={selected} onClose={() => setSelected(null)} getAccounts={getAccounts} />}
       
       {/* Confirmation Modal */}
       <ConfirmationModal

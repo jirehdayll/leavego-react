@@ -72,11 +72,30 @@ export default function ResetPassword() {
 
   if (done) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-[#f8fffe] p-6">
-        <div className="max-w-md w-full bg-white rounded-2xl border border-emerald-100 shadow-lg p-8 text-center">
-          <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto mb-4" />
-          <h1 className="text-xl font-bold text-slate-800">Password updated</h1>
-          <p className="text-slate-500 text-sm mt-2">Redirecting to sign in…</p>
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0fdf8] via-white to-[#eff6ff] p-6">
+        <div className="max-w-md w-full bg-white rounded-3xl border border-emerald-100 shadow-2xl p-10 text-center">
+          <div className="flex justify-center mb-6">
+            <div className="relative">
+              <div className="absolute inset-0 bg-emerald-100 rounded-full animate-ping opacity-30 scale-110" />
+              <div className="relative w-20 h-20 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center shadow-xl shadow-emerald-500/30">
+                <CheckCircle2 className="w-10 h-10 text-white" />
+              </div>
+            </div>
+          </div>
+          <span className="inline-block bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-semibold px-3 py-1 rounded-full mb-4 uppercase tracking-wide">
+            Password Reset
+          </span>
+          <h1 className="text-2xl font-black text-slate-800 mb-2">Password reset success</h1>
+          <p className="text-slate-500 text-sm leading-relaxed">
+            Your new password has been saved. You will be redirected to sign in shortly.
+          </p>
+          <button
+            type="button"
+            onClick={() => navigate(APP_ROUTES.LOGIN, { replace: true })}
+            className="mt-8 w-full py-3 rounded-xl bg-emerald-600 text-white font-bold text-sm hover:bg-emerald-500 transition-colors"
+          >
+            Go to sign in
+          </button>
         </div>
       </div>
     );

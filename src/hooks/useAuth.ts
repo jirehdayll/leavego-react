@@ -162,6 +162,7 @@ export function useAuth() {
 
   const logout = useCallback(() => {
     setUser(null);
+    setHasSession(false);
     localStorage.removeItem('basicAuth');
   }, []);
 
@@ -183,6 +184,7 @@ export function useAuth() {
       fullName,
       full_name: fullName,
       isActive: true,
+      is_active: true,
       createdAt: new Date().toISOString()
     };
 

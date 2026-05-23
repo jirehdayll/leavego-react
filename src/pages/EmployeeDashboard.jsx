@@ -198,7 +198,7 @@ export default function EmployeeDashboard() {
 
   const handleLogout = () => {
     logout();
-    navigate('/login');
+    navigate('/login', { replace: true });
   };
 
 
