@@ -6,42 +6,65 @@ import { leaveRequestsAPI } from '../api/leaveRequests';
 import AdminLayout from '../components/AdminLayout';
 import { EmployeeRecordsPage } from '../components/EmployeeRecordsPanel';
 import { isFormOfAccount } from '../utils/employeeMatching';
+import { getAccountByIdRemote, normalizeAccount } from '../lib/accountStore';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
 
 export default function ScannedProfileView() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const { getAccounts } = useAuth();
+  const { getAccounts, accountsReady } = useAuth();
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [employee, setEmployee] = useState(null);
   const [allForms, setAllForms] = useState([]);
 
   const fetchEmployeeRecords = useCallback(async () => {
+    if (!id) {
+      setError('Invalid profile link');
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError('');
 
       const accounts = getAccounts() || [];
-      let employeeRecord = accounts.find((a) => a.id === id) || null;
+      let employeeRecord =
+        accounts.find((a) => a.id === id) ||
+        accounts.find((a) => isFormOfAccount({ user_id: id }, a)) ||
+        null;
 
-      const { data: profileData, error: profileError } = await supabase
+      if (!employeeRecord) {
+        const remoteAccount = await getAccountByIdRemote(id);
+        if (remoteAccount) employeeRecord = remoteAccount;
+      }
+
+      const { data: profileData } = await supabase
         .from('profiles')
         .select('*')
         .eq('id', id)
         .maybeSingle();
 
-      if (profileError && !employeeRecord) {
-        throw new Error('Employee profile not found');
-      }
-
       if (profileData) {
         const localMatch = accounts.find(
           (a) =>
             a.id === id ||
-            isFormOfAccount({ user_email: profileData.email || profileData.denr_email, user_name: profileData.full_name }, a)
+            isFormOfAccount(
+              {
+                user_email: profileData.email || profileData.denr_email,
+                user_name: profileData.full_name,
+              },
+              a
+            )
         );
-        employeeRecord = { ...profileData, ...(localMatch || {}), id: profileData.id || id };
+        employeeRecord = {
+          ...profileData,
+          ...(localMatch || employeeRecord || {}),
+          id: profileData.id || employeeRecord?.id || id,
+        };
+      } else if (employeeRecord) {
+        employeeRecord = normalizeAccount(employeeRecord);
       }
 
       if (!employeeRecord) {
@@ -67,11 +90,13 @@ export default function ScannedProfileView() {
     } finally {
       setLoading(false);
     }
-  }, [id, getAccounts]);
+  }, [id, getAccounts, accountsReady]);
 
   useEffect(() => {
-    fetchEmployeeRecords();
-  }, [fetchEmployeeRecords]);
+    if (accountsReady) {
+      fetchEmployeeRecords();
+    }
+  }, [fetchEmployeeRecords, accountsReady]);
 
   return (
     <AdminLayout>

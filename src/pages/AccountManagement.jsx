@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
+import { getAccountsSync, saveAccounts } from '../lib/accountStore';
 import { POSITIONS, USER_ROLES, DEPARTMENTS } from '../constants';
 import AdminLayout from '../components/AdminLayout';
 import {
@@ -126,9 +127,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
       );
 
       if (result.success) {
-        // Update the created account with additional fields
-        const existingAccounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
-        const updatedAccounts = existingAccounts.map(acc => {
+        const updatedAccounts = getAccountsSync().map((acc) => {
           if (acc.email === formData.email) {
             return {
               ...acc,
@@ -145,7 +144,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
           }
           return acc;
         });
-        localStorage.setItem('userAccounts', JSON.stringify(updatedAccounts));
+        saveAccounts(updatedAccounts);
         
         onSuccess();
         onClose();
@@ -270,7 +269,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
 
 
 // ─── Edit Account Modal ───────────────────────────────────────────────────────
-function EditAccountModal({ account, onClose, onSuccess }) {
+function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
   const { resetPassword } = useAuth();
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
@@ -360,7 +359,7 @@ function EditAccountModal({ account, onClose, onSuccess }) {
         return acc;
       });
       
-      localStorage.setItem('userAccounts', JSON.stringify(updatedAccounts));
+      updateAccounts(updatedAccounts);
       
       if (showPasswordSection && formData.newPassword) {
         setSuccess('Account and password updated successfully.');
@@ -579,12 +578,14 @@ function AccountCard({ acc, isAdmin, onToggle, onEdit, onDelete }) {
     ? { bg: 'bg-purple-100', text: 'text-purple-700' }
     : { bg: 'bg-blue-100', text: 'text-blue-700' };
 
+  const active = acc.is_active !== false && acc.isActive !== false;
+
   const handleToggleClick = () => {
     setShowConfirm(true);
   };
 
   const handleConfirmToggle = () => {
-    onToggle(acc.id, acc.is_active);
+    onToggle(acc.id, active);
     setShowConfirm(false);
   };
 
@@ -635,11 +636,11 @@ function AccountCard({ acc, isAdmin, onToggle, onEdit, onDelete }) {
             <button
               onClick={handleToggleClick}
               className={`p-2 rounded-xl transition-all ${
-                acc.is_active
+                active
                   ? 'bg-amber-50 text-amber-600 hover:bg-amber-100'
                   : 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
               }`}
-              title={acc.is_active ? 'Deactivate' : 'Activate'}
+              title={active ? 'Deactivate' : 'Activate'}
             >
               <Power className="w-4 h-4" />
             </button>
@@ -663,12 +664,12 @@ function AccountCard({ acc, isAdmin, onToggle, onEdit, onDelete }) {
           )}
           <div>
             <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold ${
-              acc.is_active
+              active
                 ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
                 : 'bg-red-50 text-red-600 border border-red-100'
             }`}>
-              <div className={`w-1.5 h-1.5 rounded-full ${acc.is_active ? 'bg-emerald-500' : 'bg-red-500'}`} />
-              {acc.is_active ? 'Active' : 'Deactivated'}
+              <div className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-emerald-500' : 'bg-red-500'}`} />
+              {active ? 'Active' : 'Deactivated'}
             </span>
           </div>
         </div>
@@ -677,13 +678,13 @@ function AccountCard({ acc, isAdmin, onToggle, onEdit, onDelete }) {
       {/* Confirmation Modal */}
       {showConfirm && (
         <ConfirmationModal
-          title={acc.is_active ? "Deactivate Account?" : "Activate Account?"}
-          message={`Are you sure you want to ${acc.is_active ? 'deactivate' : 'activate'} ${acc.full_name || acc.email}? This will ${acc.is_active ? 'remove' : 'restore'} their access to the system.`}
-          confirmText={`Yes, ${acc.is_active ? 'Deactivate' : 'Activate'}`}
+          title={active ? "Deactivate Account?" : "Activate Account?"}
+          message={`Are you sure you want to ${active ? 'deactivate' : 'activate'} ${acc.full_name || acc.email}? This will ${active ? 'remove' : 'restore'} their access to the system.`}
+          confirmText={`Yes, ${active ? 'Deactivate' : 'Activate'}`}
           cancelText="Cancel"
           onConfirm={handleConfirmToggle}
           onCancel={() => setShowConfirm(false)}
-          type={acc.is_active ? "danger" : "success"}
+          type={active ? "danger" : "success"}
         />
       )}
 
@@ -721,7 +722,7 @@ function SectionHeader({ icon, label, count, color }) {
 }
 
 export default function AccountManagement() {
-  const { createAccount, getAccounts, deleteAccount } = useAuth();
+  const { createAccount, getAccounts, deleteAccount, updateAccounts, accountsReady } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -746,18 +747,18 @@ export default function AccountManagement() {
     }
   }, [getAccounts]);
 
-  useEffect(() => { fetchAccounts(); }, [fetchAccounts]);
+  useEffect(() => {
+    if (accountsReady) fetchAccounts();
+  }, [fetchAccounts, accountsReady]);
 
   // Toggle active / inactive
   const toggleAccountStatus = (id, currentStatus) => {
     const newStatus = !currentStatus;
-    
-    // Update in localStorage
-    const updatedAccounts = accounts.map(a => 
-      a.id === id ? { ...a, is_active: newStatus } : a
+    const updatedAccounts = accounts.map((a) =>
+      a.id === id ? { ...a, is_active: newStatus, isActive: newStatus } : a
     );
     setAccounts(updatedAccounts);
-    localStorage.setItem('userAccounts', JSON.stringify(updatedAccounts));
+    updateAccounts(updatedAccounts);
   };
 
   // ── Delete account
@@ -918,6 +919,7 @@ export default function AccountManagement() {
           account={editingAccount}
           onClose={() => setEditingAccount(null)}
           onSuccess={() => { fetchAccounts(); setEditingAccount(null); }}
+          updateAccounts={updateAccounts}
         />
       )}
     </AdminLayout>

@@ -8,7 +8,7 @@ import { isFormOfAccount, formatSalaryDisplay } from '../utils/employeeMatching'
 import { X, User, RefreshCw } from 'lucide-react';
 
 export default function Records() {
-  const { getAccounts } = useAuth();
+  const { getAccounts, accountsReady } = useAuth();
   const [accounts, setAccounts] = useState([]);
   const [allForms, setAllForms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -50,11 +50,11 @@ export default function Records() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, [getAccounts]);
+  }, [getAccounts, accountsReady]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (accountsReady) fetchData();
+  }, [fetchData, accountsReady]);
 
   // Filter out admin accounts to show only employees
   let filtered = accounts.filter(a =>

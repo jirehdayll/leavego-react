@@ -13,4 +13,7 @@ Supabase SQL (run in Dashboard → SQL Editor)
    fix_auth_grant_and_profiles_rls.sql, comment out from "-- 4) LeaveGo" through the
    CREATE TRIGGER line, re-run the file, then add a trigger manually to match your schema.
 
+5. Run: create_app_accounts_table.sql
+   (shared account list for Vercel/local sync, QR profile lookup, and refresh-safe logins)
+
 We cannot run these against your hosted project from this repo — you must paste and Run in Supabase.
