@@ -72,11 +72,11 @@ export const leaveRequestsAPI = {
         query = query.eq('is_archived', filters.is_archived);
       }
 
-      if (filters.user_email) {
+      if (filters.user_email && filters.user_id) {
+        query = query.or(`user_email.eq.${filters.user_email},user_id.eq.${filters.user_id}`);
+      } else if (filters.user_email) {
         query = query.eq('user_email', filters.user_email);
-      }
-
-      if (filters.user_id) {
+      } else if (filters.user_id) {
         query = query.eq('user_id', filters.user_id);
       }
 
@@ -213,11 +213,11 @@ export const leaveRequestsAPI = {
         query = query.eq('is_archived', filters.is_archived);
       }
 
-      if (filters.user_email) {
+      if (filters.user_email && filters.user_id) {
+        query = query.or(`user_email.eq.${filters.user_email},user_id.eq.${filters.user_id}`);
+      } else if (filters.user_email) {
         query = query.eq('user_email', filters.user_email);
-      }
-
-      if (filters.user_id) {
+      } else if (filters.user_id) {
         query = query.eq('user_id', filters.user_id);
       }
 
@@ -267,11 +267,11 @@ export const leaveRequestsAPI = {
         query = query.eq('is_archived', filters.is_archived);
       }
 
-      if (filters.user_email) {
+      if (filters.user_email && filters.user_id) {
+        query = query.or(`user_email.eq.${filters.user_email},user_id.eq.${filters.user_id}`);
+      } else if (filters.user_email) {
         query = query.eq('user_email', filters.user_email);
-      }
-
-      if (filters.user_id) {
+      } else if (filters.user_id) {
         query = query.eq('user_id', filters.user_id);
       }
 

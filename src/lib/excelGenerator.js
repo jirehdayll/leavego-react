@@ -1,4 +1,5 @@
-import ExcelJS from 'exceljs';
+import * as ExcelJSModule from 'exceljs/dist/exceljs.min.js';
+const ExcelJS = ExcelJSModule.default || ExcelJSModule;
 import { saveAs } from 'file-saver';
 import { resolveControlNumber } from './applicationNumber';
 

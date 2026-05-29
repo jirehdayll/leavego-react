@@ -38,23 +38,23 @@ export function useAuth() {
   }, []);
 
   useEffect(() => {
-    const storedAuth = localStorage.getItem('basicAuth');
+    const storedAuth = sessionStorage.getItem('basicAuth');
     if (storedAuth) {
       try {
         const authData = JSON.parse(storedAuth);
         if (authData.id) {
           const account = getAccountsSync().find((a) => a.id === authData.id);
           if (account && !isAccountActive(account)) {
-            localStorage.removeItem('basicAuth');
+            sessionStorage.removeItem('basicAuth');
           } else {
             setUser(authData);
             setHasSession(true);
           }
         } else {
-          localStorage.removeItem('basicAuth');
+          sessionStorage.removeItem('basicAuth');
         }
       } catch {
-        localStorage.removeItem('basicAuth');
+        sessionStorage.removeItem('basicAuth');
       }
     }
     setLoading(false);
@@ -76,14 +76,15 @@ export function useAuth() {
 
     const userData = sessionFromAccount(account);
     setUser(userData);
-    localStorage.setItem('basicAuth', JSON.stringify(userData));
+    setHasSession(true);
+    sessionStorage.setItem('basicAuth', JSON.stringify(userData));
     return { success: true, user: userData };
   }, []);
 
   const logout = useCallback(() => {
     setUser(null);
     setHasSession(false);
-    localStorage.removeItem('basicAuth');
+    sessionStorage.removeItem('basicAuth');
   }, []);
 
   const createAccount = useCallback(

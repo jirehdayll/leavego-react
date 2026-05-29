@@ -1,10 +1,11 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { APP_ROUTES } from '../constants';
 
 export function ProtectedRoute({ children, requireAdmin = false }) {
   const { user, loading, isActive, isAdmin } = useAuth();
+  const location = useLocation();
 
   if (loading) {
     return (
@@ -18,7 +19,7 @@ export function ProtectedRoute({ children, requireAdmin = false }) {
   }
 
   if (!user || !isActive) {
-    return <Navigate to={APP_ROUTES.LOGIN} replace />;
+    return <Navigate to={APP_ROUTES.LOGIN} state={{ from: location.pathname }} replace />;
   }
 
   if (requireAdmin && !isAdmin) {

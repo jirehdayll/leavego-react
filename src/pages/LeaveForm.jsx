@@ -135,7 +135,7 @@ export default function LeaveForm() {
       // If the user.id was invalid, update the stored session with a valid UUID
       if (!isValidUUID(user.id)) {
         const updatedUser = { ...user, id: userId };
-        localStorage.setItem('basicAuth', JSON.stringify(updatedUser));
+        sessionStorage.setItem('basicAuth', JSON.stringify(updatedUser));
         console.warn('[LeaveForm] Invalid user.id detected, regenerated valid UUID:', userId);
       }
 

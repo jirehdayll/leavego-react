@@ -155,7 +155,10 @@ export default function EmployeeDashboard() {
     
     try {
       // Fetch real data from Supabase API
-      const { data, error } = await leaveRequestsAPI.getAll({ user_id: user.id });
+      const { data, error } = await leaveRequestsAPI.getAll({ 
+        user_id: user.id,
+        user_email: user.email 
+      });
       
       if (error) {
         console.error('Error fetching employee requests:', error);

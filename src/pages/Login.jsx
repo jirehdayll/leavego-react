@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, X, AlertTriangle } from 'lucide-react';
 
@@ -39,6 +39,7 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
   const navigate = useNavigate();
+  const location = useLocation();
   const { login } = useAuth();
 
   const handleLogin = async (e) => {
@@ -50,8 +51,10 @@ export default function Login() {
       const result = await login(email, password);
       
       if (result.success) {
-        // Navigate based on user role
-        if (result.user.role === 'admin' || result.user.role === 'cenro') {
+        const from = location.state?.from;
+        if (from) {
+          navigate(from, { replace: true });
+        } else if (result.user.role === 'admin' || result.user.role === 'cenro') {
           navigate('/admin/dashboard', { replace: true });
         } else {
           navigate('/dashboard', { replace: true });
