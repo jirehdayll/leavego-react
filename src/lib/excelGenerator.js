@@ -222,8 +222,22 @@ export const generateMonthlySummaryExcel = async (monthForms, month, year, allAp
       const startCol = lv.start + 2;
       const endCol = lv.end + 2;
 
-      if (startCol < endCol) {
-        worksheet.mergeCells(curRow, startCol, curRow, endCol);
+      // Check if cells are already merged before attempting to merge
+      let canMerge = true;
+      for (let col = startCol; col <= endCol; col++) {
+        const cell = worksheet.getCell(curRow, col);
+        if (cell.isMerged) {
+          canMerge = false;
+          break;
+        }
+      }
+
+      if (startCol < endCol && canMerge) {
+        try {
+          worksheet.mergeCells(curRow, startCol, curRow, endCol);
+        } catch (err) {
+          console.log('Cannot merge cells, likely already merged:', err);
+        }
       }
 
       let fillColor = COLORS.OB_FILL;

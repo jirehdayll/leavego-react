@@ -1,7 +1,9 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { X, Camera, AlertCircle, CheckCircle, RefreshCw } from 'lucide-react';
+import { X, Camera, AlertCircle, CheckCircle, RefreshCw, User } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { leaveRequestsAPI } from '../api/leaveRequests';
+import { EmployeeRecordsModal } from './EmployeeRecordsPanel';
 
 // CSS styles for QR scanner camera visibility
 const scannerStyles = `
@@ -55,6 +57,8 @@ export default function QRScanner({ isOpen, onClose }) {
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const [showRecordsModal, setShowRecordsModal] = useState(false);
+  const [employeeData, setEmployeeData] = useState(null);
   const scannerRef = useRef(null);
   const containerRef = useRef(null);
   const navigate = useNavigate();
@@ -217,7 +221,7 @@ export default function QRScanner({ isOpen, onClose }) {
     }
   };
 
-  const handleScanSuccess = (decodedText) => {
+  const handleScanSuccess = async (decodedText) => {
     try {
       // Validate that this is a valid profile URL
       const url = new URL(decodedText);
@@ -232,12 +236,21 @@ export default function QRScanner({ isOpen, onClose }) {
         
         // Stop scanning
         cleanupScanner();
+        setScanning(false);
 
-        // Redirect to profile after a short delay
-        setTimeout(() => {
-          navigate(`/profile/view/${userId}`);
-          onClose();
-        }, 1500);
+        // Fetch employee data
+        try {
+          const { data: formsData } = await leaveRequestsAPI.getAll({ user_id: userId });
+          setEmployeeData({
+            userId,
+            forms: formsData || []
+          });
+          setShowRecordsModal(true);
+        } catch (err) {
+          console.error('Error fetching employee data:', err);
+          setError('Failed to load employee records. Please try again.');
+          setSuccess(false);
+        }
       } else {
         setError('Invalid QR code. Please scan a valid employee ID.');
       }
@@ -382,7 +395,7 @@ export default function QRScanner({ isOpen, onClose }) {
                   QR Code Scanned Successfully!
                 </h3>
                 <p className="text-slate-600 mb-4">
-                  Redirecting to employee records...
+                  Loading employee records...
                 </p>
                 <div className="animate-pulse">
                   <div className="w-8 h-1 bg-emerald-600 rounded-full mx-auto"></div>
@@ -399,6 +412,20 @@ export default function QRScanner({ isOpen, onClose }) {
           </div>
         </div>
       </div>
+
+      {/* Employee Records Modal */}
+      {showRecordsModal && employeeData && (
+        <EmployeeRecordsModal
+          isOpen={showRecordsModal}
+          onClose={() => {
+            setShowRecordsModal(false);
+            setEmployeeData(null);
+            setSuccess(false);
+            setScanResult(null);
+          }}
+          employee={employeeData}
+        />
+      )}
     </>
   );
 }
