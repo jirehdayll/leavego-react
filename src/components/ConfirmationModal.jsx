@@ -14,8 +14,11 @@ export default function ConfirmationModal({
   confirmText = 'Confirm',
   cancelText = 'Cancel',
   type = 'warning', // 'warning' | 'danger' | 'info' | 'success'
-  isLoading = false
+  isLoading = false,
+  showCommentInput = false
 }) {
+  const [comment, setComment] = React.useState('');
+
   if (!isOpen) return null;
 
   const typeConfig = {
@@ -78,6 +81,21 @@ export default function ConfirmationModal({
         <div className="p-7">
           <p className="text-slate-600 text-sm leading-relaxed">{message}</p>
           
+          {showCommentInput && (
+            <div className="mt-4">
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                Add a Comment (Optional)
+              </label>
+              <textarea
+                value={comment}
+                onChange={(e) => setComment(e.target.value)}
+                rows="3"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all shadow-sm resize-none"
+                placeholder="Enter your comment here..."
+              />
+            </div>
+          )}
+          
           {/* Actions */}
           <div className="flex gap-3 mt-6">
             <button
@@ -88,7 +106,7 @@ export default function ConfirmationModal({
               {cancelText}
             </button>
             <button
-              onClick={onConfirm}
+              onClick={() => onConfirm(showCommentInput ? { comment } : undefined)}
               disabled={isLoading}
               className={`flex-1 px-4 py-3 rounded-xl text-white font-semibold text-sm transition-all disabled:opacity-50 ${config.confirmBg}`}
             >

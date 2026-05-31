@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 import { leaveRequestsAPI } from '../api/leaveRequests';
+import { emailService } from '../services/emailService';
 import {
   Clock, CheckCircle2, Plane, FileText, TrendingUp,
   Eye, Check, X, Archive, Download, User, Calendar, Mail,
@@ -174,7 +175,8 @@ export default function AdminDashboard() {
     message: '',
     confirmText: 'Confirm',
     onConfirm: null,
-    isLoading: false
+    isLoading: false,
+    showCommentInput: false
   });
   const [actionLoading, setActionLoading] = useState(false);
   
@@ -210,10 +212,13 @@ export default function AdminDashboard() {
   }, [fetchRequests]);
 
   // Helper function to execute status update with proper error handling
-  const executeStatusUpdate = async (id, status, request) => {
+  const executeStatusUpdate = async (id, status, request, comment = '') => {
     setActionLoading(true);
     try {
       console.log('Updating status:', { id, status, user: user?.email, role: user?.role });
+      
+      const updatedDetails = comment ? { ...(request.details || {}), admin_comment: comment } : request.details;
+      const requestWithUpdatedDetails = { ...request, details: updatedDetails };
       
       // Handle dual approval logic
       if (status === REQUEST_STATUS.APPROVED) {
@@ -238,6 +243,7 @@ export default function AdminDashboard() {
             cenro_approved_by: user.email,
             details: buildDetailsWithApplicationNumber(request.details || {}, appNumber),
           });
+          await emailService.sendApprovalNotification(request);
           showToast('Request fully approved! The application is now finalized.', 'success');
         } else {
           console.log('Direct approval for testing');
@@ -247,14 +253,17 @@ export default function AdminDashboard() {
             status: REQUEST_STATUS.APPROVED,
             details: buildDetailsWithApplicationNumber(request.details || {}, appNumber),
           });
+          await emailService.sendApprovalNotification(request);
         }
       } else if (status === REQUEST_STATUS.DECLINED) {
         // Decline - also archive the request
         console.log('Declining and archiving request');
         await leaveRequestsAPI.update(id, { 
           status: REQUEST_STATUS.DECLINED,
-          is_archived: true
+          is_archived: true,
+          details: updatedDetails
         });
+        await emailService.sendDeclineNotification(requestWithUpdatedDetails, comment);
         showToast('Request declined and moved to the archive.', 'danger');
       } else {
         await leaveRequestsAPI.update(id, { status });
@@ -315,9 +324,11 @@ export default function AdminDashboard() {
       message: `Are you sure you want to decline this ${request.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'} from ${request.user_name}? This action will archive the request and it cannot be undone.`,
       confirmText: 'Decline Request',
       isLoading: actionLoading,
-      onConfirm: () => {
+      showCommentInput: true,
+      onConfirm: (payload) => {
+        const comment = payload?.comment || '';
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
-        executeStatusUpdate(request.id, REQUEST_STATUS.DECLINED, request);
+        executeStatusUpdate(request.id, REQUEST_STATUS.DECLINED, request, comment);
         setConfirmModal({ isOpen: false });
       }
     });
@@ -332,10 +343,14 @@ export default function AdminDashboard() {
       message: `Are you sure you want to archive this ${request.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'} from ${request.user_name}? Archived requests can be restored later.`,
       confirmText: 'Archive',
       isLoading: actionLoading,
-      onConfirm: async () => {
+      showCommentInput: true,
+      onConfirm: async (payload) => {
+        const comment = payload?.comment || '';
         setConfirmModal(prev => ({ ...prev, isLoading: true }));
         try {
-          await leaveRequestsAPI.update(request.id, { is_archived: true });
+          const updatedDetails = comment ? { ...(request.details || {}), admin_comment: comment } : request.details;
+          await leaveRequestsAPI.update(request.id, { is_archived: true, details: updatedDetails });
+          await emailService.sendArchivedNotification({ ...request, details: updatedDetails }, comment);
           showToast('Request archived successfully.', 'success');
           fetchRequests();
         } catch (error) {
@@ -623,6 +638,7 @@ export default function AdminDashboard() {
         confirmText={confirmModal.confirmText}
         type={confirmModal.type}
         isLoading={confirmModal.isLoading}
+        showCommentInput={confirmModal.showCommentInput}
       />
 
       {/* Toast Container */}

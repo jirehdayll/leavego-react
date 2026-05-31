@@ -237,28 +237,6 @@ function CreateAccountModal({ onClose, onSuccess }) {
             <option value={USER_ROLES.CENRO}>CENRO</option>
           </select>
         </Field>
-        <Field label="Salary Range">
-          <div className="relative">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-semibold z-10">
-              ₱
-            </span>
-            <input
-              type="text"
-              value={formData.salary_range}
-              onChange={(e) => {
-                let value = e.target.value;
-                // Remove non-digit characters except comma
-                const cleanValue = value.replace(/[^\d,]/g, '');
-                // Remove all commas first, then re-add them for proper formatting
-                const digitsOnly = cleanValue.replace(/,/g, '');
-                // Apply comma formatting for mathematical decimal usage
-                value = digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-                set('salary_range', value);
-              }}
-              placeholder="0"
-              className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white transition"
-            />
-          </div>
         </Field>
         <SubmitButton loading={loading} label="Create Account" loadingLabel="Creating…"
           icon={<UserPlus className="w-4 h-4" />} />
@@ -314,12 +292,6 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
       return;
     }
 
-    if (!formData.salary_range.trim()) {
-      setError('Salary range is required.');
-      setLoading(false);
-      return;
-    }
-
     // Validate password fields if password section is shown
     if (showPasswordSection) {
       if (formData.newPassword !== formData.confirmPassword) {
@@ -351,7 +323,6 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
             email: formData.email,
             position: formData.position,
             role: formData.role,
-            salary_range: formData.salary_range,
             department: formData.department,
             ...(showPasswordSection && formData.newPassword && { password: formData.newPassword })
           };
@@ -425,29 +396,6 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
               <option value={USER_ROLES.ADMIN}>Administrator</option>
               <option value={USER_ROLES.CENRO}>CENRO</option>
             </select>
-          </Field>
-          <Field label="Salary Range">
-            <div className="relative">
-              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 font-semibold z-10">
-                ₱
-              </span>
-              <input
-                type="text"
-                value={formData.salary_range}
-                onChange={(e) => {
-                  let value = e.target.value;
-                  // Remove non-digit characters except comma
-                  const cleanValue = value.replace(/[^\d,]/g, '');
-                  // Remove all commas first, then re-add them for proper formatting
-                  const digitsOnly = cleanValue.replace(/,/g, '');
-                  // Apply comma formatting for mathematical decimal usage
-                  value = digitsOnly.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-                  set('salary_range', value);
-                }}
-                placeholder="0"
-                className="w-full pl-8 pr-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white transition"
-              />
-            </div>
           </Field>
           
           {/* Password Reset Section */}

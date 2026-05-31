@@ -24,6 +24,7 @@ export default function TravelForm() {
   const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState(false);
+  const [hasSubmittedToday, setHasSubmittedToday] = useState(false);
   const [formData, setFormData] = useState({
     full_name: '',
     position: '',
@@ -55,7 +56,25 @@ export default function TravelForm() {
           salary: currentAccount.salary_range || '',
           office_department: currentAccount.department || ''
         }));
+        }));
       }
+      
+      // Check for same day submissions
+      const checkSameDaySubmission = async () => {
+        try {
+          const { data } = await leaveRequestsAPI.getAll({ user_email: user.email });
+          if (data && data.length > 0) {
+            const today = new Date().toISOString().split('T')[0];
+            const submittedToday = data.some(req => 
+              new Date(req.submitted_at || req.created_at).toISOString().split('T')[0] === today
+            );
+            setHasSubmittedToday(submittedToday);
+          }
+        } catch (err) {
+          console.error('Error checking same day submissions:', err);
+        }
+      };
+      checkSameDaySubmission();
     }
   }, [user, location.state?.viewMode]);
 
@@ -205,6 +224,13 @@ export default function TravelForm() {
               <img src="/bagong-pilipinas.png" alt="Bagong Pilipinas" className="w-10 h-10 object-contain opacity-100" />
             </div>
           </div>
+          
+          {hasSubmittedToday && !viewMode && (
+            <div className="bg-red-50 border-b border-red-200 px-8 py-4 flex items-center justify-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
+              <p className="text-red-700 font-bold text-sm">You already submitted a form today.</p>
+            </div>
+          )}
 
           <form onSubmit={handleSubmit} className="px-8 py-8 space-y-8">
             {/* Section 1: Personnel Info */}
@@ -340,7 +366,7 @@ export default function TravelForm() {
               <div className="pt-2">
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || hasSubmittedToday}
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold shadow-lg shadow-emerald-500/25 hover:from-emerald-500 hover:to-teal-600 transition-all disabled:opacity-60 disabled:cursor-not-allowed btn-bounce"
                 >
                   {loading ? (

@@ -4,17 +4,14 @@ import { supabase } from '../lib/supabaseClient';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { useAuth } from '../hooks/useAuth';
 import { 
-  FileText, Plane, Calendar, Clock, CheckCircle2, 
-  TrendingUp, User, LogOut, Plus, Eye,
-  AlertCircle, BarChart3, Activity, X, QrCode, ChevronDown
+  Clock, CheckCircle2, Plane, FileText, 
+  Eye, Check, X, LogOut, User, Calendar, MapPin, Search, ChevronDown, UserCircle,
+  TrendingUp, AlertCircle, BarChart3, Activity, QrCode
 } from 'lucide-react';
+import { getAccountsSync, syncAccount } from '../lib/accountStore';
+import { DEPARTMENTS, POSITIONS, MONTHS, REQUEST_STATUS, STATUS_COLORS, REQUEST_TYPES } from '../constants';
+import SalaryRangeInput from '../components/SalaryRangeInput';
 import { QRCodeSVG } from 'qrcode.react';
-import { 
-  MONTHS, 
-  REQUEST_STATUS, 
-  STATUS_COLORS, 
-  REQUEST_TYPES 
-} from '../constants';
 
 function StatCard({ icon: Icon, label, value, color, bg, trend, trendValue }) {
   return (
@@ -112,6 +109,7 @@ function RequestCard({ request, onView, isRecent = false, isNewlyApproved = fals
 export default function EmployeeDashboard() {
   const navigate = useNavigate();
   const { user, profile, logout } = useAuth();
+  const [showProfileModal, setShowProfileModal] = useState(false);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -123,7 +121,6 @@ export default function EmployeeDashboard() {
   });
   const [newlyApproved, setNewlyApproved] = useState([]);
   
-  // Monthly summary states
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
   const [monthlySummary, setMonthlySummary] = useState({});
@@ -154,7 +151,6 @@ export default function EmployeeDashboard() {
     setLoading(true);
     
     try {
-      // Fetch real data from Supabase API
       const { data, error } = await leaveRequestsAPI.getAll({ 
         user_id: user.id,
         user_email: user.email 
@@ -186,7 +182,6 @@ export default function EmployeeDashboard() {
     fetchEmployeeData();
   }, [fetchEmployeeData]);
 
-
   const handleViewRequest = (request) => {
     if (request.request_type === REQUEST_TYPES.LEAVE) {
       navigate('/forms/leave', { state: { viewMode: true, requestData: request } });
@@ -204,14 +199,6 @@ export default function EmployeeDashboard() {
     navigate('/login', { replace: true });
   };
 
-
-
-  const handleMonthSelect = (month) => {
-    setSelectedMonth(month);
-    setShowCalendar(false);
-  };
-
-
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
@@ -227,7 +214,6 @@ export default function EmployeeDashboard() {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#f0fdf8] to-white p-4 sm:p-6 lg:p-8">
-      {/* Static Header with Fixed Logout Button */}
       <header className="mb-6 sm:mb-8">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex items-center gap-3 sm:gap-4">
@@ -261,9 +247,19 @@ export default function EmployeeDashboard() {
                 <span className="sm:hidden">Travel</span>
               </button>
             </div>
-            
-            <button onClick={handleLogout} className="flex items-center gap-2 px-3 py-2 border border-red-600 text-red-600 hover:bg-red-50 text-xs sm:text-sm font-semibold rounded-xl transition-all hover:shadow-lg w-full sm:w-auto justify-center">
-              <LogOut className="w-4 h-4" />
+              <button
+                onClick={() => setShowProfileModal(true)}
+                className="flex items-center justify-center gap-2 px-3 sm:px-4 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs sm:text-sm font-semibold rounded-xl transition-all hover:shadow-lg w-full sm:w-auto"
+                title="My Profile"
+              >
+                <UserCircle className="w-4 h-4 sm:w-4.5 sm:h-4.5" /> 
+                <span className="sm:hidden">My Profile</span>
+              </button>
+              
+              <button
+                onClick={handleLogout}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-rose-50 hover:bg-rose-100 text-rose-600 hover:text-rose-700 text-xs sm:text-sm font-semibold rounded-xl transition-all hover:shadow-lg w-full sm:w-auto justify-center"
+              ><LogOut className="w-4 h-4" />
               <span className="hidden sm:inline">Logout</span>
               <span className="sm:hidden">Exit</span>
             </button>
@@ -371,6 +367,131 @@ export default function EmployeeDashboard() {
               </div>
             </div>
           </div>
+        </div>
+      </div>
+    </div>
+    {/* Profile Modal */}
+    {showProfileModal && (
+      <ProfileModal 
+        user={user} 
+        onClose={() => setShowProfileModal(false)} 
+      />
+    )}
+    </>
+  );
+}
+
+// Profile Modal Component
+function ProfileModal({ user, onClose }) {
+  const React = require('react');
+  const [account, setAccount] = React.useState(null);
+  const [loading, setLoading] = React.useState(true);
+  const [saving, setSaving] = React.useState(false);
+
+  React.useEffect(() => {
+    const accounts = getAccountsSync();
+    const current = accounts.find(a => a.email === user.email);
+    if (current) {
+      setAccount({ ...current });
+    }
+    setLoading(false);
+  }, [user]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setAccount(prev => ({ ...prev, [name]: value }));
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setSaving(true);
+    try {
+      // Re-build full_name
+      const full_name = `${account.first_name || ''} ${account.middle_name || ''} ${account.surname || ''}`.trim();
+      const updatedAccount = { ...account, full_name, fullName: full_name };
+      await syncAccount(updatedAccount);
+      alert('Profile updated successfully!');
+      onClose();
+    } catch (err) {
+      console.error(err);
+      alert('Failed to update profile.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading || !account) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col animate-[fadeIn_0.2s_ease-out]">
+        <div className="px-7 py-5 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-t-3xl flex items-center justify-between">
+          <h3 className="text-xl font-black text-white">My Profile</h3>
+          <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+        
+        <div className="p-7 overflow-y-auto">
+          <form id="profile-form" onSubmit={handleSave} className="space-y-5">
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">First Name</label>
+                <input type="text" name="first_name" value={account.first_name || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Middle Name</label>
+                <input type="text" name="middle_name" value={account.middle_name || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Last Name</label>
+                <input type="text" name="surname" value={account.surname || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none" />
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Email</label>
+              <input type="email" value={account.email} disabled className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500 cursor-not-allowed" />
+            </div>
+            
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Office/Department</label>
+                <select name="department" value={account.department || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none">
+                  <option value="">Select...</option>
+                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Position</label>
+                <select name="position" value={account.position || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none">
+                  <option value="">Select...</option>
+                  {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            </div>
+            
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Salary Range</label>
+              <SalaryRangeInput value={account.salary_range || ''} onChange={(val) => setAccount(prev => ({ ...prev, salary_range: val }))} />
+            </div>
+            
+            <hr className="border-slate-100" />
+            
+            <div>
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Change Password</label>
+              <input type="text" name="password" value={account.password || ''} onChange={handleChange} placeholder="Enter new password" className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none" />
+              <p className="text-xs text-slate-500 mt-1">Leave as is if you don't want to change it.</p>
+            </div>
+          </form>
+        </div>
+        
+        <div className="p-5 bg-slate-50 border-t border-slate-100 rounded-b-3xl flex justify-end gap-3">
+          <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-100 transition-colors">Cancel</button>
+          <button type="submit" form="profile-form" disabled={saving} className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 transition-colors disabled:opacity-50">
+            {saving ? 'Saving...' : 'Save Changes'}
+          </button>
         </div>
       </div>
     </div>

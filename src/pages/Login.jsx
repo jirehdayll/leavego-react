@@ -1,7 +1,50 @@
 import React, { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, X, AlertTriangle } from 'lucide-react';
+import { Mail, Lock, Eye, EyeOff, AlertCircle, CheckCircle2, X, AlertTriangle, FileText } from 'lucide-react';
+
+// Terms and Conditions Modal
+function TermsAndConditionsModal({ onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col animate-[fadeIn_0.2s_ease-out]">
+        <div className="p-6 sm:p-8 flex-1 overflow-y-auto">
+          <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
+            <FileText className="w-8 h-8 text-emerald-600" />
+          </div>
+          <h3 className="text-2xl font-black text-slate-800 text-center mb-6">Terms and Conditions</h3>
+          
+          <div className="space-y-6 text-slate-600 text-sm leading-relaxed">
+            <section>
+              <h4 className="text-emerald-700 font-bold mb-2">1. Official Usage</h4>
+              <p>The LeaveGo System is intended solely for official use by the Department of Environment and Natural Resources (DENR) CENRO Olongapo employees. Unauthorized access, modification, or distribution of any data within this system is strictly prohibited and subject to disciplinary action.</p>
+            </section>
+            
+            <section>
+              <h4 className="text-emerald-700 font-bold mb-2">2. Data Privacy</h4>
+              <p>By using this system, you consent to the collection, processing, and storage of your personal information (including name, position, salary, and leave/travel details) strictly for administrative purposes, in compliance with the Data Privacy Act of 2012. We are committed to safeguarding your information against unauthorized access.</p>
+            </section>
+            
+            <section>
+              <h4 className="text-emerald-700 font-bold mb-2">3. Accountability</h4>
+              <p>Users are responsible for maintaining the confidentiality of their login credentials. All applications (Leave and Travel) submitted through your account are considered official and binding. Any falsification of information may result in administrative sanctions.</p>
+            </section>
+          </div>
+        </div>
+        
+        <div className="p-6 border-t border-slate-100 bg-slate-50 rounded-b-3xl flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-6 py-3 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 transition-colors"
+          >
+            I Accept and Understand
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // Deactivated Account Modal
 function DeactivatedModal({ onClose }) {
@@ -38,6 +81,7 @@ export default function Login() {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
   const [showDeactivatedModal, setShowDeactivatedModal] = useState(false);
+  const [showTermsModal, setShowTermsModal] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { login } = useAuth();
@@ -195,6 +239,17 @@ export default function Login() {
             </button>
           </form>
 
+          <div className="mt-6 text-center">
+            <p className="text-xs text-slate-500">
+              By signing in, you agree to our{' '}
+              <button 
+                onClick={() => setShowTermsModal(true)}
+                className="text-emerald-600 hover:text-emerald-700 font-semibold hover:underline"
+              >
+                Terms and Conditions
+              </button>
+            </p>
+          </div>
           
           <p className="mt-8 text-center text-xs text-slate-400">
             Need help? Contact <a href="mailto:it@denr.gov.ph" className="text-emerald-600 hover:underline">it@denr.gov.ph</a>
@@ -211,6 +266,11 @@ export default function Login() {
           setEmail('');
           setPassword('');
         }} />
+      )}
+
+      {/* Terms and Conditions Modal */}
+      {showTermsModal && (
+        <TermsAndConditionsModal onClose={() => setShowTermsModal(false)} />
       )}
     </div>
   );

@@ -122,7 +122,7 @@ export const generateMonthlySummaryPDF = async (data, month, year, allApprovedFo
     },
     columnStyles: {
       0: { cellWidth: 25, halign: 'center', fontStyle: 'bold' },
-      1: { cellWidth: 150, fontStyle: 'bold' },
+      1: { cellWidth: 90, fontStyle: 'bold' },
       33: { cellWidth: 60 },
       34: { cellWidth: 90 },
     },
