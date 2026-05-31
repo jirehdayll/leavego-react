@@ -467,18 +467,6 @@ export default function AdminDashboard() {
               {monthName} {year} - Real-time overview
             </p>
           </div>
-          <div className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold ${
-            connectionStatus === 'connected' 
-              ? 'bg-emerald-50 border border-emerald-200 text-emerald-700' 
-              : 'bg-amber-50 border border-amber-200 text-amber-700'
-          }`}>
-            <span className={`w-1.5 h-1.5 rounded-full ${
-              connectionStatus === 'connected' 
-                ? 'bg-emerald-500' 
-                : 'bg-amber-500'
-            }`}></span>
-            {connectionStatus === 'connected' ? 'Connected' : 'Loading...'}
-          </div>
         </div>
 
         {/* Stats */}

@@ -3,11 +3,10 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../hooks/useAuth';
 import { leaveRequestsAPI } from '../api/leaveRequests';
-import AdminLayout from '../components/AdminLayout';
-import { EmployeeRecordsPage } from '../components/EmployeeRecordsPanel';
+import { EmployeeRecordsModal } from '../components/EmployeeRecordsPanel';
 import { isFormOfAccount } from '../utils/employeeMatching';
 import { getAccountByIdRemote, normalizeAccount } from '../lib/accountStore';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
+import { AlertCircle } from 'lucide-react';
 
 export default function ScannedProfileView() {
   const { id } = useParams();
@@ -98,50 +97,48 @@ export default function ScannedProfileView() {
     }
   }, [fetchEmployeeRecords, accountsReady]);
 
-  return (
-    <AdminLayout>
-      <div className="p-4 sm:p-6 lg:p-8 max-w-4xl mx-auto">
-        <div className="flex items-center gap-4 mb-6">
+  const handleClose = () => {
+    navigate('/dashboard');
+  };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0fdf8] to-white">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-[#f0fdf8] to-white p-4">
+        <div className="text-center">
+          <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
+            <AlertCircle className="w-8 h-8 text-red-600" />
+          </div>
+          <h2 className="text-xl font-semibold text-slate-800 mb-2">Profile Not Found</h2>
+          <p className="text-slate-600 mb-6">{error}</p>
           <button
             type="button"
-            onClick={() => navigate('/admin/records')}
-            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg transition-colors"
+            onClick={handleClose}
+            className="bg-emerald-700 hover:bg-emerald-800 text-white font-medium py-2 px-6 rounded-lg transition-colors"
           >
-            <ArrowLeft className="w-5 h-5" />
+            Back to Dashboard
           </button>
-          <div>
-            <h1 className="text-xl sm:text-2xl font-black text-slate-800">Employee Records</h1>
-            <p className="text-slate-500 text-xs sm:text-sm">Opened from QR scan — this employee only</p>
-          </div>
         </div>
-
-        {loading && (
-          <div className="flex justify-center py-20">
-            <div className="animate-spin rounded-full h-10 w-10 border-2 border-emerald-500 border-t-transparent" />
-          </div>
-        )}
-
-        {!loading && error && (
-          <div className="text-center py-16">
-            <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <AlertCircle className="w-8 h-8 text-red-600" />
-            </div>
-            <h2 className="text-xl font-semibold text-slate-800 mb-2">Profile Not Found</h2>
-            <p className="text-slate-600 mb-6">{error}</p>
-            <button
-              type="button"
-              onClick={() => navigate('/admin/records')}
-              className="bg-emerald-700 hover:bg-emerald-800 text-white font-medium py-2 px-6 rounded-lg transition-colors"
-            >
-              Back to Records
-            </button>
-          </div>
-        )}
-
-        {!loading && !error && employee && (
-          <EmployeeRecordsPage employee={employee} allForms={allForms} />
-        )}
       </div>
-    </AdminLayout>
+    );
+  }
+
+  if (!employee) {
+    return null;
+  }
+
+  return (
+    <EmployeeRecordsModal
+      employee={employee}
+      allForms={allForms}
+      onClose={handleClose}
+    />
   );
 }

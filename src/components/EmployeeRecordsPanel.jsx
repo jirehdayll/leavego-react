@@ -200,11 +200,6 @@ function EmployeeHeader({ employee, onClose, showClose = true }) {
             {employee.department && (
               <p className="text-emerald-400/70 text-xs mt-0.5">{employee.department}</p>
             )}
-            {employee.salary_range && (
-              <p className="text-emerald-400/80 text-xs font-semibold mt-1">
-                Salary: ₱{formatSalaryDisplay(employee.salary_range)}
-              </p>
-            )}
           </div>
         </div>
         {showClose && onClose && (

@@ -394,6 +394,18 @@ function ProfileModal({ user, onClose }) {
     const current = accounts.find(a => a.email === user.email);
     if (current) {
       setAccount({ ...current });
+    } else {
+      // If not found by email, try to create a basic profile from user
+      setAccount({
+        email: user.email,
+        first_name: '',
+        middle_name: '',
+        surname: '',
+        full_name: user.email?.split('@')[0] || '',
+        position: '',
+        department: '',
+        salary_range: ''
+      });
     }
     setLoading(false);
   }, [user]);
@@ -428,18 +440,6 @@ function ProfileModal({ user, onClose }) {
         <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl p-12 flex flex-col items-center justify-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600 mb-4"></div>
           <p className="text-slate-400 text-sm font-medium">Loading profile...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (!account) {
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
-        <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-        <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl p-12 flex flex-col items-center justify-center">
-          <p className="text-slate-500 font-medium">Profile not found</p>
-          <button onClick={onClose} className="mt-4 px-5 py-2.5 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200 transition-colors">Close</button>
         </div>
       </div>
     );
