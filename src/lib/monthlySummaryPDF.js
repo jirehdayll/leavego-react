@@ -140,16 +140,17 @@ export const generateMonthlySummaryPDF = async (data, month, year, allApprovedFo
         const leaveInfo = employeeMap[employeeName]?.leaves[day];
         const isWkend = isWeekendOrHoliday(day, reportMonth, reportYear);
 
-        if (isWkend) {
-          data.cell.styles.fillColor = LEAVE_COLORS.Weekend.color;
-          data.cell.styles.textColor = LEAVE_COLORS.Weekend.text;
-          data.cell.text = [];
-        } else if (leaveInfo && LEAVE_COLORS[leaveInfo.type]) {
+        // Form colors override weekend colors when overlapping
+        if (leaveInfo && LEAVE_COLORS[leaveInfo.type]) {
           data.cell.styles.fillColor = LEAVE_COLORS[leaveInfo.type].color;
           data.cell.styles.textColor = LEAVE_COLORS[leaveInfo.type].text;
           data.cell.styles.halign = 'center';
           data.cell.styles.fontSize = 6;
           data.cell.styles.fontStyle = 'bold';
+        } else if (isWkend) {
+          data.cell.styles.fillColor = LEAVE_COLORS.Weekend.color;
+          data.cell.styles.textColor = LEAVE_COLORS.Weekend.text;
+          data.cell.text = [];
         }
       }
     },

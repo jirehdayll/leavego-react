@@ -63,6 +63,14 @@ function PDFViewModal({ request, onClose, getAccounts }) {
               </div>
             )}
           </div>
+          
+          {/* Admin Comment */}
+          {d.admin_comment && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+              <p className="text-xs font-semibold text-amber-800 mb-1">Admin Comment</p>
+              <p className="text-sm text-amber-900">{d.admin_comment}</p>
+            </div>
+          )}
         </div>
       </div>
     </div>

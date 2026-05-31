@@ -541,15 +541,16 @@ function ProfileModal({ user, onClose }) {
               </div>
             </div>
 
-            {/* Email - read only */}
+            {/* Email - editable */}
             <div>
               <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Email Address</label>
               <input
                 type="email"
+                name="email"
                 value={account.email}
-                disabled
+                onChange={handleChange}
                 autoComplete="email"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-400 cursor-not-allowed"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
               />
             </div>
 

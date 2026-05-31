@@ -475,7 +475,7 @@ export default function AdminDashboard() {
         </div>
 
         {/* Pending Table */}
-        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style={{ height: '400px', minHeight: '400px' }}>
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden flex flex-col" style={{ height: '600px', minHeight: '600px' }}>
           <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
             <div>
               <h3 className="font-bold text-slate-800">Pending Applications</h3>

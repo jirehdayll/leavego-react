@@ -6,7 +6,7 @@ import AdminLayout from '../components/AdminLayout';
 import {
   UserPlus, Search, Shield, User,
   Mail, Briefcase, Loader2, Power, XCircle,
-  AlertCircle, Pencil, KeyRound, CheckCircle2, Trash2, Eye, EyeOff
+  AlertCircle, Pencil, KeyRound, CheckCircle2, Trash2, Eye, EyeOff, Settings, Plus, Building, UserCog
 } from 'lucide-react';
 
 // ─── Reusable Input ───────────────────────────────────────────────────────────
@@ -26,8 +26,8 @@ const inputCls =
 
 // ─── Confirmation Modal ───────────────────────────────────────────────────────
 function ConfirmationModal({ title, message, confirmText, cancelText, onConfirm, onCancel, type = 'danger' }) {
-  const colors = type === 'danger' 
-    ? 'bg-red-600 hover:bg-red-700' 
+  const colors = type === 'danger'
+    ? 'bg-red-600 hover:bg-red-700'
     : 'bg-emerald-600 hover:bg-emerald-700';
 
   return (
@@ -60,6 +60,201 @@ function ConfirmationModal({ title, message, confirmText, cancelText, onConfirm,
               {confirmText}
             </button>
           </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Department & Position Management Modal ─────────────────────────────────────
+function DepartmentPositionManagementModal({ onClose }) {
+  const [activeTab, setActiveTab] = useState('departments');
+  const [newDepartment, setNewDepartment] = useState('');
+  const [newPosition, setNewPosition] = useState('');
+  const [customDepartments, setCustomDepartments] = useState(() => {
+    const saved = localStorage.getItem('customDepartments');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [customPositions, setCustomPositions] = useState(() => {
+    const saved = localStorage.getItem('customPositions');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const getAllDepartments = () => [...DEPARTMENTS, ...customDepartments];
+  const getAllPositions = () => [...POSITIONS, ...customPositions];
+
+  const handleAddDepartment = () => {
+    if (newDepartment.trim() && !customDepartments.includes(newDepartment.trim())) {
+      const updated = [...customDepartments, newDepartment.trim()];
+      setCustomDepartments(updated);
+      localStorage.setItem('customDepartments', JSON.stringify(updated));
+      setNewDepartment('');
+    }
+  };
+
+  const handleAddPosition = () => {
+    if (newPosition.trim() && !customPositions.includes(newPosition.trim())) {
+      const updated = [...customPositions, newPosition.trim()];
+      setCustomPositions(updated);
+      localStorage.setItem('customPositions', JSON.stringify(updated));
+      setNewPosition('');
+    }
+  };
+
+  const handleRemoveDepartment = (dept) => {
+    const updated = customDepartments.filter(d => d !== dept);
+    setCustomDepartments(updated);
+    localStorage.setItem('customDepartments', JSON.stringify(updated));
+  };
+
+  const handleRemovePosition = (pos) => {
+    const updated = customPositions.filter(p => p !== pos);
+    setCustomPositions(updated);
+    localStorage.setItem('customPositions', JSON.stringify(updated));
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+        <div className="px-7 py-5 border-b border-slate-100 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center">
+              <Settings className="w-5 h-5 text-emerald-600" />
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">Manage Departments & Positions</h3>
+              <p className="text-xs text-slate-500">Add custom options that will appear in forms</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center transition-all">
+            <XCircle className="w-4 h-4 text-slate-600" />
+          </button>
+        </div>
+
+        <div className="px-7 py-4 border-b border-slate-100">
+          <div className="flex gap-2">
+            <button
+              onClick={() => setActiveTab('departments')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                activeTab === 'departments'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <Building className="w-4 h-4" />
+              Departments
+            </button>
+            <button
+              onClick={() => setActiveTab('positions')}
+              className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all ${
+                activeTab === 'positions'
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+              }`}
+            >
+              <UserCog className="w-4 h-4" />
+              Positions
+            </button>
+          </div>
+        </div>
+
+        <div className="flex-1 overflow-y-auto p-7">
+          {activeTab === 'departments' ? (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newDepartment}
+                  onChange={(e) => setNewDepartment(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddDepartment()}
+                  placeholder="Enter new department name..."
+                  className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                />
+                <button
+                  onClick={handleAddDepartment}
+                  className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center gap-2 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Default Departments</p>
+                {DEPARTMENTS.map((dept) => (
+                  <div key={dept} className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-xl">
+                    <span className="text-sm text-slate-700">{dept}</span>
+                    <span className="text-xs text-slate-400">Default</span>
+                  </div>
+                ))}
+              </div>
+
+              {customDepartments.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Custom Departments</p>
+                  {customDepartments.map((dept) => (
+                    <div key={dept} className="flex items-center justify-between px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <span className="text-sm text-slate-700">{dept}</span>
+                      <button
+                        onClick={() => handleRemoveDepartment(dept)}
+                        className="text-red-500 hover:text-red-700 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newPosition}
+                  onChange={(e) => setNewPosition(e.target.value)}
+                  onKeyPress={(e) => e.key === 'Enter' && handleAddPosition()}
+                  placeholder="Enter new position name..."
+                  className="flex-1 px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none"
+                />
+                <button
+                  onClick={handleAddPosition}
+                  className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl font-semibold text-sm flex items-center gap-2 transition-all"
+                >
+                  <Plus className="w-4 h-4" />
+                  Add
+                </button>
+              </div>
+
+              <div className="space-y-2">
+                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Default Positions</p>
+                {POSITIONS.map((pos) => (
+                  <div key={pos} className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-xl">
+                    <span className="text-sm text-slate-700">{pos}</span>
+                    <span className="text-xs text-slate-400">Default</span>
+                  </div>
+                ))}
+              </div>
+
+              {customPositions.length > 0 && (
+                <div className="space-y-2">
+                  <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Custom Positions</p>
+                  {customPositions.map((pos) => (
+                    <div key={pos} className="flex items-center justify-between px-4 py-3 bg-emerald-50 border border-emerald-200 rounded-xl">
+                      <span className="text-sm text-slate-700">{pos}</span>
+                      <button
+                        onClick={() => handleRemovePosition(pos)}
+                        className="text-red-500 hover:text-red-700 transition-colors"
+                      >
+                        <Trash2 className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -663,6 +858,7 @@ export default function AccountManagement() {
   const [searchTerm, setSearchTerm] = useState('');
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
+  const [showDeptPosModal, setShowDeptPosModal] = useState(false);
 
   // Fetch accounts from localStorage
   const fetchAccounts = useCallback(() => {
@@ -728,13 +924,22 @@ export default function AccountManagement() {
             <h2 className="text-2xl font-black text-slate-800">Account Management</h2>
             <p className="text-slate-500 text-sm mt-0.5">Manage system access and roles</p>
           </div>
-          <button
-            onClick={() => setShowCreateModal(true)}
-            className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#1a3530] text-white text-sm font-bold shadow-lg shadow-emerald-900/10 hover:bg-[#2a5048] transition-all btn-bounce"
-          >
-            <UserPlus className="w-4 h-4" />
-            Add New Account
-          </button>
+          <div className="flex gap-3">
+            <button
+              onClick={() => setShowDeptPosModal(true)}
+              className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-white border border-slate-200 text-slate-700 text-sm font-bold shadow-sm hover:bg-slate-50 transition-all"
+            >
+              <Settings className="w-4 h-4" />
+              Manage Depts & Positions
+            </button>
+            <button
+              onClick={() => setShowCreateModal(true)}
+              className="flex items-center justify-center gap-2 px-6 py-3 rounded-2xl bg-[#1a3530] text-white text-sm font-bold shadow-lg shadow-emerald-900/10 hover:bg-[#2a5048] transition-all btn-bounce"
+            >
+              <UserPlus className="w-4 h-4" />
+              Add New Account
+            </button>
+          </div>
         </div>
 
         {/* Search */}
@@ -854,6 +1059,11 @@ export default function AccountManagement() {
           onClose={() => setEditingAccount(null)}
           onSuccess={() => { fetchAccounts(); setEditingAccount(null); }}
           updateAccounts={updateAccounts}
+        />
+      )}
+      {showDeptPosModal && (
+        <DepartmentPositionManagementModal
+          onClose={() => setShowDeptPosModal(false)}
         />
       )}
     </AdminLayout>
