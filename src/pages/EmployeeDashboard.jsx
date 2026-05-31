@@ -6,7 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import { 
   Clock, CheckCircle2, Plane, FileText, 
   Eye, Check, X, LogOut, User, Calendar, MapPin, Search, ChevronDown, UserCircle,
-  TrendingUp, AlertCircle, BarChart3, Activity, QrCode
+  TrendingUp, AlertCircle, BarChart3, Activity, QrCode, KeyRound, Eye as EyeIcon, EyeOff
 } from 'lucide-react';
 import { getAccountsSync, syncAccount } from '../lib/accountStore';
 import { DEPARTMENTS, POSITIONS, MONTHS, REQUEST_STATUS, STATUS_COLORS, REQUEST_TYPES } from '../constants';
@@ -384,27 +384,34 @@ export default function EmployeeDashboard() {
 
 // Profile Modal Component
 function ProfileModal({ user, onClose }) {
-  const React = require('react');
-  const [account, setAccount] = React.useState(null);
-  const [loading, setLoading] = React.useState(true);
-  const [saving, setSaving] = React.useState(false);
+  const [account, setAccount] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [saveSuccess, setSaveSuccess] = useState(false);
+  const [saveError, setSaveError] = useState('');
+  const [showPasswordSection, setShowPasswordSection] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
 
-  React.useEffect(() => {
+  useEffect(() => {
+    // Load from accountStore (localStorage + Supabase cache)
     const accounts = getAccountsSync();
-    const current = accounts.find(a => a.email === user.email);
+    const current = accounts.find(a => a.id === user.id || a.email === user.email);
     if (current) {
       setAccount({ ...current });
     } else {
-      // If not found by email, try to create a basic profile from user
+      // Fallback: build minimal record from session user
       setAccount({
+        id: user.id,
         email: user.email,
         first_name: '',
         middle_name: '',
         surname: '',
-        full_name: user.email?.split('@')[0] || '',
+        full_name: user.full_name || user.email?.split('@')[0] || '',
         position: '',
         department: '',
-        salary_range: ''
+        salary_range: '',
+        role: user.role || 'employee',
       });
     }
     setLoading(false);
@@ -418,16 +425,27 @@ function ProfileModal({ user, onClose }) {
   const handleSave = async (e) => {
     e.preventDefault();
     setSaving(true);
+    setSaveError('');
+    setSaveSuccess(false);
     try {
       // Re-build full_name
-      const full_name = `${account.first_name || ''} ${account.middle_name || ''} ${account.surname || ''}`.trim();
-      const updatedAccount = { ...account, full_name, fullName: full_name };
+      const full_name = [
+        account.first_name || '',
+        account.middle_name || '',
+        account.surname || ''
+      ].filter(Boolean).join(' ').trim() || account.full_name || '';
+      const updatedAccount = {
+        ...account,
+        full_name,
+        fullName: full_name,
+        ...(showPasswordSection && newPassword ? { password: newPassword } : {})
+      };
       await syncAccount(updatedAccount);
-      alert('Profile updated successfully!');
-      onClose();
+      setSaveSuccess(true);
+      setTimeout(() => { setSaveSuccess(false); onClose(); }, 1200);
     } catch (err) {
       console.error(err);
-      alert('Failed to update profile.');
+      setSaveError('Failed to update profile. Please try again.');
     } finally {
       setSaving(false);
     }
@@ -445,75 +463,191 @@ function ProfileModal({ user, onClose }) {
     );
   }
 
+  if (!account) return null;
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[95vh] flex flex-col animate-[fadeIn_0.2s_ease-out]">
-        <div className="px-7 py-5 bg-gradient-to-r from-emerald-500 to-emerald-600 rounded-t-3xl flex items-center justify-between">
-          <h3 className="text-xl font-black text-white">My Profile</h3>
-          <button onClick={onClose} className="text-white/70 hover:text-white transition-colors">
+        {/* Header */}
+        <div className="px-7 py-5 bg-gradient-to-r from-[#1a3530] to-[#0f211d] rounded-t-3xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-emerald-400/30 rounded-xl flex items-center justify-center">
+              <UserCircle className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-white">My Profile</h3>
+              <p className="text-emerald-300/70 text-xs">{account.email}</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors">
             <X className="w-5 h-5" />
           </button>
         </div>
-        
-        <div className="p-7 overflow-y-auto">
-          <form id="profile-form" onSubmit={handleSave} className="space-y-5">
+
+        <div className="p-7 overflow-y-auto flex-1">
+          {/* Success / Error banners */}
+          {saveSuccess && (
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 text-emerald-700 px-4 py-3 rounded-xl text-sm mb-4">
+              <CheckCircle2 className="w-4 h-4 flex-shrink-0" />
+              Profile updated successfully!
+            </div>
+          )}
+          {saveError && (
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl text-sm mb-4">
+              <AlertCircle className="w-4 h-4 flex-shrink-0" />
+              {saveError}
+            </div>
+          )}
+
+          <form id="profile-form" onSubmit={handleSave} className="space-y-5" autoComplete="on">
+            {/* Name Fields */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">First Name</label>
-                <input type="text" name="first_name" value={account.first_name || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none" />
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">First Name</label>
+                <input
+                  type="text"
+                  name="first_name"
+                  value={account.first_name || ''}
+                  onChange={handleChange}
+                  autoComplete="given-name"
+                  placeholder="Juan"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
+                />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Middle Name</label>
-                <input type="text" name="middle_name" value={account.middle_name || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none" />
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Middle Name</label>
+                <input
+                  type="text"
+                  name="middle_name"
+                  value={account.middle_name || ''}
+                  onChange={handleChange}
+                  autoComplete="additional-name"
+                  placeholder="Santos"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
+                />
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Last Name</label>
-                <input type="text" name="surname" value={account.surname || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none" />
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Last Name</label>
+                <input
+                  type="text"
+                  name="surname"
+                  value={account.surname || ''}
+                  onChange={handleChange}
+                  autoComplete="family-name"
+                  placeholder="Dela Cruz"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
+                />
               </div>
             </div>
-            
+
+            {/* Email - read only */}
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Email</label>
-              <input type="email" value={account.email} disabled className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-500 cursor-not-allowed" />
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Email Address</label>
+              <input
+                type="email"
+                value={account.email}
+                disabled
+                autoComplete="email"
+                className="w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 text-sm text-slate-400 cursor-not-allowed"
+              />
             </div>
-            
+
+            {/* Department & Position */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Office/Department</label>
-                <select name="department" value={account.department || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none">
-                  <option value="">Select...</option>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Office/Department</label>
+                <select
+                  name="department"
+                  value={account.department || ''}
+                  onChange={handleChange}
+                  autoComplete="organization"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
+                >
+                  <option value="">Select Department...</option>
                   {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Position</label>
-                <select name="position" value={account.position || ''} onChange={handleChange} className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none">
-                  <option value="">Select...</option>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Position</label>
+                <select
+                  name="position"
+                  value={account.position || ''}
+                  onChange={handleChange}
+                  autoComplete="organization-title"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
+                >
+                  <option value="">Select Position...</option>
                   {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
             </div>
-            
+
+            {/* Salary Range */}
             <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Salary Range</label>
-              <SalaryRangeInput value={account.salary_range || ''} onChange={(val) => setAccount(prev => ({ ...prev, salary_range: val }))} />
+              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Salary Range</label>
+              <SalaryRangeInput
+                value={account.salary_range || ''}
+                onChange={(val) => setAccount(prev => ({ ...prev, salary_range: val }))}
+              />
             </div>
-            
-            <hr className="border-slate-100" />
-            
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase">Change Password</label>
-              <input type="text" name="password" value={account.password || ''} onChange={handleChange} placeholder="Enter new password" className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none" />
-              <p className="text-xs text-slate-500 mt-1">Leave as is if you don't want to change it.</p>
+
+            {/* Password Reset Section */}
+            <div className="border-t border-slate-100 pt-4">
+              <button
+                type="button"
+                onClick={() => { setShowPasswordSection(v => !v); setNewPassword(''); }}
+                className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors mb-3"
+              >
+                <KeyRound className="w-4 h-4" />
+                {showPasswordSection ? 'Cancel Password Change' : 'Change Password'}
+              </button>
+              {showPasswordSection && (
+                <div className="p-4 bg-blue-50 rounded-xl border border-blue-100">
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">New Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      value={newPassword}
+                      onChange={e => setNewPassword(e.target.value)}
+                      autoComplete="new-password"
+                      placeholder="Min. 6 characters"
+                      minLength={6}
+                      className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-blue-400 focus:outline-none pr-12 bg-white transition"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(v => !v)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <EyeIcon className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-xs text-slate-500 mt-1.5">Leave blank to keep your current password.</p>
+                </div>
+              )}
             </div>
           </form>
         </div>
-        
+
+        {/* Footer */}
         <div className="p-5 bg-slate-50 border-t border-slate-100 rounded-b-3xl flex justify-end gap-3">
-          <button onClick={onClose} className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-100 transition-colors">Cancel</button>
-          <button type="submit" form="profile-form" disabled={saving} className="px-5 py-2.5 rounded-xl bg-emerald-600 text-white font-semibold text-sm hover:bg-emerald-700 transition-colors disabled:opacity-50">
-            {saving ? 'Saving...' : 'Save Changes'}
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl border border-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-100 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            type="submit"
+            form="profile-form"
+            disabled={saving}
+            className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-semibold text-sm hover:from-emerald-500 hover:to-teal-500 transition-all disabled:opacity-50 flex items-center gap-2"
+          >
+            {saving ? (
+              <><div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white" /> Saving...</>
+            ) : 'Save Changes'}
           </button>
         </div>
       </div>

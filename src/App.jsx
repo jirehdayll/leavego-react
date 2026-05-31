@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 
@@ -20,6 +20,20 @@ import ScannedProfileView from './pages/ScannedProfileView';
 import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
 import { APP_ROUTES } from './constants';
 
+// Block browser back/forward buttons for security
+function NavigationBlocker() {
+  useEffect(() => {
+    // Push a duplicate state so back requires two presses (effectively blocked)
+    const blockNav = () => {
+      window.history.pushState(null, '', window.location.href);
+    };
+    blockNav();
+    window.addEventListener('popstate', blockNav);
+    return () => window.removeEventListener('popstate', blockNav);
+  }, []);
+  return null;
+}
+
 function App() {
   const { user, loading, hasSession } = useAuth();
 
@@ -36,6 +50,7 @@ function App() {
 
   return (
     <Router>
+      <NavigationBlocker />
       <Routes>
         {/* Public / Landing - Show login if not authenticated, dashboard if authenticated */}
         <Route 
@@ -62,7 +77,7 @@ function App() {
         <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
         <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
         <Route path="/admin/records" element={<AdminRoute><Records /></AdminRoute>} />
-        <Route path="/profile/view/:id" element={<ProtectedRoute><ScannedProfileView /></ProtectedRoute>} />
+        <Route path="/profile/view/:id" element={<ScannedProfileView />} />
 
         <Route path="*" element={<Navigate to={!hasSession ? APP_ROUTES.LOGIN : "/dashboard"} replace />} />
       </Routes>
