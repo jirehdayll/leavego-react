@@ -213,7 +213,8 @@ export default function EmployeeDashboard() {
   const recentRequests = requests.slice(0, 5);
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-[#f0fdf8] to-white p-4 sm:p-6 lg:p-8">
+    <>
+      <div className="min-h-screen bg-gradient-to-br from-[#f0fdf8] to-white p-4 sm:p-6 lg:p-8">
       <header className="mb-6 sm:mb-8">
         <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
           <div className="flex items-center gap-3 sm:gap-4">

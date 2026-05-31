@@ -74,7 +74,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [formData, setFormData] = useState({
-    firstName: '', middleName: '', surname: '', email: '', password: '', confirmPassword: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, salary_range: '', department: ''
+    firstName: '', middleName: '', surname: '', email: '', password: '', confirmPassword: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, department: ''
   });
 
   const set = (k, v) => setFormData(p => ({ ...p, [k]: v }));
@@ -97,11 +97,6 @@ function CreateAccountModal({ onClose, onSuccess }) {
       return;
     }
 
-    if (!formData.salary_range.trim()) {
-      setError('Salary range is required.');
-      setLoading(false);
-      return;
-    }
 
     // Validate password confirmation
     if (formData.password !== formData.confirmPassword) {
@@ -136,7 +131,6 @@ function CreateAccountModal({ onClose, onSuccess }) {
               surname: formData.surname,
               full_name: fullName,
               position: formData.position,
-              salary_range: formData.salary_range,
               department: formData.department,
               is_active: true,
               isActive: true,
@@ -149,7 +143,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
         onSuccess();
         onClose();
         setFormData({
-          firstName: '', middleName: '', surname: '', email: '', password: '', confirmPassword: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, salary_range: '', department: ''
+          firstName: '', middleName: '', surname: '', email: '', password: '', confirmPassword: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, department: ''
         });
       } else {
         setError(result.error);
@@ -237,7 +231,6 @@ function CreateAccountModal({ onClose, onSuccess }) {
             <option value={USER_ROLES.CENRO}>CENRO</option>
           </select>
         </Field>
-        </Field>
         <SubmitButton loading={loading} label="Create Account" loadingLabel="Creating…"
           icon={<UserPlus className="w-4 h-4" />} />
       </form>
@@ -265,7 +258,6 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
     email: account.denr_email || account.email || '',
     position: account.position || POSITIONS[0] || '',
     role: account.role || USER_ROLES.EMPLOYEE,
-    salary_range: account.salary_range || '',
     department: account.department || '',
     newPassword: '',
     confirmPassword: ''
@@ -604,12 +596,6 @@ function AccountCard({ acc, isAdmin, onToggle, onEdit, onDelete }) {
             <Briefcase className="w-3 h-3 flex-shrink-0" />
             <span className="truncate">{acc.position || 'No position set'}</span>
           </div>
-          {acc.salary_range && (
-            <div className="flex items-center gap-2 text-slate-500">
-              <span className="text-xs font-semibold text-emerald-600">₱</span>
-              <span className="truncate text-xs">{acc.salary_range}</span>
-            </div>
-          )}
           <div>
             <span className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-bold ${
               active
