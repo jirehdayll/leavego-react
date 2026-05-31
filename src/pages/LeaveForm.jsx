@@ -57,7 +57,6 @@ export default function LeaveForm() {
           salary: currentAccount.salary_range || '',
           office_department: currentAccount.department || ''
         }));
-        }));
       }
       
       // Check for same day submissions

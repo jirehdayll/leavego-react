@@ -13,7 +13,7 @@ function TermsAndConditionsModal({ onClose }) {
           <div className="w-16 h-16 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6">
             <FileText className="w-8 h-8 text-emerald-600" />
           </div>
-          <h3 className="text-2xl font-black text-slate-800 text-center mb-6">Terms and Conditions</h3>
+          <h3 className=" font-black text-slate-800 text-center mb-6">Terms and Conditions</h3>
           
           <div className="space-y-6 text-slate-600 text-sm leading-relaxed">
             <section>
@@ -124,8 +124,8 @@ export default function Login() {
 
         {/* Top DENR Label */}
         <div className="absolute top-8 left-10 z-10">
-          <p className="text-emerald-300/60 text-xs font-semibold uppercase tracking-[0.2em]">Department of Environment</p>
-          <p className="text-emerald-300/60 text-xs font-semibold uppercase tracking-[0.2em]">and Natural Resources</p>
+          <p className="text-emerald-400/90 text-xs font-semibold uppercase tracking-[0.2em]">Department of Environment</p>
+          <p className="text-emerald-400/90 text-xs font-semibold uppercase tracking-[0.2em]">and Natural Resources</p>
         </div>
 
         {/* Center Logo + Text */}
@@ -139,7 +139,7 @@ export default function Login() {
             <p className="mt-2 text-emerald-300/80 text-sm font-medium tracking-wide">Official Leave &amp; Travel Management System</p>
             <div className="mt-6 flex items-center gap-3 justify-center">
               <div className="w-8 h-0.5 bg-emerald-500/40 rounded-full" />
-              <span className="text-emerald-400/60 text-xs uppercase tracking-widest">DENR CENRO Olongapo</span>
+              <span className="text-emerald-400/90 text-xs uppercase tracking-widest">DENR CENRO Olongapo</span>
               <div className="w-8 h-0.5 bg-emerald-500/40 rounded-full" />
             </div>
           </div>
@@ -147,8 +147,8 @@ export default function Login() {
 
         {/* Bottom tagline */}
         <div className="absolute bottom-8 left-0 right-0 text-center">
-          <p className="text-emerald-300/30 text-xs italic">"Malinis na Kapaligiran at Mayamang Kalikasan para sa Buong Sambayanan."</p>
-          <p className="text-emerald-300/20 text-xs mt-1">© {new Date().getFullYear()} LeaveGo System · Powered by DENR IT</p>
+          <p className="text-emerald-300/90 text-xs italic">"Malinis na Kapaligiran at Mayamang Kalikasan para sa Buong Sambayanan."</p>
+          <p className="text-emerald-300/70 text-xs mt-1">© {new Date().getFullYear()} LeaveGo System · Powered by DENR IT</p>
         </div>
       </div>
 

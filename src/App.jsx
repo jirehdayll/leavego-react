@@ -62,7 +62,7 @@ function App() {
         <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
         <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
         <Route path="/admin/records" element={<AdminRoute><Records /></AdminRoute>} />
-        <Route path="/profile/view/:id" element={<AdminRoute><ScannedProfileView /></AdminRoute>} />
+        <Route path="/profile/view/:id" element={<ProtectedRoute><ScannedProfileView /></ProtectedRoute>} />
 
         <Route path="*" element={<Navigate to={!hasSession ? APP_ROUTES.LOGIN : "/dashboard"} replace />} />
       </Routes>

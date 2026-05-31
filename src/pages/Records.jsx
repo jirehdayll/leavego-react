@@ -130,9 +130,6 @@ export default function Records() {
                     <div className="min-w-0">
                       <p className="font-bold text-slate-800 text-sm truncate">{acc.full_name || acc.fullName || acc.name || 'No Name'}</p>
                       <p className="text-xs text-slate-400 truncate">{acc.position || '—'}</p>
-                      {acc.salary_range && (
-                        <p className="text-xs text-emerald-600 font-semibold truncate mt-1">Salary: ₱{formatSalaryDisplay(acc.salary_range)}</p>
-                      )}
                     </div>
                   </div>
                   <div className="grid grid-cols-3 gap-2 text-center">
