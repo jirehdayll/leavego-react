@@ -7,16 +7,26 @@ import { EmployeeRecordsModal } from './EmployeeRecordsPanel';
 
 // CSS styles for QR scanner camera visibility
 const scannerStyles = `
+  #qr-reader {
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 300px !important;
+    background-color: #000 !important;
+  }
   #qr-reader video {
     width: 100% !important;
-    height: auto !important;
-    min-height: 300px;
+    height: 100% !important;
+    min-height: 300px !important;
     max-height: 400px;
-    object-fit: cover;
+    object-fit: cover !important;
     border-radius: 8px;
     display: block !important;
     visibility: visible !important;
     opacity: 1 !important;
+    background-color: #000 !important;
+  }
+  #qr-reader video[src] {
+    background-color: #000 !important;
   }
   #qr-reader canvas {
     position: absolute;
@@ -28,8 +38,9 @@ const scannerStyles = `
   }
   #qr-reader__scan_region {
     min-height: 300px !important;
-    background-color: #0f172a !important;
+    background-color: #000 !important;
     display: block !important;
+    width: 100% !important;
   }
   #qr-reader__dashboard {
     display: none !important;
@@ -37,14 +48,20 @@ const scannerStyles = `
   #qr-reader__dashboard_section {
     display: none !important;
   }
+  #qr-reader__dashboard_section_swaplink {
+    display: none !important;
+  }
+  #qr-reader__dashboard_section_csr {
+    display: none !important;
+  }
+  #qr-reader__dashboard_section_sp {
+    display: none !important;
+  }
   #qr-reader__dashboard_section_wp {
     display: none !important;
   }
   #qr-reader__scan_region div[data-qr-code-found="false"] {
     display: none !important;
-  }
-  #qr-reader video[src] {
-    background-color: #000 !important;
   }
 `;
 

@@ -1,13 +1,14 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getAccountsSync, saveAccounts } from '../lib/accountStore';
-import { POSITIONS, USER_ROLES, DEPARTMENTS } from '../constants';
+import { USER_ROLES } from '../constants';
 import AdminLayout from '../components/AdminLayout';
 import {
   UserPlus, Search, Shield, User,
   Mail, Briefcase, Loader2, Power, XCircle,
   AlertCircle, Pencil, KeyRound, CheckCircle2, Trash2, Eye, EyeOff, Settings, Plus, Building, UserCog
 } from 'lucide-react';
+import { getAllDepartments, getAllPositions } from '../utils/departmentsPositions';
 
 // ─── Reusable Input ───────────────────────────────────────────────────────────
 function Field({ label, children }) {
@@ -80,8 +81,8 @@ function DepartmentPositionManagementModal({ onClose }) {
     return saved ? JSON.parse(saved) : [];
   });
 
-  const getAllDepartments = () => [...DEPARTMENTS, ...customDepartments];
-  const getAllPositions = () => [...POSITIONS, ...customPositions];
+  const getAllDepartmentsLocal = () => getAllDepartments();
+  const getAllPositionsLocal = () => getAllPositions();
 
   const handleAddDepartment = () => {
     if (newDepartment.trim() && !customDepartments.includes(newDepartment.trim())) {
@@ -182,7 +183,7 @@ function DepartmentPositionManagementModal({ onClose }) {
 
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Default Departments</p>
-                {DEPARTMENTS.map((dept) => (
+                {getAllDepartmentsLocal().map((dept) => (
                   <div key={dept} className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-xl">
                     <span className="text-sm text-slate-700">{dept}</span>
                     <span className="text-xs text-slate-400">Default</span>
@@ -229,7 +230,7 @@ function DepartmentPositionManagementModal({ onClose }) {
 
               <div className="space-y-2">
                 <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Default Positions</p>
-                {POSITIONS.map((pos) => (
+                {getAllPositionsLocal().map((pos) => (
                   <div key={pos} className="flex items-center justify-between px-4 py-3 bg-slate-50 rounded-xl">
                     <span className="text-sm text-slate-700">{pos}</span>
                     <span className="text-xs text-slate-400">Default</span>
@@ -404,7 +405,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
           <select required className={inputCls} value={formData.position}
             onChange={e => set('position', e.target.value)}>
             <option value="">Select Position...</option>
-            {POSITIONS.map(pos => (
+            {getAllPositions().map(pos => (
               <option key={pos} value={pos}>{pos}</option>
             ))}
           </select>
@@ -413,7 +414,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
           <select className={inputCls} value={formData.department}
             onChange={e => set('department', e.target.value)}>
             <option value="">Select Department...</option>
-            {DEPARTMENTS.map(dept => (
+            {getAllDepartments().map(dept => (
               <option key={dept} value={dept}>{dept}</option>
             ))}
           </select>
@@ -562,7 +563,7 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
             <select required className={inputCls} value={formData.position}
               onChange={e => set('position', e.target.value)}>
               <option value="">Select Position...</option>
-              {POSITIONS.map(pos => (
+              {getAllPositions().map(pos => (
                 <option key={pos} value={pos}>{pos}</option>
               ))}
             </select>
@@ -571,7 +572,7 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
             <select className={inputCls} value={formData.department}
               onChange={e => set('department', e.target.value)}>
               <option value="">Select Department...</option>
-              {DEPARTMENTS.map(dept => (
+              {getAllDepartments().map(dept => (
                 <option key={dept} value={dept}>{dept}</option>
               ))}
             </select>

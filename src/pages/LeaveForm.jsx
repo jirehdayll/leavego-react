@@ -1,11 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
-import { LEAVE_TYPES, DEPARTMENTS, POSITIONS, REQUEST_TYPES } from '../constants';
+import { LEAVE_TYPES, REQUEST_TYPES } from '../constants';
 import SalaryRangeInput from '../components/SalaryRangeInput';
 import { ArrowLeft, Send, ChevronDown, Edit } from 'lucide-react';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { generateUUID, isValidUUID } from '../utils/uuid';
+import { getAllDepartments, getAllPositions } from '../utils/departmentsPositions';
 
 const InputField = ({ label, required, children }) => (
   <div>
@@ -25,6 +26,8 @@ export default function LeaveForm() {
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState(false);
   const [hasSubmittedToday, setHasSubmittedToday] = useState(false);
+  const [departments, setDepartments] = useState(getAllDepartments());
+  const [positions, setPositions] = useState(getAllPositions());
   const [formData, setFormData] = useState({
     office_department: '',
     last_name: '',
@@ -268,7 +271,7 @@ export default function LeaveForm() {
                       className={`${inputCls} appearance-none pr-10 ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`}
                     >
                       <option value="">Select Department...</option>
-                      {DEPARTMENTS.map(dept => <option key={dept} value={dept}>{dept}</option>)}
+                      {departments.map(dept => <option key={dept} value={dept}>{dept}</option>)}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>
@@ -307,7 +310,7 @@ export default function LeaveForm() {
                       className={`${inputCls} appearance-none pr-10 ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`}
                     >
                       <option value="">Select Position...</option>
-                      {POSITIONS.map(pos => <option key={pos} value={pos}>{pos}</option>)}
+                      {positions.map(pos => <option key={pos} value={pos}>{pos}</option>)}
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>

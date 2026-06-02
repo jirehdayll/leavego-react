@@ -9,9 +9,10 @@ import {
   TrendingUp, AlertCircle, BarChart3, Activity, QrCode, KeyRound, Eye as EyeIcon, EyeOff
 } from 'lucide-react';
 import { getAccountsSync, syncAccount } from '../lib/accountStore';
-import { DEPARTMENTS, POSITIONS, MONTHS, REQUEST_STATUS, STATUS_COLORS, REQUEST_TYPES } from '../constants';
+import { MONTHS, REQUEST_STATUS, STATUS_COLORS, REQUEST_TYPES } from '../constants';
 import SalaryRangeInput from '../components/SalaryRangeInput';
 import { QRCodeSVG } from 'qrcode.react';
+import { getAllDepartments, getAllPositions } from '../utils/departmentsPositions';
 
 function StatCard({ icon: Icon, label, value, color, bg, trend, trendValue }) {
   return (
@@ -566,7 +567,7 @@ function ProfileModal({ user, onClose }) {
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
                 >
                   <option value="">Select Department...</option>
-                  {DEPARTMENTS.map(d => <option key={d} value={d}>{d}</option>)}
+                  {getAllDepartments().map(d => <option key={d} value={d}>{d}</option>)}
                 </select>
               </div>
               <div>
@@ -579,7 +580,7 @@ function ProfileModal({ user, onClose }) {
                   className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
                 >
                   <option value="">Select Position...</option>
-                  {POSITIONS.map(p => <option key={p} value={p}>{p}</option>)}
+                  {getAllPositions().map(p => <option key={p} value={p}>{p}</option>)}
                 </select>
               </div>
             </div>
