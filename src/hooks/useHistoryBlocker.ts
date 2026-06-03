@@ -24,7 +24,7 @@ export function useHistoryBlocker() {
     window.history.pushState(null, '', window.location.href);
 
     // Handler for back/forward button clicks
-    const blockNavigation = (e: PopStateEvent) => {
+    const blockNavigation = (e: any) => {
       // Push state again to maintain the barrier
       window.history.pushState(null, '', window.location.href);
       
@@ -59,7 +59,7 @@ export function useHistoryBlockerWithSessionCheck() {
     window.history.pushState(null, '', window.location.href);
 
     // Handler for back/forward button clicks with session validation
-    const blockNavigationWithCheck = (e: PopStateEvent) => {
+    const blockNavigationWithCheck = (e: any) => {
       // Check if session is still valid
       if (!hasSession) {
         // Session expired or user logged out, redirect to login

@@ -35,7 +35,7 @@ function NavigationBlocker() {
     // This push creates a barrier that makes back button ineffective
     window.history.pushState(null, '', window.location.href);
 
-    const blockNav = (e: PopStateEvent) => {
+    const blockNav = (e) => {
       // Validate session on back button attempt
       if (!hasSession) {
         // Session expired, redirect to login
