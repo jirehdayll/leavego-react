@@ -255,19 +255,12 @@ export default function QRScanner({ isOpen, onClose }) {
         cleanupScanner();
         setScanning(false);
 
-        // Fetch employee data
-        try {
-          const { data: formsData } = await leaveRequestsAPI.getAll({ user_id: userId });
-          setEmployeeData({
-            userId,
-            forms: formsData || []
-          });
-          setShowRecordsModal(true);
-        } catch (err) {
-          console.error('Error fetching employee data:', err);
-          setError('Failed to load employee records. Please try again.');
-          setSuccess(false);
-        }
+        // Navigate to admin/records with the scanned user ID
+        // Delay slightly to ensure UI shows success state before navigation
+        setTimeout(() => {
+          navigate(`/admin/records?userId=${userId}`, { replace: true });
+          onClose();
+        }, 500);
       } else {
         setError('Invalid QR code. Please scan a valid employee ID.');
       }

@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useCallback } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { REQUEST_STATUS, USER_ROLES } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 import { leaveRequestsAPI } from '../api/leaveRequests';
@@ -9,6 +10,7 @@ import { X, User, RefreshCw } from 'lucide-react';
 
 export default function Records() {
   const { getAccounts, accountsReady } = useAuth();
+  const [searchParams] = useSearchParams();
   const [accounts, setAccounts] = useState([]);
   const [allForms, setAllForms] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,6 +57,17 @@ export default function Records() {
   useEffect(() => {
     if (accountsReady) fetchData();
   }, [fetchData, accountsReady]);
+
+  // Auto-select employee from URL query parameter
+  useEffect(() => {
+    const userId = searchParams.get('userId');
+    if (userId && accounts.length > 0 && !selectedEmployee) {
+      const employee = accounts.find(a => a.id === userId);
+      if (employee) {
+        setSelectedEmployee(employee);
+      }
+    }
+  }, [searchParams, accounts, selectedEmployee]);
 
   // Filter out admin accounts to show only employees
   let filtered = accounts.filter(a =>
@@ -121,33 +134,26 @@ export default function Records() {
                 <button
                   key={acc.id}
                   onClick={() => setSelectedEmployee(acc)}
-                  className="bg-white border border-slate-100 rounded-2xl p-5 text-left hover:shadow-lg hover:border-emerald-200 transition-all duration-200 hover:-translate-y-0.5"
+                  className="p-4 rounded-xl border border-slate-200 bg-white hover:border-emerald-300 hover:shadow-md transition-all text-left"
                 >
-                  <div className="flex items-center gap-3 mb-4">
-                    <div className="w-11 h-11 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-2xl flex items-center justify-center text-white font-black text-lg flex-shrink-0">
-                      {(acc.full_name || acc.fullName || acc.name || '?')[0].toUpperCase()}
+                  <div className="flex items-center gap-3 mb-3">
+                    <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-semibold text-sm flex-shrink-0">
+                      {(acc.full_name || acc.fullName || acc.name || 'U').charAt(0).toUpperCase()}
                     </div>
-                    <div className="min-w-0">
-                      <p className="font-bold text-slate-800 text-sm truncate">{acc.full_name || acc.fullName || acc.name || 'No Name'}</p>
-                      <p className="text-xs text-slate-400 truncate">{acc.position || '—'}</p>
-                    </div>
-                  </div>
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div className="bg-slate-50 rounded-xl p-2">
-                      <p className="text-lg font-black text-slate-700">{empForms.length}</p>
-                      <p className="text-[10px] text-slate-400 font-medium">Total</p>
-                    </div>
-                    <div className="bg-emerald-50 rounded-xl p-2">
-                      <p className="text-lg font-black text-emerald-700">{approved}</p>
-                      <p className="text-[10px] text-emerald-500 font-medium">Approved</p>
-                    </div>
-                    <div className="bg-red-50 rounded-xl p-2">
-                      <p className="text-lg font-black text-red-700">{empForms.filter(f => f.status === REQUEST_STATUS.DECLINED).length}</p>
-                      <p className="text-[10px] text-red-400 font-medium">Declined</p>
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-slate-800 text-sm truncate">{acc.full_name || acc.fullName || acc.name}</p>
+                      <p className="text-xs text-slate-500 truncate">{acc.email || acc.denr_email}</p>
                     </div>
                   </div>
-                  <div className={`mt-3 text-center text-xs font-semibold py-1.5 rounded-xl ${acc.is_active !== false ? 'bg-emerald-50 text-emerald-600' : 'bg-red-50 text-red-600'}`}>
-                    {acc.is_active !== false ? '● Active' : '● Inactive'}
+                  <div className="space-y-2 text-xs">
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Total:</span>
+                      <span className="font-semibold text-slate-800">{empForms.length}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="text-slate-600">Approved:</span>
+                      <span className="font-semibold text-emerald-600">{approved}</span>
+                    </div>
                   </div>
                 </button>
               );
@@ -158,9 +164,10 @@ export default function Records() {
 
       {selectedEmployee && (
         <EmployeeRecordsModal
+          isOpen={!!selectedEmployee}
+          onClose={() => setSelectedEmployee(null)}
           employee={selectedEmployee}
           allForms={allForms}
-          onClose={() => setSelectedEmployee(null)}
         />
       )}
     </AdminLayout>
