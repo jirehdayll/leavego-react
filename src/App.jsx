@@ -19,18 +19,37 @@ import ScannedProfileView from './pages/ScannedProfileView';
 
 import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
 import { APP_ROUTES } from './constants';
+import { useHistoryBlockerWithSessionCheck } from './hooks/useHistoryBlocker';
 
-// Block browser back/forward buttons for security
+// Enhanced Navigation Blocker with Session Validation
 function NavigationBlocker() {
+  const { user, loading, hasSession } = useAuth();
+  
+  // Use the enhanced history blocker for admin users
+  useHistoryBlockerWithSessionCheck();
+
   useEffect(() => {
-    // Push a duplicate state so back requires two presses (effectively blocked)
-    const blockNav = () => {
+    if (loading || !user) return;
+
+    // Basic history blocking for all users
+    // This push creates a barrier that makes back button ineffective
+    window.history.pushState(null, '', window.location.href);
+
+    const blockNav = (e: PopStateEvent) => {
+      // Validate session on back button attempt
+      if (!hasSession) {
+        // Session expired, redirect to login
+        window.location.href = '/login';
+        return;
+      }
+      // Push another state to re-block the back button
       window.history.pushState(null, '', window.location.href);
     };
-    blockNav();
+
     window.addEventListener('popstate', blockNav);
     return () => window.removeEventListener('popstate', blockNav);
-  }, []);
+  }, [user, loading, hasSession]);
+
   return null;
 }
 

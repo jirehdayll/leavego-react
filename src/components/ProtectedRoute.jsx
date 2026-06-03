@@ -1,13 +1,27 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { APP_ROUTES } from '../constants';
 
 export function ProtectedRoute({ children, requireAdmin = false }) {
-  const { user, loading, isActive, isAdmin } = useAuth();
+  const { user, loading, isActive, isAdmin, hasSession } = useAuth();
   const location = useLocation();
+  const [checking, setChecking] = useState(true);
 
-  if (loading) {
+  useEffect(() => {
+    // Validate session on component mount
+    // This prevents flash of protected UI during initial auth check
+    const validateSession = async () => {
+      // Session validation is handled by useAuth hook
+      // hasSession prop reflects current auth state
+      setChecking(false);
+    };
+
+    validateSession();
+  }, []);
+
+  // Show loading spinner while checking session
+  if (loading || checking) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-white">
         <div className="text-center">
@@ -18,10 +32,19 @@ export function ProtectedRoute({ children, requireAdmin = false }) {
     );
   }
 
-  if (!user || !isActive) {
-    return <Navigate to={APP_ROUTES.LOGIN} state={{ from: location.pathname }} replace />;
+  // Not authenticated - redirect to login with return path
+  if (!user || !isActive || !hasSession) {
+    const redirectTo = `${location.pathname}${location.search}`;
+    return (
+      <Navigate 
+        to={`${APP_ROUTES.LOGIN}?redirectTo=${encodeURIComponent(redirectTo)}`} 
+        state={{ from: location.pathname }} 
+        replace 
+      />
+    );
   }
 
+  // Authenticated but insufficient permissions for admin route
   if (requireAdmin && !isAdmin) {
     return <Navigate to="/dashboard" replace />;
   }
