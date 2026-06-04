@@ -9,13 +9,14 @@ const LEAVE_COLORS = {
   FL: { color: [0, 111, 166], label: 'FL/SPL/VL', text: [255, 255, 255] },
   SPL: { color: [0, 111, 166], label: 'FL/SPL/VL', text: [255, 255, 255] },
   VL: { color: [0, 111, 166], label: 'FL/SPL/VL', text: [255, 255, 255] },
+  WL: { color: [0, 111, 166], label: 'FL/SPL/VL/WL', text: [255, 255, 255] },
   Weekend: { color: [94, 0, 166], label: 'Saturday/Sunday/Holiday', text: [255, 255, 255] },
 };
 
 function getLeaveCellValue(type, controlNumber) {
   if (type === 'SL') return 'SICKLEAVE';
   if (type === 'Maternity') return 'Maternity';
-  if (type === 'VL' || type === 'FL' || type === 'SPL') return type;
+  if (type === 'VL' || type === 'FL' || type === 'SPL' || type === 'WL') return type;
   if (type === 'OB') return controlNumber;
   return controlNumber;
 }
@@ -261,8 +262,10 @@ function getLeaveTypeAbbreviation(leaveType) {
     Maternity: 'Maternity',
     'Official Business': 'OB',
     'Forced Leave': 'FL',
+    'Mandatory/Forced Leave': 'FL',
     'Special Privilege Leave': 'SPL',
     'Vacation Leave': 'VL',
+    'Wellness Leave': 'WL',
   };
   return typeMap[leaveType] || 'OB';
 }

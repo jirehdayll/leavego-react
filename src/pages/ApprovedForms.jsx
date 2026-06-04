@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import { leaveRequestsAPI } from '../api/leaveRequests';
@@ -165,25 +165,45 @@ export default function ApprovedForms() {
 
   const now = new Date();
 
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      try {
-        const result = await leaveRequestsAPI.getAll({
-          status: REQUEST_STATUS.APPROVED,
-          is_archived: false,
-          orderBy: 'submitted_at'
-        });
-        setForms(result.data || []);
-      } catch (error) {
-        console.error('Error fetching approved forms:', error);
-        setForms([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetch();
+  const fetchApproved = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const result = await leaveRequestsAPI.getAll({
+        status: REQUEST_STATUS.APPROVED,
+        is_archived: false,
+        orderBy: 'submitted_at'
+      });
+      setForms(result.data || []);
+    } catch (error) {
+      console.error('Error fetching approved forms:', error);
+      setForms([]);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchApproved();
+
+    const channel = supabase
+      .channel('leave-requests-realtime-approved')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'leave_requests'
+        },
+        () => {
+          fetchApproved(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchApproved]);
 
   const downloadPDF = async (req) => {
     try {

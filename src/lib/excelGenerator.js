@@ -46,8 +46,10 @@ function getLeaveTypeAbbreviation(leaveType) {
     Maternity: 'Maternity',
     'Official Business': 'OB',
     'Forced Leave': 'FL',
+    'Mandatory/Forced Leave': 'FL',
     'Special Privilege Leave': 'SPL',
     'Vacation Leave': 'VL',
+    'Wellness Leave': 'WL',
   };
   return typeMap[leaveType] || 'OB';
 }
@@ -55,7 +57,7 @@ function getLeaveTypeAbbreviation(leaveType) {
 function getLeaveCellValue(type, controlNumber) {
   if (type === 'SL') return 'SICKLEAVE';
   if (type === 'Maternity') return 'Maternity';
-  if (type === 'VL' || type === 'FL' || type === 'SPL') return type;
+  if (type === 'VL' || type === 'FL' || type === 'SPL' || type === 'WL') return type;
   if (type === 'OB') return controlNumber;
   return controlNumber;
 }
@@ -250,7 +252,7 @@ export const generateMonthlySummaryExcel = async (monthForms, month, year, allAp
       } else if (lv.type === 'Maternity') {
         fillColor = COLORS.MAT_FILL;
         textColor = COLORS.MAT_TEXT;
-      } else if (lv.type === 'VL' || lv.type === 'FL' || lv.type === 'SPL') {
+      } else if (lv.type === 'VL' || lv.type === 'FL' || lv.type === 'SPL' || lv.type === 'WL') {
         fillColor = COLORS.VL_FILL;
         textColor = COLORS.VL_TEXT;
       }

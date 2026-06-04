@@ -3,7 +3,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { LEAVE_TYPES, REQUEST_TYPES } from '../constants';
 import SalaryRangeInput from '../components/SalaryRangeInput';
-import { ArrowLeft, Send, ChevronDown, Edit } from 'lucide-react';
+import { ArrowLeft, Send, ChevronDown, Edit, AlertCircle } from 'lucide-react';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { generateUUID, isValidUUID } from '../utils/uuid';
 import { getAllDepartments, getAllPositions } from '../utils/departmentsPositions';
@@ -42,6 +42,75 @@ export default function LeaveForm() {
     start_date: '',
     end_date: '',
   });
+
+  const [validationError, setValidationError] = useState('');
+
+  const getLeaveLimit = (type) => {
+    if (type === 'Mandatory/Forced Leave') return { max: 5, unit: 'Working Days' };
+    if (type === 'Special Privilege Leave') return { max: 3, unit: 'Working Days' };
+    if (type === 'Wellness Leave') return { max: 5, unit: 'Working Days' };
+    if (type === 'Maternity Leave') return { max: 105, unit: 'Calendar Days' };
+    return null;
+  };
+
+  const calculateLeaveDuration = (startDateStr, endDateStr, leaveType) => {
+    if (!startDateStr || !endDateStr) return '';
+    const start = new Date(startDateStr);
+    const end = new Date(endDateStr);
+    if (end < start) return '';
+
+    if (leaveType === 'Maternity Leave') {
+      const diffTime = Math.abs(end - start);
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+      return diffDays.toString();
+    }
+
+    const excludeWeekends = 
+      leaveType === 'Mandatory/Forced Leave' || 
+      leaveType === 'Special Privilege Leave' || 
+      leaveType === 'Wellness Leave';
+
+    if (excludeWeekends) {
+      let count = 0;
+      const curDate = new Date(start.getTime());
+      while (curDate <= end) {
+        const dayOfWeek = curDate.getDay();
+        if (dayOfWeek !== 0 && dayOfWeek !== 6) {
+          count++;
+        }
+        curDate.setDate(curDate.getDate() + 1);
+      }
+      return count.toString();
+    }
+
+    const diffTime = Math.abs(end - start);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24)) + 1;
+    return diffDays.toString();
+  };
+
+  useEffect(() => {
+    const { start_date, end_date, leave_type } = formData;
+    if (start_date && end_date && leave_type) {
+      const calculatedDaysStr = calculateLeaveDuration(start_date, end_date, leave_type);
+      const calculatedDays = parseInt(calculatedDaysStr, 10) || 0;
+      
+      setFormData(prev => {
+        if (prev.num_days !== calculatedDaysStr) {
+          return { ...prev, num_days: calculatedDaysStr };
+        }
+        return prev;
+      });
+
+      const limit = getLeaveLimit(leave_type);
+      if (limit && calculatedDays > limit.max) {
+        setValidationError(`Calculated duration of ${calculatedDays} ${limit.unit} exceeds the maximum allowed limit of ${limit.max} ${limit.unit} for this leave type.`);
+      } else {
+        setValidationError('');
+      }
+    } else {
+      setValidationError('');
+    }
+  }, [formData.start_date, formData.end_date, formData.leave_type]);
 
   useEffect(() => {
     // Auto-fill account data if not in view mode and user is available
@@ -107,21 +176,6 @@ export default function LeaveForm() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
-    
-    // Auto-calculate number of days when dates change
-    if (name === 'start_date' || name === 'end_date') {
-      const startDate = name === 'start_date' ? value : formData.start_date;
-      const endDate = name === 'end_date' ? value : formData.end_date;
-      
-      if (startDate && endDate) {
-        const start = new Date(startDate);
-        const end = new Date(endDate);
-        if (end >= start) {
-          const days = Math.ceil((end - start) / (1000 * 60 * 60 * 24)) + 1;
-          setFormData(prev => ({ ...prev, num_days: days.toString() }));
-        }
-      }
-    }
   };
 
   const validateDates = () => {
@@ -140,6 +194,11 @@ export default function LeaveForm() {
     e.preventDefault();
     
     if (!validateDates()) {
+      return;
+    }
+
+    if (validationError) {
+      alert(validationError);
       return;
     }
     
@@ -366,9 +425,16 @@ export default function LeaveForm() {
 
             {/* Section 3: Dates */}
             <div>
-              <h3 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-4 flex items-center gap-2">
-                <span className="w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-black">3</span>
-                Leave Dates
+              <h3 className="text-xs font-bold text-blue-600 uppercase tracking-widest mb-4 flex items-center justify-between w-full">
+                <div className="flex items-center gap-2">
+                  <span className="w-5 h-5 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center text-xs font-black">3</span>
+                  Leave Dates
+                </div>
+                {formData.leave_type && getLeaveLimit(formData.leave_type) && (
+                  <span className="text-xs font-bold text-amber-600 normal-case bg-amber-50 border border-amber-200/50 px-2 py-0.5 rounded-lg animate-pulse">
+                    * Max Allowed: {getLeaveLimit(formData.leave_type).max} {getLeaveLimit(formData.leave_type).unit}
+                  </span>
+                )}
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <InputField label="Start Date" required>
@@ -378,7 +444,7 @@ export default function LeaveForm() {
                     required 
                     value={formData.start_date} 
                     onChange={handleChange} 
-                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`} 
+                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''} ${validationError ? 'border-rose-400 focus:ring-rose-400' : ''}`} 
                     readOnly={viewMode}
                   />
                 </InputField>
@@ -390,7 +456,7 @@ export default function LeaveForm() {
                     value={formData.end_date} 
                     onChange={handleChange} 
                     min={formData.start_date}
-                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`} 
+                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''} ${validationError ? 'border-rose-400 focus:ring-rose-400' : ''}`} 
                     readOnly={viewMode}
                   />
                 </InputField>
@@ -398,6 +464,14 @@ export default function LeaveForm() {
                   <input type="number" name="num_days" required min="1" value={formData.num_days} onChange={handleChange} className={`${inputCls} bg-slate-50 cursor-not-allowed`} placeholder="e.g. 3" readOnly={true} />
                 </InputField>
               </div>
+              {validationError && (
+                <div className="mt-4 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm font-semibold leading-relaxed">
+                    {validationError}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Submit */}
@@ -405,7 +479,7 @@ export default function LeaveForm() {
               <div className="pt-2">
                 <button
                   type="submit"
-                  disabled={loading || hasSubmittedToday}
+                  disabled={loading || hasSubmittedToday || !!validationError}
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold shadow-lg shadow-blue-500/25 hover:from-blue-500 hover:to-blue-600 transition-all disabled:opacity-60 disabled:cursor-not-allowed btn-bounce"
                 >
                   {loading ? (

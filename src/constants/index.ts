@@ -94,6 +94,7 @@ export const LEAVE_TYPES = [
   'Special Leave Benefits for Women',
   'Special Emergency (Calamity) Leave',
   'Adoption Leave',
+  'Wellness Leave',
 ] as const;
 
 export const MONTHS = [
