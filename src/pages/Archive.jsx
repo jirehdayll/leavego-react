@@ -1,6 +1,7 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabaseClient';
 import AdminLayout from '../components/AdminLayout';
 import { Plane, FileText, Eye, Download, RotateCcw, User, X, Search, Filter, Calendar, XCircle, CheckCircle2 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';

@@ -3,6 +3,7 @@ import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { emailService } from '../services/emailService';
+import { supabase } from '../lib/supabaseClient';
 import {
   Clock, CheckCircle2, Plane, FileText, TrendingUp,
   Eye, Check, X, Archive, Download, User, Calendar, Mail,
@@ -184,8 +185,8 @@ export default function AdminDashboard() {
   const monthName = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'][now.getMonth()];
   const year = now.getFullYear();
 
-  const fetchRequests = useCallback(async () => {
-    setLoading(true);
+  const fetchRequests = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
 
     try {
       // Fetch requests from Supabase
@@ -203,12 +204,37 @@ export default function AdminDashboard() {
       console.error('Fetch requests error:', error);
       setRequests([]);
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }, []);
 
   useEffect(() => {
     fetchRequests();
+
+    // Subscribe to public.leave_requests real-time table modifications
+    const channel = supabase
+      .channel('leave-requests-realtime-dashboard')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'leave_requests'
+        },
+        (payload) => {
+          console.log('[LeaveGo Realtime] Change detected in leave_requests:', payload);
+          // Silent fetch to update page records without disruptive loading spinner
+          fetchRequests(true);
+        }
+      )
+      .subscribe((status) => {
+        console.log('[LeaveGo Realtime] Subscription status:', status);
+        setConnectionStatus(status === 'SUBSCRIBED' ? 'connected' : 'connecting');
+      });
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, [fetchRequests]);
 
   // Helper function to execute status update with proper error handling
@@ -462,9 +488,19 @@ export default function AdminDashboard() {
         <div className="flex items-start justify-between mb-8">
           <div>
             <h2 className="text-2xl font-black text-slate-800">Dashboard</h2>
-            <p className="text-slate-500 text-sm mt-0.5 flex items-center gap-1.5">
+            <p className="text-slate-500 text-sm mt-0.5 flex items-center gap-1.5 flex-wrap">
               <Calendar className="w-3.5 h-3.5" />
               {monthName} {year} - Real-time overview
+              <span className={`inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full text-[10px] font-black transition-all ${
+                connectionStatus === 'connected' 
+                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
+                  : 'bg-amber-50 text-amber-700 border border-amber-200'
+              }`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${
+                  connectionStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'
+                }`}></span>
+                {connectionStatus === 'connected' ? 'Live Sync' : 'Connecting...'}
+              </span>
             </p>
           </div>
         </div>

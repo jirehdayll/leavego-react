@@ -6,9 +6,9 @@ import {
 } from 'recharts';
 import { X, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 
-function RecordsBody({ employee, allForms }) {
+function RecordsBody({ employee, allForms = [] }) {
   const [period, setPeriod] = useState('monthly');
-  const forms = allForms.filter((f) => isFormOfAccount(f, employee));
+  const forms = (allForms || []).filter((f) => isFormOfAccount(f, employee));
 
   const approved = forms.filter((f) => f.status === REQUEST_STATUS.APPROVED).length;
   const declined = forms.filter((f) => f.status === REQUEST_STATUS.DECLINED).length;
@@ -217,7 +217,7 @@ function EmployeeHeader({ employee, onClose, showClose = true }) {
 }
 
 /** Records detail UI — modal overlay or embedded full page (QR scan). */
-export function EmployeeRecordsModal({ employee, allForms, onClose }) {
+export function EmployeeRecordsModal({ employee, allForms = [], onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-10 overflow-y-auto">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
@@ -231,7 +231,7 @@ export function EmployeeRecordsModal({ employee, allForms, onClose }) {
   );
 }
 
-export function EmployeeRecordsPage({ employee, allForms }) {
+export function EmployeeRecordsPage({ employee, allForms = [] }) {
   return (
     <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
       <EmployeeHeader employee={employee} showClose={false} />

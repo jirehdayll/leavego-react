@@ -318,6 +318,7 @@ const PDFViewer = () => {
       'FL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
       'SPL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
       'VL': { color: [51, 153, 255], label: 'FL/SPL/VL', text: [0, 0, 0] },
+      'WL': { color: [51, 153, 255], label: 'FL/SPL/VL/WL', text: [0, 0, 0] },
       'Weekend': { color: [112, 48, 160], label: 'SATURDAY/SUNDAY/HOLIDAY', text: [0, 0, 0] }
     };
     return colors[type] || colors['OB'];
@@ -331,8 +332,10 @@ const PDFViewer = () => {
       'Maternity Leave': 'Maternity',
       'Official Business': 'OB',
       'Forced Leave': 'FL',
+      'Mandatory/Forced Leave': 'FL',
       'Special Privilege Leave': 'SPL',
-      'Vacation Leave': 'VL'
+      'Vacation Leave': 'VL',
+      'Wellness Leave': 'WL'
     };
     return typeMap[leaveType] || 'OB';
   };

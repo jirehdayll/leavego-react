@@ -73,15 +73,15 @@ export default function ScannedProfileView() {
         throw new Error('Employee profile not found. The QR code may be outdated.');
       }
 
-      const { data: requestsData, error: requestsError } = await leaveRequestsAPI.getAll({});
-
-      if (requestsError) {
-        console.error('Error fetching employee requests:', requestsError);
+      let formsForEmployee = [];
+      try {
+        const { data: requestsData } = await leaveRequestsAPI.getAll({});
+        formsForEmployee = (requestsData || []).filter(
+          (f) => f.user_id === id || isFormOfAccount(f, employeeRecord)
+        );
+      } catch (requestsError) {
+        console.warn('[LeaveGo] Could not load leave requests (likely guest scanning):', requestsError);
       }
-
-      const formsForEmployee = (requestsData || []).filter(
-        (f) => f.user_id === id || isFormOfAccount(f, employeeRecord)
-      );
 
       setEmployee(employeeRecord);
       setAllForms(formsForEmployee);
