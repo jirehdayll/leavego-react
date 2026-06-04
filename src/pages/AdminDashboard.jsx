@@ -257,6 +257,12 @@ export default function AdminDashboard() {
             admin_approved_at: new Date().toISOString(),
             admin_approved_by: user.email
           });
+          // Notify user that admin has approved and request is pending CENRO final approval
+          try {
+            await emailService.sendNotification(request.user_email, request.user_name, `Leave/Travel Request Approved (Pending CENRO) - ${request.request_type}`, `Hi ${request.user_name || 'User'},\n\nYour ${request.request_type} request has been approved by the Admin and is now pending CENRO final approval.\n\nRegards,\nLeaveGo System`);
+          } catch (err) {
+            console.error('[AdminDashboard] Failed to send admin approval notification:', err);
+          }
           showToast('Request approved and sent to CENRO for final approval.', 'success');
         } else if (user?.role === 'cenro' || user?.email === 'cenro@denr.gov.ph') {
           console.log('CENRO approving request - final approval');

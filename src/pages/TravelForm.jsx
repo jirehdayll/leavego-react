@@ -234,6 +234,16 @@ export default function TravelForm() {
             </div>
           )}
 
+          {/* Admin comment (visible to applicant when viewing a declined/processed application) */}
+          {viewMode && location.state?.requestData?.details?.admin_comment && (
+            <div className="px-8 py-4">
+              <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                <p className="text-xs font-semibold text-amber-800 mb-1">Admin Comment</p>
+                <p className="text-sm text-amber-900">{location.state.requestData.details.admin_comment}</p>
+              </div>
+            </div>
+          )}
+
           <form onSubmit={handleSubmit} className="px-8 py-8 space-y-8">
             {/* Section 1: Personnel Info */}
             <div>

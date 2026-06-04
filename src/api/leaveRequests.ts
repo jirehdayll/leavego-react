@@ -4,6 +4,7 @@
 import { supabase } from '../lib/supabaseClient';
 import { normalizeLeaveRequestOrderBy, withTimestamp } from '../utils/leaveRequests';
 import { errorHandlingService, handleApiCall } from '../services/errorHandlingService';
+import { emailService } from '../services/emailService';
 import type {
   LeaveRequest,
   CreateLeaveRequestData,
@@ -138,6 +139,13 @@ export const leaveRequestsAPI = {
         ...result,
         data: mapFromDb(result.data)
       };
+
+      // Send pending notification to the user (best-effort)
+      try {
+        await emailService.sendPendingNotification(mappedResult.data);
+      } catch (err) {
+        console.error('[leaveRequestsAPI] Failed to send pending notification:', err);
+      }
 
       return mappedResult as ApiResponse<LeaveRequest>;
     }, 'Creating leave request');
