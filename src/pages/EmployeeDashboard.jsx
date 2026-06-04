@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { getAccountsSync, syncAccount } from '../lib/accountStore';
 import { MONTHS, REQUEST_STATUS, STATUS_COLORS, REQUEST_TYPES } from '../constants';
-import SalaryRangeInput from '../components/SalaryRangeInput';
+
 import { QRCodeSVG } from 'qrcode.react';
 import { getAllDepartments, getAllPositions } from '../utils/departmentsPositions';
 
@@ -585,13 +585,9 @@ function ProfileModal({ user, onClose }) {
               </div>
             </div>
 
-            {/* Salary Range */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Salary Range</label>
-              <SalaryRangeInput
-                value={account.salary_range || ''}
-                onChange={(val) => setAccount(prev => ({ ...prev, salary_range: val }))}
-              />
+            {/* Salary Range removed from profile (kept as hidden field) */}
+            <div style={{display:'none'}}>
+              <input type="hidden" name="salary_range" value={account.salary_range || ''} />
             </div>
 
             {/* Password Reset Section */}

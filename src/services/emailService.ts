@@ -75,6 +75,13 @@ export const emailService = {
     return emailService.sendNotification(request.user_email, request.user_name, subject, body);
   },
 
+  sendPendingNotification: async (request: any) => {
+    const subject = `Leave/Travel Request Received - ${request.request_type}`;
+    const body = `Hi ${request.user_name || 'User'},\n\nYour ${request.request_type} request submitted on ${new Date(request.submitted_at).toLocaleDateString()} is now pending review.\n\nRegards,\nLeaveGo System`;
+
+    return emailService.sendNotification(request.user_email, request.user_name, subject, body);
+  },
+
   sendSeenNotification: async (request: any) => {
     const subject = `Request Seen - ${request.request_type}`;
     const body = `Hi ${request.user_name || 'User'},\n\nYour ${request.request_type} request is now being reviewed by an administrator.\n\nRegards,\nLeaveGo System`;
