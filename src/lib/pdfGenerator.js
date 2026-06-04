@@ -313,6 +313,7 @@ export async function generateLeaveApplicationPDF(data) {
     'Special Leave Benefits for Women',
     'Special Emergency (Calamity) Leave',
     'Adoption Leave',
+    'Wellness Leave',
   ];
   const selectedType = data.leave_type || '';
   leaveTypes.forEach((lt) => {

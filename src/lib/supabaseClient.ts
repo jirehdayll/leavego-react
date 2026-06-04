@@ -1,11 +1,14 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL as string;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
+const dummyUrl = 'https://placeholder-url-for-leavego-build.supabase.co';
+const dummyKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBsYWNlaG9sZGVyIiwicm9sZSI6ImFub24iLCJpYXQiOjE2MDAwMDAwMDAsImV4cCI6MTkwMDAwMDAwMH0.signature';
 
-if (!supabaseUrl?.trim() || !supabaseAnonKey?.trim()) {
-  console.error(
-    '[LeaveGo] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Copy .env.example to .env and set values from the Supabase dashboard.'
+const supabaseUrl = (import.meta.env.VITE_SUPABASE_URL as string) || dummyUrl;
+const supabaseAnonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string) || dummyKey;
+
+if (!import.meta.env.VITE_SUPABASE_URL || !import.meta.env.VITE_SUPABASE_ANON_KEY) {
+  console.warn(
+    '[LeaveGo] Missing VITE_SUPABASE_URL or VITE_SUPABASE_ANON_KEY. Using fallback dummy credentials to prevent static build crash.'
   );
 }
 
@@ -17,3 +20,4 @@ if (!supabaseUrl?.trim() || !supabaseAnonKey?.trim()) {
  * in /scripts with a local-only env file (see scripts/README.txt).
  */
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+

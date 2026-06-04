@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { supabase } from '../lib/supabaseClient';
 import { leaveRequestsAPI } from '../api/leaveRequests';
@@ -8,7 +8,7 @@ import { buildPdfDataFromRequest } from '../lib/pdfDataBuilder';
 import { useAuth } from '../hooks/useAuth';
 import {
   Grid3X3, List, Download, Eye, Plane, FileText,
-  Search, SlidersHorizontal, X, User, Mail, Calendar, Filter, Archive, CheckCircle2, XCircle
+  Search, SlidersHorizontal, X, User, Mail, Calendar, Filter, Archive, CheckCircle2, XCircle, Pencil
 } from 'lucide-react';
 import ConfirmationModal from '../components/ConfirmationModal';
 
@@ -80,8 +80,37 @@ function FileCard({ req, view, onClick, onDownload, onArchive }) {
 }
 
 function PDFViewModal({ request, onClose, getAccounts }) {
-  const d = request.details || {};
-  const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
+  const [localRequest, setLocalRequest] = useState(request);
+  useEffect(() => setLocalRequest(request), [request]);
+  const d = localRequest.details || {};
+  const isTravel = localRequest.request_type === REQUEST_TYPES.TRAVEL;
+
+  // Edit control number states
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [controlNumber, setControlNumber] = useState(d.control_number || d.travel_no || '');
+  const [isSavingControl, setIsSavingControl] = useState(false);
+
+  useEffect(() => {
+    setControlNumber(d.control_number || d.travel_no || '');
+  }, [d.control_number, d.travel_no]);
+
+  const saveControlNumber = async () => {
+    if (!controlNumber) return alert('Control number cannot be empty');
+    setIsSavingControl(true);
+    try {
+      await leaveRequestsAPI.update(localRequest.id, { details: { ...(localRequest.details || {}), control_number: controlNumber } });
+      setLocalRequest(prev => ({ ...prev, details: { ...(prev.details || {}), control_number: controlNumber } }));
+      // refresh parent list
+      await fetchApproved(true);
+      showToast('Control number updated.', 'success');
+      setIsEditOpen(false);
+    } catch (err) {
+      console.error('Failed to update control number:', err);
+      alert('Failed to update control number. See console for details.');
+    } finally {
+      setIsSavingControl(false);
+    }
+  };
 
   const downloadPDF = async () => {
     try {
@@ -107,10 +136,31 @@ function PDFViewModal({ request, onClose, getAccounts }) {
             <button onClick={downloadPDF} className="flex items-center gap-1.5 bg-white/20 hover:bg-white/30 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-all">
               <Download className="w-3.5 h-3.5" /> Download PDF
             </button>
+            <button onClick={() => setIsEditOpen(true)} className="flex items-center gap-1.5 bg-white/10 hover:bg-white/20 text-white text-xs font-semibold px-3 py-2 rounded-xl transition-all">
+              <Pencil className="w-3.5 h-3.5" /> Edit Control No.
+            </button>
             <button onClick={onClose} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all">
               <X className="w-4 h-4" />
             </button>
           </div>
+
+          {/* Edit Control Number Modal */}
+          {isEditOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+              <div className="absolute inset-0 bg-black/60" onClick={() => setIsEditOpen(false)} />
+              <div className="relative bg-white rounded-2xl shadow-2xl w-full max-w-lg p-6">
+                <h4 className="text-lg font-bold mb-3">Edit Application Control Number</h4>
+                <p className="text-sm text-slate-500 mb-4">Change the control number for this approved application. This will be reflected on the downloaded PDF.</p>
+                <input value={controlNumber} onChange={(e) => setControlNumber(e.target.value)} className="w-full px-3 py-2 rounded-lg border border-slate-200 mb-4" />
+                <div className="flex justify-end gap-2">
+                  <button onClick={() => setIsEditOpen(false)} className="px-4 py-2 rounded-lg bg-slate-100">Cancel</button>
+                  <button onClick={saveControlNumber} disabled={isSavingControl} className="px-4 py-2 rounded-lg bg-emerald-600 text-white">
+                    {isSavingControl ? 'Saving...' : 'Save'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
         <div className="overflow-y-auto flex-1 p-7">
           <div className="bg-slate-50 rounded-2xl p-5 mb-4 grid grid-cols-2 gap-4">
@@ -165,25 +215,45 @@ export default function ApprovedForms() {
 
   const now = new Date();
 
-  useEffect(() => {
-    const fetch = async () => {
-      setLoading(true);
-      try {
-        const result = await leaveRequestsAPI.getAll({
-          status: REQUEST_STATUS.APPROVED,
-          is_archived: false,
-          orderBy: 'submitted_at'
-        });
-        setForms(result.data || []);
-      } catch (error) {
-        console.error('Error fetching approved forms:', error);
-        setForms([]);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetch();
+  const fetchApproved = useCallback(async (silent = false) => {
+    if (!silent) setLoading(true);
+    try {
+      const result = await leaveRequestsAPI.getAll({
+        status: REQUEST_STATUS.APPROVED,
+        is_archived: false,
+        orderBy: 'submitted_at'
+      });
+      setForms(result.data || []);
+    } catch (error) {
+      console.error('Error fetching approved forms:', error);
+      setForms([]);
+    } finally {
+      if (!silent) setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    fetchApproved();
+
+    const channel = supabase
+      .channel('leave-requests-realtime-approved')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'leave_requests'
+        },
+        () => {
+          fetchApproved(true);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchApproved]);
 
   const downloadPDF = async (req) => {
     try {
