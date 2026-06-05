@@ -84,32 +84,24 @@ function DepartmentPositionManagementModal({ onClose }) {
   const getAllPositions = () => [...POSITIONS, ...customPositions];
 
   const handleAddDepartment = () => {
-    console.log('[handleAddDepartment] Called with:', newDepartment);
     if (newDepartment.trim() && !customDepartments.includes(newDepartment.trim())) {
       const updated = [...customDepartments, newDepartment.trim()];
-      console.log('[handleAddDepartment] Adding department:', newDepartment.trim());
       setCustomDepartments(updated);
       localStorage.setItem('customDepartments', JSON.stringify(updated));
       setNewDepartment('');
       // Dispatch custom event to notify forms to refresh
       window.dispatchEvent(new CustomEvent('departmentsUpdated'));
-    } else {
-      console.log('[handleAddDepartment] Validation failed or duplicate');
     }
   };
 
   const handleAddPosition = () => {
-    console.log('[handleAddPosition] Called with:', newPosition);
     if (newPosition.trim() && !customPositions.includes(newPosition.trim())) {
       const updated = [...customPositions, newPosition.trim()];
-      console.log('[handleAddPosition] Adding position:', newPosition.trim());
       setCustomPositions(updated);
       localStorage.setItem('customPositions', JSON.stringify(updated));
       setNewPosition('');
       // Dispatch custom event to notify forms to refresh
       window.dispatchEvent(new CustomEvent('positionsUpdated'));
-    } else {
-      console.log('[handleAddPosition] Validation failed or duplicate');
     }
   };
 
@@ -280,9 +272,20 @@ function CreateAccountModal({ onClose, onSuccess }) {
   const [error, setError]     = useState(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [customDepartments, setCustomDepartments] = useState(() => {
+    const saved = localStorage.getItem('customDepartments');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [customPositions, setCustomPositions] = useState(() => {
+    const saved = localStorage.getItem('customPositions');
+    return saved ? JSON.parse(saved) : [];
+  });
   const [formData, setFormData] = useState({
     firstName: '', middleName: '', surname: '', email: '', password: '', confirmPassword: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, department: ''
   });
+
+  const allDepartments = [...new Set([...DEPARTMENTS, ...customDepartments])];
+  const allPositions = [...new Set([...POSITIONS, ...customPositions])];
 
   const set = (k, v) => setFormData(p => ({ ...p, [k]: v }));
 
@@ -382,13 +385,13 @@ function CreateAccountModal({ onClose, onSuccess }) {
         </div>
         <Field label="Email Address">
           <input required type="email" className={inputCls} placeholder="juan@denr.gov.ph"
-            value={formData.email} onChange={e => set('email', e.target.value)} />
+            value={formData.email} onChange={e => set('email', e.target.value)} autoComplete="off" />
         </Field>
         <Field label="Password">
           <div className="relative">
             <input required type={showPassword ? "text" : "password"} minLength={6} className={inputCls + ' pr-12'}
               placeholder="Min. 6 characters"
-              value={formData.password} onChange={e => set('password', e.target.value)} />
+              value={formData.password} onChange={e => set('password', e.target.value)} autoComplete="new-password" />
             <button
               type="button"
               onClick={() => setShowPassword(!showPassword)}
@@ -402,7 +405,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
           <div className="relative">
             <input required type={showConfirmPassword ? "text" : "password"} minLength={6} className={inputCls + ' pr-12'}
               placeholder="Confirm password"
-              value={formData.confirmPassword} onChange={e => set('confirmPassword', e.target.value)} />
+              value={formData.confirmPassword} onChange={e => set('confirmPassword', e.target.value)} autoComplete="new-password" />
             <button
               type="button"
               onClick={() => setShowConfirmPassword(!showConfirmPassword)}
@@ -416,7 +419,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
           <select required className={inputCls} value={formData.position}
             onChange={e => set('position', e.target.value)}>
             <option value="">Select Position...</option>
-            {POSITIONS.map(pos => (
+            {allPositions.map(pos => (
               <option key={pos} value={pos}>{pos}</option>
             ))}
           </select>
@@ -425,7 +428,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
           <select className={inputCls} value={formData.department}
             onChange={e => set('department', e.target.value)}>
             <option value="">Select Department...</option>
-            {DEPARTMENTS.map(dept => (
+            {allDepartments.map(dept => (
               <option key={dept} value={dept}>{dept}</option>
             ))}
           </select>
@@ -455,6 +458,17 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
   const [showPasswordSection, setShowPasswordSection] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [customDepartments, setCustomDepartments] = useState(() => {
+    const saved = localStorage.getItem('customDepartments');
+    return saved ? JSON.parse(saved) : [];
+  });
+  const [customPositions, setCustomPositions] = useState(() => {
+    const saved = localStorage.getItem('customPositions');
+    return saved ? JSON.parse(saved) : [];
+  });
+
+  const allDepartments = [...new Set([...DEPARTMENTS, ...customDepartments])];
+  const allPositions = [...new Set([...POSITIONS, ...customPositions])];
 
   // Parse existing full_name into separate fields
   const nameParts = (account.full_name || account.name || '').split(' ');
@@ -574,7 +588,7 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
             <select required className={inputCls} value={formData.position}
               onChange={e => set('position', e.target.value)}>
               <option value="">Select Position...</option>
-              {POSITIONS.map(pos => (
+              {allPositions.map(pos => (
                 <option key={pos} value={pos}>{pos}</option>
               ))}
             </select>
@@ -583,7 +597,7 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
             <select className={inputCls} value={formData.department}
               onChange={e => set('department', e.target.value)}>
               <option value="">Select Department...</option>
-              {DEPARTMENTS.map(dept => (
+              {allDepartments.map(dept => (
                 <option key={dept} value={dept}>{dept}</option>
               ))}
             </select>

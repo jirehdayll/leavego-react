@@ -27,11 +27,15 @@ export default function LeaveForm() {
   const [hasSubmittedToday, setHasSubmittedToday] = useState(false);
   const [departments, setDepartments] = useState(() => {
     const customDepts = JSON.parse(localStorage.getItem('customDepartments') || '[]');
-    return [...getAllDepartments(), ...customDepts];
+    const allDepts = [...getAllDepartments(), ...customDepts];
+    // Remove duplicates
+    return [...new Set(allDepts)];
   });
   const [positions, setPositions] = useState(() => {
     const customPos = JSON.parse(localStorage.getItem('customPositions') || '[]');
-    return [...getAllPositions(), ...customPos];
+    const allPos = [...getAllPositions(), ...customPos];
+    // Remove duplicates
+    return [...new Set(allPos)];
   });
   const [formData, setFormData] = useState({
     office_department: '',
@@ -179,12 +183,14 @@ export default function LeaveForm() {
   useEffect(() => {
     const handleDepartmentsUpdated = () => {
       const customDepts = JSON.parse(localStorage.getItem('customDepartments') || '[]');
-      setDepartments([...getAllDepartments(), ...customDepts]);
+      const allDepts = [...getAllDepartments(), ...customDepts];
+      setDepartments([...new Set(allDepts)]);
     };
 
     const handlePositionsUpdated = () => {
       const customPos = JSON.parse(localStorage.getItem('customPositions') || '[]');
-      setPositions([...getAllPositions(), ...customPos]);
+      const allPos = [...getAllPositions(), ...customPos];
+      setPositions([...new Set(allPos)]);
     };
 
     window.addEventListener('departmentsUpdated', handleDepartmentsUpdated);
