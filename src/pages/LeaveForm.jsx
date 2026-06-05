@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { LEAVE_TYPES, REQUEST_TYPES } from '../constants';
-import SalaryRangeInput from '../components/SalaryRangeInput';
 import { ArrowLeft, Send, ChevronDown, Edit, AlertCircle } from 'lucide-react';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { generateUUID, isValidUUID } from '../utils/uuid';
@@ -26,8 +25,14 @@ export default function LeaveForm() {
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState(false);
   const [hasSubmittedToday, setHasSubmittedToday] = useState(false);
-  const [departments, setDepartments] = useState(getAllDepartments());
-  const [positions, setPositions] = useState(getAllPositions());
+  const [departments, setDepartments] = useState(() => {
+    const customDepts = JSON.parse(localStorage.getItem('customDepartments') || '[]');
+    return [...getAllDepartments(), ...customDepts];
+  });
+  const [positions, setPositions] = useState(() => {
+    const customPos = JSON.parse(localStorage.getItem('customPositions') || '[]');
+    return [...getAllPositions(), ...customPos];
+  });
   const [formData, setFormData] = useState({
     office_department: '',
     last_name: '',
@@ -35,7 +40,6 @@ export default function LeaveForm() {
     middle_name: '',
     date_of_filing: new Date().toISOString().split('T')[0],
     position: '',
-    salary: '',
     leave_type: '',
     details_of_leave: '',
     num_days: '',
@@ -126,7 +130,6 @@ export default function LeaveForm() {
           last_name: currentAccount.surname || '',
           middle_name: currentAccount.middle_name || '',
           position: currentAccount.position || '',
-          salary: currentAccount.salary_range || '',
           office_department: currentAccount.department || ''
         }));
       }
@@ -161,7 +164,6 @@ export default function LeaveForm() {
         middle_name: requestData.middle_name || '',
         date_of_filing: requestData.date_of_filing || new Date().toISOString().split('T')[0],
         position: requestData.position || '',
-        salary: requestData.salary || '',
         leave_type: requestData.leave_type || '',
         details_of_leave: requestData.details_of_leave || '',
         num_days: requestData.num_days || '',
@@ -172,6 +174,27 @@ export default function LeaveForm() {
       setFormData(prev => ({ ...prev, leave_type: location.state.defaultLeaveType }));
     }
   }, [location.state]);
+
+  // Listen for department/position updates from Account Management
+  useEffect(() => {
+    const handleDepartmentsUpdated = () => {
+      const customDepts = JSON.parse(localStorage.getItem('customDepartments') || '[]');
+      setDepartments([...getAllDepartments(), ...customDepts]);
+    };
+
+    const handlePositionsUpdated = () => {
+      const customPos = JSON.parse(localStorage.getItem('customPositions') || '[]');
+      setPositions([...getAllPositions(), ...customPos]);
+    };
+
+    window.addEventListener('departmentsUpdated', handleDepartmentsUpdated);
+    window.addEventListener('positionsUpdated', handlePositionsUpdated);
+
+    return () => {
+      window.removeEventListener('departmentsUpdated', handleDepartmentsUpdated);
+      window.removeEventListener('positionsUpdated', handlePositionsUpdated);
+    };
+  }, []);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -383,14 +406,6 @@ export default function LeaveForm() {
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>
-                </InputField>
-                <InputField label="Salary (Monthly)">
-                  <SalaryRangeInput
-                    value={formData.salary}
-                    onChange={(value) => setFormData(prev => ({ ...prev, salary: value }))}
-                    placeholder="Select or type salary range..."
-                    disabled={viewMode}
-                  />
                 </InputField>
               </div>
             </div>

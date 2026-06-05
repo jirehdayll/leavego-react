@@ -494,19 +494,9 @@ export default function AdminDashboard() {
         <div className="flex items-start justify-between mb-8">
           <div>
             <h2 className="text-2xl font-black text-slate-800">Dashboard</h2>
-            <p className="text-slate-500 text-sm mt-0.5 flex items-center gap-1.5 flex-wrap">
+            <p className="text-slate-500 text-sm mt-0.5 flex items-center gap-1.5">
               <Calendar className="w-3.5 h-3.5" />
               {monthName} {year} - Real-time overview
-              <span className={`inline-flex items-center gap-1 ml-2 px-2 py-0.5 rounded-full text-[10px] font-black transition-all ${
-                connectionStatus === 'connected' 
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' 
-                  : 'bg-amber-50 text-amber-700 border border-amber-200'
-              }`}>
-                <span className={`w-1.5 h-1.5 rounded-full ${
-                  connectionStatus === 'connected' ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500 animate-pulse'
-                }`}></span>
-                {connectionStatus === 'connected' ? 'Live Sync' : 'Connecting...'}
-              </span>
             </p>
           </div>
         </div>

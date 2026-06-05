@@ -1,7 +1,8 @@
 import emailjs from '@emailjs/browser';
 import { handleApiCall } from './errorHandlingService';
 
-// To use EmailJS, the admin will need to configure these in the .env file
+// EmailJS Configuration
+// Configure these in .env file for production:
 // VITE_EMAILJS_SERVICE_ID, VITE_EMAILJS_TEMPLATE_ID, VITE_EMAILJS_PUBLIC_KEY
 const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'default_service';
 const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'default_template';

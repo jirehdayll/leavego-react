@@ -89,6 +89,8 @@ function DepartmentPositionManagementModal({ onClose }) {
       setCustomDepartments(updated);
       localStorage.setItem('customDepartments', JSON.stringify(updated));
       setNewDepartment('');
+      // Dispatch custom event to notify forms to refresh
+      window.dispatchEvent(new CustomEvent('departmentsUpdated'));
     }
   };
 
@@ -98,6 +100,8 @@ function DepartmentPositionManagementModal({ onClose }) {
       setCustomPositions(updated);
       localStorage.setItem('customPositions', JSON.stringify(updated));
       setNewPosition('');
+      // Dispatch custom event to notify forms to refresh
+      window.dispatchEvent(new CustomEvent('positionsUpdated'));
     }
   };
 
@@ -352,7 +356,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
 
   return (
     <Modal title="Create Account" subtitle="Register a new system user" onClose={onClose}>
-      <form onSubmit={handleSubmit} className="p-7 space-y-4 overflow-visible">
+      <form onSubmit={handleSubmit} autoComplete="off" className="p-7 space-y-4 overflow-visible">
         {error && <ErrorBanner message={error} />}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Field label="First Name">

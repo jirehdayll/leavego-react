@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { REQUEST_STATUS, USER_ROLES } from '../constants';
+import { REQUEST_STATUS, USER_ROLES, DEPARTMENTS, POSITIONS } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import AdminLayout from '../components/AdminLayout';
 import { EmployeeRecordsModal } from '../components/EmployeeRecordsPanel';
 import { isFormOfAccount, formatSalaryDisplay } from '../utils/employeeMatching';
-import { X, User, RefreshCw } from 'lucide-react';
+import { X, User, RefreshCw, Filter, ChevronDown, Calendar } from 'lucide-react';
 
 export default function Records() {
   const { getAccounts, accountsReady } = useAuth();
@@ -19,6 +19,13 @@ export default function Records() {
   const [sortOrder, setSortOrder] = useState('az');
   const [selectedEmployee, setSelectedEmployee] = useState(null);
   const [error, setError] = useState(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filterDepartment, setFilterDepartment] = useState('');
+  const [filterPosition, setFilterPosition] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+  const [filterDateRange, setFilterDateRange] = useState('');
+  const [filterStartDate, setFilterStartDate] = useState('');
+  const [filterEndDate, setFilterEndDate] = useState('');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -69,6 +76,10 @@ export default function Records() {
     }
   }, [searchParams, accounts, selectedEmployee]);
 
+  // Get dynamic departments and positions from localStorage
+  const allDepartments = [...DEPARTMENTS, ...JSON.parse(localStorage.getItem('customDepartments') || '[]')];
+  const allPositions = [...POSITIONS, ...JSON.parse(localStorage.getItem('customPositions') || '[]')];
+
   // Filter out admin accounts to show only employees
   let filtered = accounts.filter(a =>
     !search || (a.full_name || a.fullName || a.name || '').toLowerCase().includes(search.toLowerCase()) || (a.email || a.denr_email || '').toLowerCase().includes(search.toLowerCase())
@@ -77,6 +88,30 @@ export default function Records() {
     a.role !== USER_ROLES.SUPER_ADMIN && 
     a.role !== USER_ROLES.CENRO
   );
+
+  // Apply additional filters
+  if (filterDepartment) {
+    filtered = filtered.filter(a => a.department === filterDepartment);
+  }
+  if (filterPosition) {
+    filtered = filtered.filter(a => a.position === filterPosition);
+  }
+  if (filterStatus) {
+    filtered = filtered.filter(a => {
+      const empForms = allForms.filter(f => isFormOfAccount(f, a));
+      return empForms.some(f => f.status === filterStatus);
+    });
+  }
+  if (filterStartDate && filterEndDate) {
+    filtered = filtered.filter(a => {
+      const empForms = allForms.filter(f => isFormOfAccount(f, a));
+      return empForms.some(f => {
+        const formDate = new Date(f.submitted_at || f.created_at);
+        return formDate >= new Date(filterStartDate) && formDate <= new Date(filterEndDate);
+      });
+    });
+  }
+
   if (sortOrder === 'az') filtered.sort((a, b) => (a.full_name || a.fullName || a.name || '').localeCompare(b.full_name || b.fullName || b.name || ''));
   else filtered.sort((a, b) => (b.full_name || b.fullName || b.name || '').localeCompare(a.full_name || a.fullName || a.name || ''));
 
@@ -108,7 +143,94 @@ export default function Records() {
             <option value="az">A → Z</option>
             <option value="za">Z → A</option>
           </select>
+          <button
+            onClick={() => setShowFilters(!showFilters)}
+            className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-sm font-semibold transition-all ${showFilters ? 'bg-emerald-50 border-emerald-300 text-emerald-700' : 'bg-white border-slate-200 text-slate-700 hover:border-emerald-300'}`}
+          >
+            <Filter className="w-4 h-4" />
+            Filters
+            {showFilters && <ChevronDown className="w-4 h-4" />}
+          </button>
         </div>
+
+        {showFilters && (
+          <div className="bg-slate-50 rounded-2xl p-5 mb-5 border border-slate-200">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Department</label>
+                <select
+                  value={filterDepartment}
+                  onChange={e => setFilterDepartment(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                >
+                  <option value="">All Departments</option>
+                  {allDepartments.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Position</label>
+                <select
+                  value={filterPosition}
+                  onChange={e => setFilterPosition(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                >
+                  <option value="">All Positions</option>
+                  {allPositions.map(pos => (
+                    <option key={pos} value={pos}>{pos}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Status</label>
+                <select
+                  value={filterStatus}
+                  onChange={e => setFilterStatus(e.target.value)}
+                  className="w-full px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                >
+                  <option value="">All Statuses</option>
+                  <option value={REQUEST_STATUS.PENDING}>Pending</option>
+                  <option value={REQUEST_STATUS.PENDING_CENRO}>Pending CENRO</option>
+                  <option value={REQUEST_STATUS.APPROVED}>Approved</option>
+                  <option value={REQUEST_STATUS.DECLINED}>Declined</option>
+                  <option value={REQUEST_STATUS.ARCHIVED}>Archived</option>
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Date Range</label>
+                <div className="flex gap-2">
+                  <input
+                    type="date"
+                    value={filterStartDate}
+                    onChange={e => setFilterStartDate(e.target.value)}
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  />
+                  <input
+                    type="date"
+                    value={filterEndDate}
+                    onChange={e => setFilterEndDate(e.target.value)}
+                    className="flex-1 px-3 py-2.5 rounded-xl border border-slate-200 bg-white text-sm focus:outline-none focus:ring-2 focus:ring-emerald-400"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex justify-end mt-4">
+              <button
+                onClick={() => {
+                  setFilterDepartment('');
+                  setFilterPosition('');
+                  setFilterStatus('');
+                  setFilterStartDate('');
+                  setFilterEndDate('');
+                }}
+                className="px-4 py-2 text-sm font-semibold text-slate-600 hover:text-slate-800 transition-colors"
+              >
+                Clear All Filters
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Error Banner */}
         {error && (

@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import { OFFICES, APPROPRIATIONS, REQUEST_TYPES } from '../constants';
-import SalaryRangeInput from '../components/SalaryRangeInput';
 import { ArrowLeft, Send, ChevronDown, Edit } from 'lucide-react';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { generateUUID, isValidUUID } from '../utils/uuid';
@@ -26,12 +25,17 @@ export default function TravelForm() {
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState(false);
   const [hasSubmittedToday, setHasSubmittedToday] = useState(false);
-  const [departments, setDepartments] = useState(getAllDepartments());
-  const [positions, setPositions] = useState(getAllPositions());
+  const [departments, setDepartments] = useState(() => {
+    const customDepts = JSON.parse(localStorage.getItem('customDepartments') || '[]');
+    return [...getAllDepartments(), ...customDepts];
+  });
+  const [positions, setPositions] = useState(() => {
+    const customPos = JSON.parse(localStorage.getItem('customPositions') || '[]');
+    return [...getAllPositions(), ...customPos];
+  });
   const [formData, setFormData] = useState({
     full_name: '',
     position: '',
-    salary: '',
     office_department: '',
     official_station: 'Olongapo City',
     departure_date: '',
@@ -56,7 +60,6 @@ export default function TravelForm() {
           ...prev,
           full_name: currentAccount.full_name || `${currentAccount.first_name || ''} ${currentAccount.middle_name || ''} ${currentAccount.surname || ''}`.trim(),
           position: currentAccount.position || '',
-          salary: currentAccount.salary_range || '',
           office_department: currentAccount.department || ''
         }));
       }
@@ -100,6 +103,27 @@ export default function TravelForm() {
       });
     }
   }, [location.state]);
+
+  // Listen for department/position updates from Account Management
+  useEffect(() => {
+    const handleDepartmentsUpdated = () => {
+      const customDepts = JSON.parse(localStorage.getItem('customDepartments') || '[]');
+      setDepartments([...getAllDepartments(), ...customDepts]);
+    };
+
+    const handlePositionsUpdated = () => {
+      const customPos = JSON.parse(localStorage.getItem('customPositions') || '[]');
+      setPositions([...getAllPositions(), ...customPos]);
+    };
+
+    window.addEventListener('departmentsUpdated', handleDepartmentsUpdated);
+    window.addEventListener('positionsUpdated', handlePositionsUpdated);
+
+    return () => {
+      window.removeEventListener('departmentsUpdated', handleDepartmentsUpdated);
+      window.removeEventListener('positionsUpdated', handlePositionsUpdated);
+    };
+  }, []);
 
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
@@ -270,14 +294,6 @@ export default function TravelForm() {
                     </select>
                     <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400 pointer-events-none" />
                   </div>
-                </InputField>
-                <InputField label="Salary">
-                  <SalaryRangeInput
-                    value={formData.salary}
-                    onChange={(value) => setFormData(prev => ({ ...prev, salary: value }))}
-                    placeholder="Select or type salary range..."
-                    disabled={viewMode}
-                  />
                 </InputField>
                 <InputField label="Office / Department">
                   <div className="relative">
