@@ -84,24 +84,32 @@ function DepartmentPositionManagementModal({ onClose }) {
   const getAllPositions = () => [...POSITIONS, ...customPositions];
 
   const handleAddDepartment = () => {
+    console.log('[handleAddDepartment] Called with:', newDepartment);
     if (newDepartment.trim() && !customDepartments.includes(newDepartment.trim())) {
       const updated = [...customDepartments, newDepartment.trim()];
+      console.log('[handleAddDepartment] Adding department:', newDepartment.trim());
       setCustomDepartments(updated);
       localStorage.setItem('customDepartments', JSON.stringify(updated));
       setNewDepartment('');
       // Dispatch custom event to notify forms to refresh
       window.dispatchEvent(new CustomEvent('departmentsUpdated'));
+    } else {
+      console.log('[handleAddDepartment] Validation failed or duplicate');
     }
   };
 
   const handleAddPosition = () => {
+    console.log('[handleAddPosition] Called with:', newPosition);
     if (newPosition.trim() && !customPositions.includes(newPosition.trim())) {
       const updated = [...customPositions, newPosition.trim()];
+      console.log('[handleAddPosition] Adding position:', newPosition.trim());
       setCustomPositions(updated);
       localStorage.setItem('customPositions', JSON.stringify(updated));
       setNewPosition('');
       // Dispatch custom event to notify forms to refresh
       window.dispatchEvent(new CustomEvent('positionsUpdated'));
+    } else {
+      console.log('[handleAddPosition] Validation failed or duplicate');
     }
   };
 
