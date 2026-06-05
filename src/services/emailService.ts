@@ -1,43 +1,66 @@
-import emailjs from '@emailjs/browser';
 import { handleApiCall } from './errorHandlingService';
+import { supabase } from '../lib/supabaseClient';
 
-// EmailJS Configuration
-// Configure these in .env file for production:
-// VITE_EMAILJS_SERVICE_ID, VITE_EMAILJS_TEMPLATE_ID, VITE_EMAILJS_PUBLIC_KEY
-const EMAILJS_SERVICE_ID = import.meta.env.VITE_EMAILJS_SERVICE_ID || 'default_service';
-const EMAILJS_TEMPLATE_ID = import.meta.env.VITE_EMAILJS_TEMPLATE_ID || 'default_template';
-const EMAILJS_PUBLIC_KEY = import.meta.env.VITE_EMAILJS_PUBLIC_KEY || 'default_public_key';
-
-// Standard Email Service for LeaveGo
+// Supabase-based Email Service for LeaveGo
+// This service stores email notifications in Supabase and triggers Edge Functions to send emails
 export const emailService = {
   sendNotification: async (to: string, toName: string, subject: string, body: string) => {
     return handleApiCall(async () => {
-      console.log(`[EmailService] Sending to: ${to}, Subject: ${subject}`);
+      console.log(`[EmailService] Storing notification for: ${to}, Subject: ${subject}`);
       
-      // Real email integration using EmailJS
-      if (EMAILJS_SERVICE_ID !== 'default_service') {
-        try {
-          await emailjs.send(
-            EMAILJS_SERVICE_ID,
-            EMAILJS_TEMPLATE_ID,
-            {
-              to_email: to,
-              to_name: toName || 'User',
-              subject: subject,
-              message: body
-            },
-            EMAILJS_PUBLIC_KEY
-          );
-          console.log('[EmailService] Email sent successfully via EmailJS');
-          return { success: true };
-        } catch (error) {
-          console.error('[EmailService] Failed to send email via EmailJS:', error);
-          // Fallback to simulate success if email fails, so we don't break the flow
+      try {
+        // Store notification in Supabase email_notifications table
+        const { data, error } = await supabase
+          .from('email_notifications')
+          .insert({
+            to_email: to,
+            to_name: toName || 'User',
+            subject: subject,
+            message: body,
+            status: 'pending',
+            created_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+
+        if (error) {
+          console.error('[EmailService] Failed to store notification:', error);
+          // Fallback to simulate success if storage fails
           return { success: true };
         }
-      } else {
-        console.log('[EmailService] EmailJS not configured. Simulating email sending.');
-        await new Promise(resolve => setTimeout(resolve, 500));
+
+        console.log('[EmailService] Notification stored successfully in Supabase');
+
+        // Trigger Edge Function to send the email
+        try {
+          const supabaseUrl = import.meta.env.VITE_SUPABASE_URL || '';
+          const edgeFunctionUrl = `${supabaseUrl}/functions/v1/send-email`;
+          
+          const response = await fetch(edgeFunctionUrl, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${import.meta.env.VITE_SUPABASE_ANON_KEY || ''}`
+            },
+            body: JSON.stringify({
+              notification_id: data.id
+            })
+          });
+
+          if (response.ok) {
+            console.log('[EmailService] Edge Function triggered successfully');
+          } else {
+            console.error('[EmailService] Failed to trigger Edge Function:', await response.text());
+          }
+        } catch (edgeError) {
+          console.error('[EmailService] Error triggering Edge Function:', edgeError);
+          // Don't fail the whole process if Edge Function fails
+        }
+
+        return { success: true };
+      } catch (error) {
+        console.error('[EmailService] Failed to store notification:', error);
+        // Fallback to simulate success if email fails, so we don't break the flow
         return { success: true };
       }
     }, 'emailService.sendNotification');

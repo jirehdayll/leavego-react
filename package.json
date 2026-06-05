@@ -15,7 +15,6 @@
     "admin:delete-user": "node scripts/delete-auth-user.mjs"
   },
   "dependencies": {
-    "@emailjs/browser": "^4.4.1",
     "@supabase/supabase-js": "^2.99.3",
     "@tailwindcss/vite": "^4.2.2",
     "autoprefixer": "^10.4.27",

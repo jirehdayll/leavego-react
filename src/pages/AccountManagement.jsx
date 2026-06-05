@@ -3,6 +3,7 @@ import { useAuth } from '../hooks/useAuth';
 import { getAccountsSync, saveAccounts } from '../lib/accountStore';
 import { POSITIONS, USER_ROLES, DEPARTMENTS } from '../constants';
 import AdminLayout from '../components/AdminLayout';
+import { userEmailService } from '../services/userEmailService';
 import {
   UserPlus, Search, Shield, User,
   Mail, Briefcase, Loader2, Power, XCircle,
@@ -349,7 +350,16 @@ function CreateAccountModal({ onClose, onSuccess }) {
           return acc;
         });
         saveAccounts(updatedAccounts);
-        
+
+        // Register user email in Supabase for email notifications
+        await userEmailService.registerUserEmail(
+          formData.email,
+          fullName,
+          formData.department,
+          formData.position,
+          formData.role
+        );
+
         onSuccess();
         onClose();
         setFormData({
