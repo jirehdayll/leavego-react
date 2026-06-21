@@ -40,6 +40,7 @@ export default function TravelForm() {
   const [formData, setFormData] = useState({
     full_name: '',
     position: '',
+    employee_type: '',
     office_department: '',
     official_station: 'Olongapo City',
     departure_date: '',
@@ -64,6 +65,7 @@ export default function TravelForm() {
           ...prev,
           full_name: currentAccount.full_name || `${currentAccount.first_name || ''} ${currentAccount.middle_name || ''} ${currentAccount.surname || ''}`.trim(),
           position: currentAccount.position || '',
+          employee_type: currentAccount.employee_type || '',
           office_department: currentAccount.department || ''
         }));
       }
@@ -209,6 +211,7 @@ export default function TravelForm() {
         details: {
           full_name: formData.full_name,
           position: formData.position,
+          employee_type: formData.employee_type,
           salary: formData.salary,
           office_department: formData.office_department,
           official_station: formData.official_station,

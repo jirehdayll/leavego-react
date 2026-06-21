@@ -55,6 +55,7 @@ export default function LeaveForm() {
     middle_name: '',
     date_of_filing: new Date().toISOString().split('T')[0],
     position: '',
+    employee_type: '',
     leave_type: '',
     details_of_leave: '',
     num_days: '',
@@ -154,7 +155,8 @@ export default function LeaveForm() {
           last_name: currentAccount.surname || '',
           middle_name: currentAccount.middle_name || '',
           position: currentAccount.position || '',
-          office_department: currentAccount.department || ''
+          office_department: currentAccount.department || '',
+          employee_type: currentAccount.employee_type || ''
         }));
       }
       
@@ -375,6 +377,7 @@ export default function LeaveForm() {
           last_name: formData.last_name,
           middle_name: formData.middle_name,
           position: formData.position,
+          employee_type: formData.employee_type,
           salary: formData.salary,
           leave_type: formData.leave_type,
           details_of_leave: formData.details_of_leave,

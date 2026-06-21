@@ -2,7 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getAccountsSync, saveAccounts } from '../lib/accountStore';
 import { supabase } from '../lib/supabaseClient';
-import { POSITIONS, USER_ROLES, DEPARTMENTS } from '../constants';
+import { POSITIONS, USER_ROLES, DEPARTMENTS, EMPLOYEE_TYPES } from '../constants';
 import AdminLayout from '../components/AdminLayout';
 import { userEmailService } from '../services/userEmailService';
 import {
@@ -298,7 +298,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
     return saved ? JSON.parse(saved) : [];
   });
   const [formData, setFormData] = useState({
-    firstName: '', middleName: '', surname: '', email: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, department: '', employeeType: 'Regular'
+    firstName: '', middleName: '', surname: '', email: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, department: '', employeeType: EMPLOYEE_TYPES[0] || 'Regular'
   });
 
   const allDepartments = [...new Set([...DEPARTMENTS, ...customDepartments])];
@@ -411,7 +411,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
         onSuccess();
         onClose();
         setFormData({
-          firstName: '', middleName: '', surname: '', email: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, department: '', employeeType: 'Regular'
+          firstName: '', middleName: '', surname: '', email: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, department: '', employeeType: EMPLOYEE_TYPES[0] || 'Regular'
         });
       } else {
         setError(result.error);
@@ -491,8 +491,9 @@ function CreateAccountModal({ onClose, onSuccess }) {
         <Field label="Employee Type">
           <select className={inputCls} value={formData.employeeType}
             onChange={e => set('employeeType', e.target.value)}>
-            <option value="Regular">Regular Employee</option>
-            <option value="Contract of Service">Contract of Service</option>
+            {EMPLOYEE_TYPES.map(type => (
+              <option key={type} value={type}>{type}</option>
+            ))}
           </select>
         </Field>
         <Field label="Role">
@@ -538,7 +539,7 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
     email: account.denr_email || account.email || '',
     position: account.position || POSITIONS[0] || '',
     department: account.department || '',
-    employeeType: account.employee_type || 'Regular',
+    employeeType: account.employee_type || EMPLOYEE_TYPES[0] || 'Regular',
     is_active: account.is_active !== false && account.isActive !== false
   });
 
@@ -668,8 +669,9 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
             <Field label="Employee Type">
               <select className={inputCls} value={formData.employeeType}
                 onChange={e => set('employeeType', e.target.value)}>
-                <option value="Regular">Regular Employee</option>
-                <option value="Contract of Service">Contract of Service</option>
+                {EMPLOYEE_TYPES.map(type => (
+                  <option key={type} value={type}>{type}</option>
+                ))}
               </select>
             </Field>
           </div>

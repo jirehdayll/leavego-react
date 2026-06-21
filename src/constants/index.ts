@@ -130,6 +130,11 @@ export const POSITIONS = [
   'IT Specialist'
 ] as const;
 
+export const EMPLOYEE_TYPES = [
+  'Regular',
+  'Contract of Service'
+] as const;
+
 export const SALARY_RANGES = [
   '₱ 1,000 - 5,000',
   '₱ 5,001 - 10,000',

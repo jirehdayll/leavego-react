@@ -55,6 +55,7 @@ export type AppAccount = Record<string, unknown> & {
   fullName?: string;
   is_active?: boolean;
   isActive?: boolean;
+  employee_type?: string;
   leave_balances?: {
     forced_leave: number;
     special_leave_privileges: number;
@@ -99,6 +100,7 @@ export function normalizeAccount(raw: Record<string, unknown>): AppAccount {
     fullName,
     is_active: active,
     isActive: active,
+    employee_type: raw.employee_type || 'Regular',
     leave_balances: leaveBalances as AppAccount['leave_balances'],
   } as AppAccount;
 }
@@ -115,6 +117,7 @@ function toRemoteRow(account: AppAccount) {
     surname: account.surname || null,
     position: account.position || null,
     department: account.department || null,
+    employee_type: account.employee_type || 'Regular',
     salary_range: account.salary_range || null,
     is_active: isAccountActive(account),
     updated_at: new Date().toISOString(),

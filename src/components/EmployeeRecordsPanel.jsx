@@ -353,7 +353,7 @@ function EmployeeHeader({ employee, onClose, showClose = true }) {
           <div>
             <h3 className="text-xl font-black text-white">{displayName}</h3>
             <p className="text-emerald-300/70 text-sm">
-              {employee.position || 'DENR Employee'} · {employee.email || employee.denr_email}
+              {employee.position || 'DENR Employee'} {employee.employee_type && `· ${employee.employee_type}`} · {employee.email || employee.denr_email}
             </p>
             {employee.department && (
               <p className="text-emerald-400/70 text-xs mt-0.5">{employee.department}</p>
