@@ -24,7 +24,7 @@ export interface UserProfile {
 
 export type UserRole = 'admin' | 'employee' | 'super_admin';
 
-export type RequestStatus = 'Pending' | 'Pending CENRO Approval' | 'Approved' | 'Declined' | 'Archived';
+export type RequestStatus = 'Pending' | 'Approved' | 'Declined' | 'Archived';
 
 export type RequestType = 'Leave' | 'Travel';
 
@@ -76,13 +76,10 @@ export interface LeaveRequest {
   is_archived: boolean;
   seen_by_admin: boolean;
   admin_seen_at?: string;
-  // Dual approval fields
+  // Approval fields
   admin_approved: boolean;
   admin_approved_at?: string;
   admin_approved_by?: string;
-  cenro_approved: boolean;
-  cenro_approved_at?: string;
-  cenro_approved_by?: string;
   travel_order_number?: string;
 }
 

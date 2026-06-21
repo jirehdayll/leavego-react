@@ -1,23 +1,88 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { MONTHS, REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { isFormOfAccount, formatSalaryDisplay } from '../utils/employeeMatching';
+import { leaveRequestsAPI } from '../api/leaveRequests';
+import {
+  getUnifiedLeaveBalances,
+  LEAVE_BALANCES_UPDATED_EVENT,
+} from '../lib/leaveBalanceManager';
 import {
   Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
-import { X, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { X, TrendingUp, TrendingDown, Minus, Pencil, Check, Loader2 } from 'lucide-react';
 
-function RecordsBody({ employee, allForms = [] }) {
+function RecordsBody({ employee, allForms = [], onUpdateForms }) {
   const [period, setPeriod] = useState('monthly');
+  const [editModal, setEditModal] = useState({ isOpen: false, form: null, counterValue: '', loading: false });
+  const [balance, setBalance] = useState(null);
   const forms = (allForms || []).filter((f) => isFormOfAccount(f, employee));
+
+  const loadBalance = useCallback(() => {
+    if (employee?.id) {
+      setBalance(getUnifiedLeaveBalances(employee.id));
+    }
+  }, [employee?.id]);
+
+  useEffect(() => {
+    loadBalance();
+  }, [loadBalance]);
+
+  useEffect(() => {
+    const handleBalancesUpdated = (event) => {
+      if (event.detail?.accountId === employee?.id) {
+        loadBalance();
+      }
+    };
+    window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
+    return () => window.removeEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
+  }, [employee?.id, loadBalance]);
 
   const approved = forms.filter((f) => f.status === REQUEST_STATUS.APPROVED).length;
   const declined = forms.filter((f) => f.status === REQUEST_STATUS.DECLINED).length;
   const pending = forms.filter(
-    (f) => f.status === REQUEST_STATUS.PENDING || f.status === REQUEST_STATUS.PENDING_CENRO
+    (f) => f.status === REQUEST_STATUS.PENDING
   ).length;
   const total = forms.length;
 
   const now = new Date();
+  
+  const handleEditCounter = (form) => {
+    const currentCounter = form.details?.control_number || form.details?.travel_no || '';
+    setEditModal({
+      isOpen: true,
+      form,
+      counterValue: currentCounter,
+      loading: false
+    });
+  };
+
+  const handleSaveCounter = async () => {
+    if (!editModal.form || !editModal.counterValue.trim()) return;
+    
+    setEditModal(prev => ({ ...prev, loading: true }));
+    
+    try {
+      const updatedDetails = {
+        ...(editModal.form.details || {}),
+        control_number: editModal.counterValue.trim(),
+        travel_no: editModal.counterValue.trim()
+      };
+      
+      await leaveRequestsAPI.update(editModal.form.id, { details: updatedDetails });
+      
+      // Optimistic UI update
+      if (onUpdateForms) {
+        onUpdateForms();
+      }
+      
+      setEditModal({ isOpen: false, form: null, counterValue: '', loading: false });
+    } catch (error) {
+      console.error('Error updating counter:', error);
+      setEditModal(prev => ({ ...prev, loading: false }));
+      alert('Failed to update counter. Please try again.');
+    }
+  };
+
   let chartData = [];
 
   if (period === 'monthly') {
@@ -104,10 +169,41 @@ function RecordsBody({ employee, allForms = [] }) {
           { label: 'Pending', value: pending, color: 'text-amber-700', bg: 'bg-amber-100' },
         ].map((s) => (
           <div key={s.label} className={`${s.bg} rounded-2xl p-4 text-center`}>
-            <p className={`text-3xl font-black ${s.color}`}>{s.value}</p>
+            <p className={`text-3xl font-semibold ${s.color}`}>{s.value}</p>
             <p className="text-xs font-semibold text-slate-500 mt-1 uppercase tracking-wide">{s.label}</p>
           </div>
         ))}
+      </div>
+
+      {/* Leave Balances Section — synced with account leave credits */}
+      <div className="bg-blue-50 border border-blue-200 rounded-2xl p-4">
+        <h4 className="font-bold text-slate-800 mb-3 text-sm">Leave Balances</h4>
+        {balance ? (
+          <div className="grid grid-cols-5 gap-2">
+            <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
+              <p className="text-[9px] text-slate-500 uppercase font-semibold">Vacation</p>
+              <p className="text-sm font-bold text-blue-700">{Math.round(balance.vacation_leave?.balance || 0)}</p>
+            </div>
+            <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
+              <p className="text-[9px] text-slate-500 uppercase font-semibold">Sick</p>
+              <p className="text-sm font-bold text-purple-700">{Math.round(balance.sick_leave?.balance || 0)}</p>
+            </div>
+            <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
+              <p className="text-[9px] text-slate-500 uppercase font-semibold">Forced</p>
+              <p className="text-sm font-bold text-amber-700">{Math.round(balance.forced_leave?.balance || 0)}</p>
+            </div>
+            <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
+              <p className="text-[9px] text-slate-500 uppercase font-semibold">Special</p>
+              <p className="text-sm font-bold text-emerald-700">{Math.round(balance.special_leave?.balance || 0)}</p>
+            </div>
+            <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
+              <p className="text-[9px] text-slate-500 uppercase font-semibold">Wellness</p>
+              <p className="text-sm font-bold text-teal-700">{Math.round(balance.wellness_leave?.balance || 0)}</p>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm text-slate-500">No leave balance data available.</p>
+        )}
       </div>
 
       <div className={`${suggestion.bg} rounded-2xl p-4 flex items-center gap-3`}>
@@ -153,29 +249,91 @@ function RecordsBody({ employee, allForms = [] }) {
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {forms.slice(0, 10).map((f) => (
               <div key={f.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-2.5">
-                <div>
-                  <span
-                    className={`text-xs font-bold ${f.request_type === REQUEST_TYPES.TRAVEL ? 'text-emerald-600' : 'text-blue-600'}`}
-                  >
-                    {f.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'}
-                  </span>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`text-xs font-bold ${f.request_type === REQUEST_TYPES.TRAVEL ? 'text-emerald-600' : 'text-blue-600'}`}
+                    >
+                      {f.request_type === REQUEST_TYPES.TRAVEL ? 'Travel Order' : 'Leave Application'}
+                    </span>
+                    {f.status === REQUEST_STATUS.APPROVED && (
+                      <span className="text-xs text-slate-400 truncate">
+                        ({f.details?.control_number || f.details?.travel_no || 'No counter'})
+                      </span>
+                    )}
+                  </div>
                   <p className="text-xs text-slate-500 mt-0.5">
                     {new Date(f.submitted_at || f.created_at).toLocaleDateString('en-PH', { dateStyle: 'medium' })}
                   </p>
                 </div>
-                <span
-                  className={`text-xs font-bold px-2 py-0.5 rounded-full ${
-                    f.status === REQUEST_STATUS.APPROVED
-                      ? 'bg-emerald-100 text-emerald-700'
-                      : f.status === REQUEST_STATUS.DECLINED
-                        ? 'bg-red-100 text-red-700'
-                        : 'bg-amber-100 text-amber-700'
-                  }`}
-                >
-                  {f.status}
-                </span>
+                <div className="flex items-center gap-2">
+                  <span
+                    className={`text-xs font-bold px-2 py-0.5 rounded-full ${
+                      f.status === REQUEST_STATUS.APPROVED
+                        ? 'bg-emerald-100 text-emerald-700'
+                        : f.status === REQUEST_STATUS.DECLINED
+                          ? 'bg-red-100 text-red-700'
+                          : 'bg-amber-100 text-amber-700'
+                    }`}
+                  >
+                    {f.status}
+                  </span>
+                </div>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {/* Counter Edit Modal */}
+      {editModal.isOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={() => setEditModal({ isOpen: false, form: null, counterValue: '', loading: false })} />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+            <div className="px-7 py-5 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-800">Edit Application Counter</h3>
+                <p className="text-xs text-slate-500">Update the reference identifier</p>
+              </div>
+              <button 
+                onClick={() => setEditModal({ isOpen: false, form: null, counterValue: '', loading: false })}
+                className="w-8 h-8 bg-slate-100 hover:bg-slate-200 rounded-full flex items-center justify-center transition-all"
+              >
+                <X className="w-4 h-4 text-slate-600" />
+              </button>
+            </div>
+            <div className="p-7 space-y-4">
+              <div>
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">
+                  Counter Identifier
+                </label>
+                <input
+                  type="text"
+                  value={editModal.counterValue}
+                  onChange={(e) => setEditModal(prev => ({ ...prev, counterValue: e.target.value }))}
+                  placeholder="e.g. 26-00010"
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white transition"
+                  disabled={editModal.loading}
+                />
+              </div>
+              <div className="flex gap-3 pt-2">
+                <button
+                  onClick={() => setEditModal({ isOpen: false, form: null, counterValue: '', loading: false })}
+                  disabled={editModal.loading}
+                  className="flex-1 px-4 py-3 rounded-xl bg-slate-100 text-slate-700 font-semibold text-sm hover:bg-slate-200 transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleSaveCounter}
+                  disabled={editModal.loading || !editModal.counterValue.trim()}
+                  className="flex-1 px-4 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm transition-all disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  {editModal.loading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Check className="w-4 h-4" />}
+                  {editModal.loading ? 'Saving...' : 'Save'}
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       )}
@@ -217,14 +375,14 @@ function EmployeeHeader({ employee, onClose, showClose = true }) {
 }
 
 /** Records detail UI — modal overlay or embedded full page (QR scan). */
-export function EmployeeRecordsModal({ employee, allForms = [], onClose }) {
+export function EmployeeRecordsModal({ employee, allForms = [], onClose, onUpdateForms }) {
   return (
     <div className="fixed inset-0 z-50 flex items-start justify-center p-4 pt-10 overflow-y-auto">
       <div className="absolute inset-0 bg-black/70 backdrop-blur-sm" onClick={onClose} />
       <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden my-4 flex flex-col">
         <EmployeeHeader employee={employee} onClose={onClose} />
         <div className="p-7 overflow-y-auto flex-1">
-          <RecordsBody employee={employee} allForms={allForms} />
+          <RecordsBody employee={employee} allForms={allForms} onUpdateForms={onUpdateForms} />
         </div>
       </div>
     </div>

@@ -25,12 +25,6 @@ function handleResult<T>(result: any, context: string): ApiResponse<T> {
 
 function mapFromDb(request: LeaveRequest): LeaveRequest {
   if (!request) return request;
-  if (request.status === ('Pending' as any) && request.admin_approved && !request.cenro_approved) {
-    return {
-      ...request,
-      status: 'Pending CENRO Approval'
-    };
-  }
   return request;
 }
 
@@ -41,11 +35,7 @@ function mapListFromDb(requests: LeaveRequest[]): LeaveRequest[] {
 
 function mapToDb(updates: UpdateLeaveRequestData): UpdateLeaveRequestData {
   if (!updates) return updates;
-  const mapped = { ...updates };
-  if (mapped.status === 'Pending CENRO Approval') {
-    mapped.status = 'Pending' as any;
-  }
-  return mapped;
+  return updates;
 }
 
 export const leaveRequestsAPI = {
@@ -56,13 +46,7 @@ export const leaveRequestsAPI = {
 
       // Apply filters
       if (filters.status) {
-        if (filters.status === 'Pending CENRO Approval') {
-          query = query.eq('status', 'Pending').eq('admin_approved', true);
-        } else if (filters.status === 'Pending') {
-          query = query.eq('status', 'Pending').eq('admin_approved', false);
-        } else {
-          query = query.eq('status', filters.status);
-        }
+        query = query.eq('status', filters.status);
       }
 
       if (filters.request_type) {
@@ -208,13 +192,7 @@ export const leaveRequestsAPI = {
       let query = supabase.from('leave_requests').select('*', { count: 'exact', head: true });
 
       if (filters.status) {
-        if (filters.status === 'Pending CENRO Approval') {
-          query = query.eq('status', 'Pending').eq('admin_approved', true);
-        } else if (filters.status === 'Pending') {
-          query = query.eq('status', 'Pending').eq('admin_approved', false);
-        } else {
-          query = query.eq('status', filters.status);
-        }
+        query = query.eq('status', filters.status);
       }
 
       if (filters.is_archived !== undefined) {
@@ -258,13 +236,7 @@ export const leaveRequestsAPI = {
 
       // Apply filters
       if (filters.status) {
-        if (filters.status === 'Pending CENRO Approval') {
-          query = query.eq('status', 'Pending').eq('admin_approved', true);
-        } else if (filters.status === 'Pending') {
-          query = query.eq('status', 'Pending').eq('admin_approved', false);
-        } else {
-          query = query.eq('status', filters.status);
-        }
+        query = query.eq('status', filters.status);
       }
 
       if (filters.request_type) {
@@ -337,13 +309,7 @@ export const leaveRequestsAPI = {
 
       // Apply additional filters
       if (filters.status) {
-        if (filters.status === 'Pending CENRO Approval') {
-          query = query.eq('status', 'Pending').eq('admin_approved', true);
-        } else if (filters.status === 'Pending') {
-          query = query.eq('status', 'Pending').eq('admin_approved', false);
-        } else {
-          query = query.eq('status', filters.status);
-        }
+        query = query.eq('status', filters.status);
       }
 
       if (filters.request_type) {
@@ -363,86 +329,6 @@ export const leaveRequestsAPI = {
 
       return handleResult<LeaveRequest[]>(mappedResult, 'searching leave requests');
     }, 'Searching leave requests');
-  },
-
-  // Dual approval functions
-  // Admin approval - first stage
-  adminApprove: async (id: string, adminEmail: string): Promise<ApiResponse<LeaveRequest[]>> => {
-    return handleApiCall(async () => {
-      const result = await supabase
-        .from('leave_requests')
-        .update({
-          admin_approved: true,
-          admin_approved_at: new Date().toISOString(),
-          admin_approved_by: adminEmail,
-          status: 'Pending'
-        })
-        .eq('id', id);
-
-      const mappedResult = {
-        ...result,
-        data: result.data ? mapListFromDb(result.data) : null
-      };
-
-      return handleResult<LeaveRequest[]>(mappedResult, 'admin approval');
-    }, 'Admin approving request');
-  },
-
-  // CENRO approval - second stage
-  cenroApprove: async (id: string, cenroEmail: string): Promise<ApiResponse<LeaveRequest[]>> => {
-    return handleApiCall(async () => {
-      // First check if admin has approved
-      const { data: request } = await supabase
-        .from('leave_requests')
-        .select('admin_approved')
-        .eq('id', id)
-        .single();
-
-      if (!request?.admin_approved) {
-        throw new Error('Admin approval required before CENRO approval');
-      }
-
-      const result = await supabase
-        .from('leave_requests')
-        .update({
-          cenro_approved: true,
-          cenro_approved_at: new Date().toISOString(),
-          cenro_approved_by: cenroEmail,
-          status: 'Approved'
-        })
-        .eq('id', id);
-
-      const mappedResult = {
-        ...result,
-        data: result.data ? mapListFromDb(result.data) : null
-      };
-
-      return handleResult<LeaveRequest[]>(mappedResult, 'CENRO approval');
-    }, 'CENRO approving request');
-  },
-
-  // Get pending requests for specific approver
-  getPendingForApprover: async (approverEmail: string): Promise<ApiResponse<LeaveRequest[]>> => {
-    return handleApiCall(async () => {
-      let query = supabase.from('leave_requests').select('*');
-
-      if (approverEmail === 'admin@denr.gov.ph') {
-        // Admin sees pending requests that haven't been admin approved yet
-        query = query.eq('status', 'Pending').eq('admin_approved', false);
-      } else if (approverEmail === 'cenro@denr.gov.ph') {
-        // CENRO sees requests that are pending CENRO approval
-        query = query.eq('status', 'Pending').eq('admin_approved', true).eq('cenro_approved', false);
-      }
-
-      const result = await query.order('submitted_at', { ascending: false });
-
-      const mappedResult = {
-        ...result,
-        data: result.data ? mapListFromDb(result.data) : null
-      };
-
-      return handleResult<LeaveRequest[]>(mappedResult, 'fetching pending requests for approver');
-    }, 'Fetching pending requests for approver');
   },
 
   // Get travel order number for a request

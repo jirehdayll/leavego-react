@@ -1,14 +1,27 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import { getAccountsSync, saveAccounts } from '../lib/accountStore';
+import { supabase } from '../lib/supabaseClient';
 import { POSITIONS, USER_ROLES, DEPARTMENTS } from '../constants';
 import AdminLayout from '../components/AdminLayout';
 import { userEmailService } from '../services/userEmailService';
 import {
   UserPlus, Search, Shield, User,
   Mail, Briefcase, Loader2, Power, XCircle,
-  AlertCircle, Pencil, KeyRound, CheckCircle2, Trash2, Eye, EyeOff, Settings, Plus, Building, UserCog
+  AlertCircle, Pencil, KeyRound, CheckCircle2, Trash2, Eye, EyeOff, Settings, Plus, Building, UserCog, Send
 } from 'lucide-react';
+
+// ─── Email Masking Utility ─────────────────────────────────────────────────────
+function maskEmail(email) {
+  if (!email || typeof email !== 'string') return '—';
+  const [localPart, domain] = email.split('@');
+  if (!localPart || !domain) return email;
+  
+  // Show first 3 characters, mask the rest with asterisks
+  const visibleChars = Math.min(3, localPart.length);
+  const maskedPart = localPart.slice(0, visibleChars) + '*'.repeat(Math.max(3, localPart.length - visibleChars));
+  return `${maskedPart}@${domain}`;
+}
 
 // ─── Reusable Input ───────────────────────────────────────────────────────────
 function Field({ label, children }) {
@@ -24,6 +37,9 @@ function Field({ label, children }) {
 
 const inputCls =
   'w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-500 outline-none bg-white transition';
+
+const disabledInputCls =
+  'w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 text-slate-600 disabled:opacity-60 disabled:cursor-not-allowed transition';
 
 // ─── Confirmation Modal ───────────────────────────────────────────────────────
 function ConfirmationModal({ title, message, confirmText, cancelText, onConfirm, onCancel, type = 'danger' }) {
@@ -271,8 +287,8 @@ function CreateAccountModal({ onClose, onSuccess }) {
   const { createAccount } = useAuth();
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState(null);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
   const [customDepartments, setCustomDepartments] = useState(() => {
     const saved = localStorage.getItem('customDepartments');
     return saved ? JSON.parse(saved) : [];
@@ -282,13 +298,46 @@ function CreateAccountModal({ onClose, onSuccess }) {
     return saved ? JSON.parse(saved) : [];
   });
   const [formData, setFormData] = useState({
-    firstName: '', middleName: '', surname: '', email: '', password: '', confirmPassword: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, department: ''
+    firstName: '', middleName: '', surname: '', email: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, department: '', employeeType: 'Regular'
   });
 
   const allDepartments = [...new Set([...DEPARTMENTS, ...customDepartments])];
   const allPositions = [...new Set([...POSITIONS, ...customPositions])];
 
   const set = (k, v) => setFormData(p => ({ ...p, [k]: v }));
+
+  const handlePasswordReset = async () => {
+    if (!formData.email.trim()) {
+      setError('Email is required to send password reset.');
+      return;
+    }
+
+    setResetLoading(true);
+    setError(null);
+    setResetSuccess(false);
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetError) {
+        // Check if it's a development environment issue
+        if (resetError.message?.includes('Email') || resetError.message?.includes('SMTP')) {
+          setError('Password reset email could not be sent. Please ensure email service is configured in Supabase.');
+        } else {
+          setError(resetError.message || 'Failed to send password reset email.');
+        }
+      } else {
+        setResetSuccess(true);
+        setTimeout(() => setResetSuccess(false), 5000);
+      }
+    } catch (err) {
+      setError('Failed to send password reset email. Please check your Supabase email configuration.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -302,22 +351,14 @@ function CreateAccountModal({ onClose, onSuccess }) {
       return;
     }
 
+    if (!formData.email.trim()) {
+      setError('Email is required.');
+      setLoading(false);
+      return;
+    }
+
     if (!formData.position.trim()) {
       setError('Position is required.');
-      setLoading(false);
-      return;
-    }
-
-
-    // Validate password confirmation
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match.');
-      setLoading(false);
-      return;
-    }
-
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters long.');
       setLoading(false);
       return;
     }
@@ -325,9 +366,12 @@ function CreateAccountModal({ onClose, onSuccess }) {
     try {
       const fullName = `${formData.firstName} ${formData.middleName} ${formData.surname}`.trim();
       
+      // Generate temporary password
+      const tempPassword = Math.random().toString(36).slice(-8);
+      
       const result = createAccount(
         formData.email,
-        formData.password,
+        tempPassword,
         fullName,
         formData.role
       );
@@ -343,6 +387,7 @@ function CreateAccountModal({ onClose, onSuccess }) {
               full_name: fullName,
               position: formData.position,
               department: formData.department,
+              employee_type: formData.employeeType,
               is_active: true,
               isActive: true,
             };
@@ -360,10 +405,13 @@ function CreateAccountModal({ onClose, onSuccess }) {
           formData.role
         );
 
+        // Send password reset email immediately after account creation
+        await handlePasswordReset();
+
         onSuccess();
         onClose();
         setFormData({
-          firstName: '', middleName: '', surname: '', email: '', password: '', confirmPassword: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, department: ''
+          firstName: '', middleName: '', surname: '', email: '', position: POSITIONS[0] || '', role: USER_ROLES.EMPLOYEE, department: '', employeeType: 'Regular'
         });
       } else {
         setError(result.error);
@@ -378,53 +426,50 @@ function CreateAccountModal({ onClose, onSuccess }) {
   return (
     <Modal title="Create Account" subtitle="Register a new system user" onClose={onClose}>
       <form onSubmit={handleSubmit} autoComplete="off" className="p-7 space-y-4 overflow-visible">
+        {/* Honeypot inputs to trap browser credential injection */}
+        <input type="text" name="trap_username" style={{ display: 'none' }} tabIndex="-1" autoComplete="off" />
+        <input type="password" name="trap_password" style={{ display: 'none' }} tabIndex="-1" autoComplete="off" />
+        
         {error && <ErrorBanner message={error} />}
+        {resetSuccess && <SuccessBanner message="Password reset email sent successfully." />}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Field label="First Name">
             <input required className={inputCls} placeholder="Juan"
-              value={formData.firstName} onChange={e => set('firstName', e.target.value)} />
+              value={formData.firstName} onChange={e => set('firstName', e.target.value)} autoComplete="off" />
           </Field>
           <Field label="Middle Name">
             <input className={inputCls} placeholder="Santos"
-              value={formData.middleName} onChange={e => set('middleName', e.target.value)} />
+              value={formData.middleName} onChange={e => set('middleName', e.target.value)} autoComplete="off" />
           </Field>
           <Field label="Surname">
             <input required className={inputCls} placeholder="Dela Cruz"
-              value={formData.surname} onChange={e => set('surname', e.target.value)} />
+              value={formData.surname} onChange={e => set('surname', e.target.value)} autoComplete="off" />
           </Field>
         </div>
         <Field label="Email Address">
           <input required type="email" className={inputCls} placeholder="juan@denr.gov.ph"
-            value={formData.email} onChange={e => set('email', e.target.value)} autoComplete="off" />
+            value={formData.email} onChange={e => set('email', e.target.value)} autoComplete="new-password" />
         </Field>
-        <Field label="Password">
-          <div className="relative">
-            <input required type={showPassword ? "text" : "password"} minLength={6} className={inputCls + ' pr-12'}
-              placeholder="Min. 6 characters"
-              value={formData.password} onChange={e => set('password', e.target.value)} autoComplete="new-password" />
-            <button
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
+        <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+          <div className="flex items-start gap-3">
+            <KeyRound className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-sm font-semibold text-blue-800 mb-1">Password Setup</p>
+              <p className="text-xs text-blue-600 mb-3">
+                A password reset link will be sent to the user's email after account creation. They will set their own password securely.
+              </p>
+              <button
+                type="button"
+                onClick={handlePasswordReset}
+                disabled={resetLoading || !formData.email}
+                className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                {resetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                {resetLoading ? 'Sending...' : 'Send Password Reset Link'}
+              </button>
+            </div>
           </div>
-        </Field>
-        <Field label="Confirm Password">
-          <div className="relative">
-            <input required type={showConfirmPassword ? "text" : "password"} minLength={6} className={inputCls + ' pr-12'}
-              placeholder="Confirm password"
-              value={formData.confirmPassword} onChange={e => set('confirmPassword', e.target.value)} autoComplete="new-password" />
-            <button
-              type="button"
-              onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-            </button>
-          </div>
-        </Field>
+        </div>
         <Field label="Position">
           <select required className={inputCls} value={formData.position}
             onChange={e => set('position', e.target.value)}>
@@ -443,12 +488,18 @@ function CreateAccountModal({ onClose, onSuccess }) {
             ))}
           </select>
         </Field>
+        <Field label="Employee Type">
+          <select className={inputCls} value={formData.employeeType}
+            onChange={e => set('employeeType', e.target.value)}>
+            <option value="Regular">Regular Employee</option>
+            <option value="Contract of Service">Contract of Service</option>
+          </select>
+        </Field>
         <Field label="Role">
           <select className={inputCls} value={formData.role}
             onChange={e => set('role', e.target.value)}>
             <option value={USER_ROLES.EMPLOYEE}>Employee</option>
             <option value={USER_ROLES.ADMIN}>Administrator</option>
-            <option value={USER_ROLES.CENRO}>CENRO</option>
           </select>
         </Field>
         <SubmitButton loading={loading} label="Create Account" loadingLabel="Creating…"
@@ -461,13 +512,11 @@ function CreateAccountModal({ onClose, onSuccess }) {
 
 // ─── Edit Account Modal ───────────────────────────────────────────────────────
 function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
-  const { resetPassword } = useAuth();
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
   const [success, setSuccess]   = useState(null);
-  const [showPasswordSection, setShowPasswordSection] = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetSuccess, setResetSuccess] = useState(false);
   const [customDepartments, setCustomDepartments] = useState(() => {
     const saved = localStorage.getItem('customDepartments');
     return saved ? JSON.parse(saved) : [];
@@ -488,13 +537,45 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
     surname: account.surname || (nameParts.length > 1 ? nameParts[nameParts.length - 1] : ''),
     email: account.denr_email || account.email || '',
     position: account.position || POSITIONS[0] || '',
-    role: account.role || USER_ROLES.EMPLOYEE,
     department: account.department || '',
-    newPassword: '',
-    confirmPassword: ''
+    employeeType: account.employee_type || 'Regular',
+    is_active: account.is_active !== false && account.isActive !== false
   });
 
   const set = (k, v) => setFormData(p => ({ ...p, [k]: v }));
+
+  const handlePasswordReset = async () => {
+    if (!formData.email.trim()) {
+      setError('Email is required to send password reset.');
+      return;
+    }
+
+    setResetLoading(true);
+    setError(null);
+    setResetSuccess(false);
+
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+
+      if (resetError) {
+        // Check if it's a development environment issue
+        if (resetError.message?.includes('Email') || resetError.message?.includes('SMTP')) {
+          setError('Password reset email could not be sent. Please ensure email service is configured in Supabase.');
+        } else {
+          setError(resetError.message || 'Failed to send password reset email.');
+        }
+      } else {
+        setResetSuccess(true);
+        setTimeout(() => setResetSuccess(false), 5000);
+      }
+    } catch (err) {
+      setError('Failed to send password reset email. Please check your Supabase email configuration.');
+    } finally {
+      setResetLoading(false);
+    }
+  };
 
   const handleSave = async (e) => {
     e.preventDefault();
@@ -503,31 +584,10 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
     setSuccess(null);
 
     // Validate required fields
-    if (!formData.firstName.trim() || !formData.surname.trim()) {
-      setError('First name and surname are required.');
-      setLoading(false);
-      return;
-    }
-
     if (!formData.position.trim()) {
       setError('Position is required.');
       setLoading(false);
       return;
-    }
-
-    // Validate password fields if password section is shown
-    if (showPasswordSection) {
-      if (formData.newPassword !== formData.confirmPassword) {
-        setError('Passwords do not match.');
-        setLoading(false);
-        return;
-      }
-
-      if (formData.newPassword.length < 6) {
-        setError('Password must be at least 6 characters long.');
-        setLoading(false);
-        return;
-      }
     }
 
     try {
@@ -535,32 +595,20 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
       const existingAccounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
       const updatedAccounts = existingAccounts.map(acc => {
         if (acc.id === account.id) {
-          const fullName = `${formData.firstName} ${formData.middleName} ${formData.surname}`.trim();
           return {
             ...acc,
-            first_name: formData.firstName,
-            middle_name: formData.middleName,
-            surname: formData.surname,
-            full_name: fullName,
-            denr_email: formData.email,
-            email: formData.email,
             position: formData.position,
-            role: formData.role,
             department: formData.department,
-            ...(showPasswordSection && formData.newPassword && { password: formData.newPassword })
+            employee_type: formData.employeeType,
+            is_active: formData.is_active,
+            isActive: formData.is_active
           };
         }
         return acc;
       });
       
       updateAccounts(updatedAccounts);
-      
-      if (showPasswordSection && formData.newPassword) {
-        setSuccess('Account and password updated successfully.');
-      } else {
-        setSuccess('Account updated successfully.');
-      }
-      
+      setSuccess('Account updated successfully.');
       onSuccess();
     } catch (err) {
       setError(err.message || 'Failed to update account.');
@@ -574,106 +622,78 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
       <div className="p-7 space-y-5">
         {error   && <ErrorBanner   message={error}   />}
         {success && <SuccessBanner message={success} />}
+        {resetSuccess && <SuccessBanner message="Password reset email sent successfully." />}
 
         <form onSubmit={handleSave} className="space-y-4 overflow-visible">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            <Field label="First Name">
-              <input className={inputCls} value={formData.firstName}
-                onChange={e => set('firstName', e.target.value)} />
-            </Field>
-            <Field label="Middle Name">
-              <input className={inputCls} value={formData.middleName}
-                onChange={e => set('middleName', e.target.value)} />
-            </Field>
-            <Field label="Surname">
-              <input className={inputCls} value={formData.surname}
-                onChange={e => set('surname', e.target.value)} />
+          {/* Personal Identity Fields - Read Only */}
+          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Personal Identity (Read-Only)</p>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <Field label="First Name">
+                <input disabled className={disabledInputCls} value={formData.firstName} />
+              </Field>
+              <Field label="Middle Name">
+                <input disabled className={disabledInputCls} value={formData.middleName} />
+              </Field>
+              <Field label="Surname">
+                <input disabled className={disabledInputCls} value={formData.surname} />
+              </Field>
+            </div>
+            <Field label="Email Address">
+              <input disabled type="email" className={disabledInputCls} value={maskEmail(formData.email)} />
             </Field>
           </div>
-          <Field label="Email Address">
-            <input type="email" className={inputCls} value={formData.email}
-              onChange={e => set('email', e.target.value)} />
-          </Field>
-          <Field label="Position">
-            <select required className={inputCls} value={formData.position}
-              onChange={e => set('position', e.target.value)}>
-              <option value="">Select Position...</option>
-              {allPositions.map(pos => (
-                <option key={pos} value={pos}>{pos}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Department">
-            <select className={inputCls} value={formData.department}
-              onChange={e => set('department', e.target.value)}>
-              <option value="">Select Department...</option>
-              {allDepartments.map(dept => (
-                <option key={dept} value={dept}>{dept}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="Role">
-            <select className={inputCls} value={formData.role}
-              onChange={e => set('role', e.target.value)}>
-              <option value={USER_ROLES.EMPLOYEE}>Employee</option>
-              <option value={USER_ROLES.ADMIN}>Administrator</option>
-              <option value={USER_ROLES.CENRO}>CENRO</option>
-            </select>
-          </Field>
-          
+
+          {/* Organizational Metadata - Editable */}
+          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-3">Organizational Metadata</p>
+            <Field label="Position">
+              <select required className={inputCls} value={formData.position}
+                onChange={e => set('position', e.target.value)}>
+                <option value="">Select Position...</option>
+                {allPositions.map(pos => (
+                  <option key={pos} value={pos}>{pos}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Department">
+              <select className={inputCls} value={formData.department}
+                onChange={e => set('department', e.target.value)}>
+                <option value="">Select Department...</option>
+                {allDepartments.map(dept => (
+                  <option key={dept} value={dept}>{dept}</option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Employee Type">
+              <select className={inputCls} value={formData.employeeType}
+                onChange={e => set('employeeType', e.target.value)}>
+                <option value="Regular">Regular Employee</option>
+                <option value="Contract of Service">Contract of Service</option>
+              </select>
+            </Field>
+          </div>
+
           {/* Password Reset Section */}
-          <div className="border-t border-slate-200 pt-4">
-            <button
-              type="button"
-              onClick={() => setShowPasswordSection(!showPasswordSection)}
-              className="flex items-center gap-2 text-sm font-semibold text-blue-600 hover:text-blue-700 transition-colors mb-3"
-            >
-              <KeyRound className="w-4 h-4" />
-              {showPasswordSection ? 'Cancel Password Reset' : 'Reset Password'}
-            </button>
-            
-            {showPasswordSection && (
-              <div className="space-y-3 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                <Field label="New Password">
-                  <div className="relative">
-                    <input 
-                      type={showPassword ? "text" : "password"} 
-                      minLength={6} 
-                      className={inputCls + ' pr-12'}
-                      placeholder="Min. 6 characters"
-                      value={formData.newPassword} 
-                      onChange={e => set('newPassword', e.target.value)} 
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                    >
-                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </Field>
-                <Field label="Confirm New Password">
-                  <div className="relative">
-                    <input 
-                      type={showConfirmPassword ? "text" : "password"} 
-                      minLength={6} 
-                      className={inputCls + ' pr-12'}
-                      placeholder="Confirm new password"
-                      value={formData.confirmPassword} 
-                      onChange={e => set('confirmPassword', e.target.value)} 
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 transition-colors"
-                    >
-                      {showConfirmPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                    </button>
-                  </div>
-                </Field>
+          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+            <div className="flex items-start gap-3">
+              <KeyRound className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-blue-800 mb-1">Password Management</p>
+                <p className="text-xs text-blue-600 mb-3">
+                  Send a secure password reset link to the user's email. They will set their own password.
+                </p>
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={resetLoading}
+                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {resetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                  {resetLoading ? 'Sending...' : 'Send Password Reset Link'}
+                </button>
               </div>
-            )}
+            </div>
           </div>
           
           <SubmitButton loading={loading} label="Save Changes" loadingLabel="Saving…"
@@ -821,7 +841,7 @@ function AccountCard({ acc, isAdmin, onToggle, onEdit, onDelete }) {
         <div className="space-y-2 text-sm">
           <div className="flex items-center gap-2 text-slate-500">
             <Mail className="w-3 h-3 flex-shrink-0" />
-            <span className="truncate">{acc.denr_email || acc.email || '—'}</span>
+            <span className="truncate">{maskEmail(acc.denr_email || acc.email)}</span>
           </div>
           <div className="flex items-center gap-2 text-slate-500">
             <Briefcase className="w-3 h-3 flex-shrink-0" />
@@ -929,15 +949,11 @@ export default function AccountManagement() {
 
   // ── Delete account
   const handleDeleteAccount = (id) => {
-    if (window.confirm('Are you sure you want to delete this account? This action cannot be undone.')) {
-      // Remove from list
-      setAccounts(prev => prev.filter(a => a.id !== id));
-      
-      // Remove from localStorage
-      deleteAccount(id);
-      
-      alert('Account deleted successfully.');
-    }
+    // Remove from list
+    setAccounts(prev => prev.filter(a => a.id !== id));
+    
+    // Remove from localStorage
+    deleteAccount(id);
   };
 
   // ── Filter

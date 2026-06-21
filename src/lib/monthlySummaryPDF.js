@@ -30,7 +30,9 @@ export const generateMonthlySummaryPDF = async (data, month, year, allApprovedFo
 
   pdf.setFontSize(11);
   pdf.setFont('times', 'bold');
+  pdf.setTextColor(0, 0, 0);
   pdf.text('REPORT OF ATTENDANCE OF CENRO-OLONGAPO CITY', pdf.internal.pageSize.width / 2, 40, { align: 'center' });
+  pdf.setTextColor(0, 0, 0);
   pdf.text(`FOR THE MONTH OF ${reportMonth.toUpperCase()} ${reportYear}`, pdf.internal.pageSize.width / 2, 55, { align: 'center' });
 
   const employeeMap = {};
@@ -192,7 +194,7 @@ export const generateMonthlySummaryPDF = async (data, month, year, allApprovedFo
 
             doc.setFont('times', 'bold');
             doc.setFontSize(6);
-            doc.setTextColor(...LEAVE_COLORS[leaveInfo.type].text);
+            doc.setTextColor(0, 0, 0);
             doc.text(leaveInfo.display, cellX + cellWidth / 2, cellY + cellHeight / 2 + 2, { align: 'center' });
 
             data.cell.text = [];
@@ -225,7 +227,7 @@ export const generateMonthlySummaryPDF = async (data, month, year, allApprovedFo
 
       pdf.setFontSize(7);
       pdf.setFont('times', 'bold');
-      pdf.setTextColor(...colorInfo.text);
+      pdf.setTextColor(0, 0, 0);
       pdf.text(colorInfo.label, currentX + labelWidth / 2, finalY + 10, { align: 'center' });
 
       currentX += labelWidth + 10;
@@ -238,16 +240,21 @@ export const generateMonthlySummaryPDF = async (data, month, year, allApprovedFo
   pdf.setFont('times', 'normal');
   pdf.setTextColor(0, 0, 0);
   pdf.text('Prepared/Reviewed by:', 125, footerY);
+  pdf.setTextColor(0, 0, 0);
   pdf.text('Approved by:', 580, footerY);
 
   pdf.setFontSize(11);
   pdf.setFont('times', 'bold');
+  pdf.setTextColor(0, 0, 0);
   pdf.text('MARICA PIA R. DIMALANTA-LICO', 125, footerY + 50);
+  pdf.setTextColor(0, 0, 0);
   pdf.text('EDWARD V. SERNADILLA, RPF, DPA', 580, footerY + 50);
 
   pdf.setFontSize(9);
   pdf.setFont('times', 'normal');
+  pdf.setTextColor(0, 0, 0);
   pdf.text('FIII/Chief, CDS and in concurrent capacity as Chief, PSU', 125, footerY + 65);
+  pdf.setTextColor(0, 0, 0);
   pdf.text('CENRO', 580, footerY + 65);
 
   pdf.save(`Monthly_Summary_${reportMonth}_${reportYear}.pdf`);

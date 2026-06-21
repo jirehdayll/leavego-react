@@ -24,6 +24,19 @@ export function getApprovalYear(request) {
 export function getNextApplicationNumber(approvedRequests, approvalDate = new Date()) {
   const year = approvalDate.getFullYear();
   const yy = String(year).slice(-2);
+
+  // Check if there's a manually set next application number in localStorage
+  const storedNextAppNumber = localStorage.getItem('nextApplicationNumber');
+  if (storedNextAppNumber) {
+    const match = storedNextAppNumber.match(new RegExp(`^${yy}-(\\d{5})$`));
+    if (match) {
+      const storedSeq = parseInt(match[1], 10);
+      // Clear the stored value after using it
+      localStorage.removeItem('nextApplicationNumber');
+      return formatApplicationNumber(year, storedSeq);
+    }
+  }
+
   let maxSeq = 0;
 
   (approvedRequests || []).forEach((r) => {

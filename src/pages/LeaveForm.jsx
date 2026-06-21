@@ -1,8 +1,17 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
+import {
+  getUnifiedLeaveBalances,
+  hasSufficientBalance,
+  getAvailableBalanceForLeaveType,
+  getInsufficientBalanceMessage,
+  isCreditTrackedLeaveType,
+  updateDailyLeaveAccumulation,
+  LEAVE_BALANCES_UPDATED_EVENT,
+} from '../lib/leaveBalanceManager';
 import { LEAVE_TYPES, REQUEST_TYPES } from '../constants';
-import { ArrowLeft, Send, ChevronDown, Edit, AlertCircle } from 'lucide-react';
+import { ArrowLeft, Send, ChevronDown, Edit, AlertCircle, Info } from 'lucide-react';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { generateUUID, isValidUUID } from '../utils/uuid';
 import { getAllDepartments, getAllPositions } from '../utils/departmentsPositions';
@@ -24,7 +33,9 @@ export default function LeaveForm() {
   const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState(false);
-  const [hasSubmittedToday, setHasSubmittedToday] = useState(false);
+  const [startDateError, setStartDateError] = useState('');
+  const [leaveBalance, setLeaveBalance] = useState(null);
+  const [balanceLoading, setBalanceLoading] = useState(false);
   const [departments, setDepartments] = useState(() => {
     const customDepts = JSON.parse(localStorage.getItem('customDepartments') || '[]');
     const allDepts = [...getAllDepartments(), ...customDepts];
@@ -52,6 +63,7 @@ export default function LeaveForm() {
   });
 
   const [validationError, setValidationError] = useState('');
+  const [insufficientBalanceError, setInsufficientBalanceError] = useState('');
 
   const getLeaveLimit = (type) => {
     if (type === 'Mandatory/Forced Leave') return { max: 5, unit: 'Working Days' };
@@ -115,10 +127,18 @@ export default function LeaveForm() {
       } else {
         setValidationError('');
       }
+
+      // Check leave credit balance
+      if (leaveBalance && calculatedDays > 0 && isCreditTrackedLeaveType(leave_type)) {
+        checkLeaveCreditBalance(leave_type, calculatedDays);
+      } else {
+        setInsufficientBalanceError('');
+      }
     } else {
       setValidationError('');
+      setInsufficientBalanceError('');
     }
-  }, [formData.start_date, formData.end_date, formData.leave_type]);
+  }, [formData.start_date, formData.end_date, formData.leave_type, leaveBalance]);
 
   useEffect(() => {
     // Auto-fill account data if not in view mode and user is available
@@ -138,24 +158,84 @@ export default function LeaveForm() {
         }));
       }
       
-      // Check for same day submissions
-      const checkSameDaySubmission = async () => {
+      // Load leave balances from account records (synced with approvals)
+      fetchUserLeaveBalance();
+      
+      // Check for duplicate start dates
+      const checkDuplicateStartDate = async () => {
         try {
           const { data } = await leaveRequestsAPI.getAll({ user_email: user.email });
-          if (data && data.length > 0) {
-            const today = new Date().toISOString().split('T')[0];
-            const submittedToday = data.some(req => 
-              new Date(req.submitted_at || req.created_at).toISOString().split('T')[0] === today
+          if (data && data.length > 0 && formData.start_date) {
+            const hasDuplicate = data.some(req => 
+              req.details?.start_date === formData.start_date &&
+              (req.status === 'Pending' || req.status === 'Approved')
             );
-            setHasSubmittedToday(submittedToday);
+            if (hasDuplicate) {
+              setStartDateError('An application with this start date already exists.');
+            } else {
+              setStartDateError('');
+            }
           }
         } catch (err) {
-          console.error('Error checking same day submissions:', err);
+          console.error('Error checking duplicate start dates:', err);
         }
       };
-      checkSameDaySubmission();
+      checkDuplicateStartDate();
     }
   }, [user, location.state?.viewMode]);
+
+  // Fetch user's leave balance from account store (connected to records)
+  const fetchUserLeaveBalance = async () => {
+    if (!user?.id) return;
+
+    setBalanceLoading(true);
+    try {
+      await updateDailyLeaveAccumulation(user.id);
+      setLeaveBalance(getUnifiedLeaveBalances(user.id));
+    } catch (err) {
+      console.error('Error fetching leave balance:', err);
+      setLeaveBalance(getUnifiedLeaveBalances(user.id));
+    } finally {
+      setBalanceLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    const handleBalancesUpdated = (event) => {
+      if (event.detail?.accountId === user?.id) {
+        setLeaveBalance(getUnifiedLeaveBalances(user.id));
+      }
+    };
+    window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
+    return () => window.removeEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
+  }, [user?.id]);
+
+  // Check if user has enough leave credit balance
+  const checkLeaveCreditBalance = (leaveType, daysRequested) => {
+    if (!user?.id || !isCreditTrackedLeaveType(leaveType)) {
+      setInsufficientBalanceError('');
+      return;
+    }
+
+    const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+    const currentAccount = accounts.find((a) => a.id === user.id || a.email === user.email);
+    const balances = currentAccount?.leave_balances;
+
+    if (!balances) {
+      setInsufficientBalanceError('');
+      return;
+    }
+
+    const availableBalance = getAvailableBalanceForLeaveType(balances, leaveType);
+
+    if (daysRequested > availableBalance) {
+      setInsufficientBalanceError(
+        getInsufficientBalanceMessage(leaveType, daysRequested, availableBalance)
+      );
+    } else {
+      setInsufficientBalanceError('');
+    }
+  };
 
   useEffect(() => {
     if (location.state?.viewMode && location.state?.requestData) {
@@ -205,6 +285,30 @@ export default function LeaveForm() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
+    
+    // Validate start date when it changes
+    if (name === 'start_date' && value && user) {
+      checkDuplicateStartDate(value);
+    }
+  };
+
+  const checkDuplicateStartDate = async (startDate) => {
+    try {
+      const { data } = await leaveRequestsAPI.getAll({ user_email: user.email });
+      if (data && data.length > 0) {
+        const hasDuplicate = data.some(req => 
+          req.details?.start_date === startDate &&
+          (req.status === 'Pending' || req.status === 'Approved')
+        );
+        if (hasDuplicate) {
+          setStartDateError('An application with this start date already exists.');
+        } else {
+          setStartDateError('');
+        }
+      }
+    } catch (err) {
+      console.error('Error checking duplicate start dates:', err);
+    }
   };
 
   const validateDates = () => {
@@ -228,6 +332,15 @@ export default function LeaveForm() {
 
     if (validationError) {
       alert(validationError);
+      return;
+    }
+
+    const numDays = parseInt(formData.num_days, 10) || 0;
+    if (
+      isCreditTrackedLeaveType(formData.leave_type) &&
+      !hasSufficientBalance(user.id, formData.leave_type, numDays)
+    ) {
+      alert(insufficientBalanceError || 'You do not have enough leave credit left.');
       return;
     }
     
@@ -273,11 +386,15 @@ export default function LeaveForm() {
       };
       
       console.log('Submitting leave request:', leaveRequest);
-      
+
       // Save to Supabase via API
       const result = await leaveRequestsAPI.create(leaveRequest);
-      
+
       console.log('Leave request submitted successfully:', result);
+
+      // Note: Leave balance deduction is handled automatically by the database trigger
+      // when the leave request is approved. No need to manually deduct here.
+
       navigate('/success', { state: { type: 'Leave', data: formData } });
     } catch (err) {
       console.error('Submit error:', err);
@@ -333,10 +450,42 @@ export default function LeaveForm() {
             </div>
           </div>
           
-          {hasSubmittedToday && !viewMode && (
+          {startDateError && !viewMode && (
             <div className="bg-red-50 border-b border-red-200 px-8 py-4 flex items-center justify-center gap-2">
               <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-              <p className="text-red-700 font-bold text-sm">You already submitted a form today.</p>
+              <p className="text-red-700 font-bold text-sm">{startDateError}</p>
+            </div>
+          )}
+
+          {/* Leave Credit Balance Display */}
+          {!viewMode && leaveBalance && (
+            <div className="bg-gradient-to-r from-purple-50 to-blue-50 border-b border-purple-100 px-8 py-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Info className="w-4 h-4 text-purple-600" />
+                <p className="text-purple-800 font-bold text-sm">Your Leave Credits</p>
+              </div>
+              <div className="grid grid-cols-5 gap-2">
+                <div className="bg-white rounded-lg p-2 border border-purple-100 text-center">
+                  <p className="text-[9px] text-slate-500 uppercase font-semibold">Forced</p>
+                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.forced_leave?.balance || 5)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-2 border border-purple-100 text-center">
+                  <p className="text-[9px] text-slate-500 uppercase font-semibold">Special</p>
+                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.special_leave?.balance || 3)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-2 border border-purple-100 text-center">
+                  <p className="text-[9px] text-slate-500 uppercase font-semibold">Wellness</p>
+                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.wellness_leave?.balance || 5)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-2 border border-emerald-100 text-center">
+                  <p className="text-[9px] text-slate-500 uppercase font-semibold">Vacation</p>
+                  <p className="text-sm font-bold text-emerald-700">{Math.round(leaveBalance.vacation_leave?.balance || 0)}</p>
+                </div>
+                <div className="bg-white rounded-lg p-2 border border-emerald-100 text-center">
+                  <p className="text-[9px] text-slate-500 uppercase font-semibold">Sick</p>
+                  <p className="text-sm font-bold text-emerald-700">{Math.round(leaveBalance.sick_leave?.balance || 0)}</p>
+                </div>
+              </div>
             </div>
           )}
 
@@ -475,7 +624,7 @@ export default function LeaveForm() {
                     required 
                     value={formData.start_date} 
                     onChange={handleChange} 
-                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''} ${validationError ? 'border-rose-400 focus:ring-rose-400' : ''}`} 
+                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''} ${validationError || startDateError ? 'border-rose-400 focus:ring-rose-400' : ''}`} 
                     readOnly={viewMode}
                   />
                 </InputField>
@@ -503,6 +652,14 @@ export default function LeaveForm() {
                   </div>
                 </div>
               )}
+              {insufficientBalanceError && (
+                <div className="mt-4 p-4 bg-rose-50 border border-rose-200 text-rose-800 rounded-2xl flex items-start gap-3">
+                  <AlertCircle className="w-5 h-5 text-rose-600 flex-shrink-0 mt-0.5" />
+                  <div className="text-sm font-semibold leading-relaxed">
+                    {insufficientBalanceError}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Submit */}
@@ -510,7 +667,7 @@ export default function LeaveForm() {
               <div className="pt-2">
                 <button
                   type="submit"
-                  disabled={loading || hasSubmittedToday || !!validationError}
+                  disabled={loading || !!startDateError || !!validationError || !!insufficientBalanceError}
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-blue-600 to-blue-700 text-white font-bold shadow-lg shadow-blue-500/25 hover:from-blue-500 hover:to-blue-600 transition-all disabled:opacity-60 disabled:cursor-not-allowed btn-bounce"
                 >
                   {loading ? (

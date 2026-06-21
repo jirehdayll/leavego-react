@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { Html5Qrcode } from 'html5-qrcode';
-import { X, Camera, AlertCircle, CheckCircle, RefreshCw, User } from 'lucide-react';
+import { X, Camera, AlertCircle, CheckCircle, RefreshCw, User, Check } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { leaveRequestsAPI } from '../api/leaveRequests';
-import { EmployeeRecordsModal } from './EmployeeRecordsPanel';
+import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
+import { decreaseLeaveBalance } from '../lib/leaveBalanceManager';
 
 // CSS styles for QR scanner camera visibility
 const scannerStyles = `
@@ -65,6 +66,104 @@ const scannerStyles = `
   }
 `;
 
+// ViewRequestModal component for displaying pending applications
+function ViewRequestModal({ request, onClose, onApprove, onDecline }) {
+  if (!request) return null;
+
+  const d = request.details || {};
+  const isTravel = request.request_type === REQUEST_TYPES.TRAVEL;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 min-h-screen">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-2xl max-h-[95vh] overflow-hidden flex flex-col mobile-compact-modal my-4">
+        <div className={`px-7 py-5 flex items-center justify-between flex-shrink-0 ${isTravel ? 'bg-gradient-to-r from-emerald-600 to-teal-700' : 'bg-gradient-to-r from-blue-600 to-blue-700'}`}>
+          <div>
+            <p className="text-white/70 text-xs font-semibold mb-1">{isTravel ? 'Travel Order' : 'Leave Application'}</p>
+            <h3 className="text-xl font-black text-white">{request.user_name || request.user_email}</h3>
+          </div>
+          <button onClick={onClose} className="w-8 h-8 bg-white/20 hover:bg-white/30 rounded-full flex items-center justify-center text-white transition-all">
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-7 space-y-4">
+          {/* Basic Information */}
+          <div className="bg-slate-50 rounded-2xl p-5 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div><p className="text-xs text-slate-400">Name</p><p className="text-sm font-semibold text-slate-800">{request.user_name}</p></div>
+            <div><p className="text-xs text-slate-400">Email</p><p className="text-sm font-semibold text-slate-800">{request.user_email}</p></div>
+            <div><p className="text-xs text-slate-400">Status</p>
+              <span className={`inline-block mt-0.5 px-2 py-0.5 rounded-full text-xs font-bold ${
+                request.status === REQUEST_STATUS.PENDING ? 'bg-amber-100 text-amber-700' :
+                request.status === REQUEST_STATUS.APPROVED ? 'bg-emerald-100 text-emerald-700' :
+                'bg-red-100 text-red-700'
+              }`}>{request.status}</span>
+            </div>
+            <div><p className="text-xs text-slate-400">Submitted</p><p className="text-sm font-semibold text-slate-800">{new Date(request.submitted_at || request.created_at).toLocaleDateString('en-PH')}</p></div>
+            <div><p className="text-xs text-slate-400">Position</p><p className="text-sm font-semibold text-slate-800">{d.position || 'N/A'}</p></div>
+            <div><p className="text-xs text-slate-400">Department</p><p className="text-sm font-semibold text-slate-800">{d.office_department || 'N/A'}</p></div>
+          </div>
+
+          {/* Request Details */}
+          <div className="bg-white rounded-2xl border border-slate-200 p-5">
+            <h4 className="font-semibold text-slate-800 mb-3">Request Details</h4>
+            {isTravel ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div><p className="text-xs text-slate-400">Destination</p><p className="text-sm font-medium text-slate-800">{d.destination || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">Official Station</p><p className="text-sm font-medium text-slate-800">{d.official_station || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">Departure Date</p><p className="text-sm font-medium text-slate-800">{d.departure_date || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">Arrival Date</p><p className="text-sm font-medium text-slate-800">{d.arrival_date || '—'}</p></div>
+                </div>
+                <div><p className="text-xs text-slate-400">Purpose</p><p className="text-sm font-medium text-slate-800">{d.purpose || '—'}</p></div>
+                <div><p className="text-xs text-slate-400">Remarks</p><p className="text-sm font-medium text-slate-800">{d.remarks || '—'}</p></div>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div><p className="text-xs text-slate-400">Leave Type</p><p className="text-sm font-medium text-slate-800">{d.leave_type || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">Number of Days</p><p className="text-sm font-medium text-slate-800">{d.num_days || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">Start Date</p><p className="text-sm font-medium text-slate-800">{d.start_date || '—'}</p></div>
+                  <div><p className="text-xs text-slate-400">End Date</p><p className="text-sm font-medium text-slate-800">{d.end_date || '—'}</p></div>
+                </div>
+                <div><p className="text-xs text-slate-400">Details of Leave</p><p className="text-sm font-medium text-slate-800">{d.details_of_leave || '—'}</p></div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Modal Action Footer */}
+        <div className="px-7 py-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end gap-3 flex-shrink-0">
+          <button
+            onClick={onClose}
+            className="px-5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 font-bold rounded-xl text-sm transition-all"
+          >
+            Close
+          </button>
+
+          {request.status === REQUEST_STATUS.PENDING && (
+            <>
+              <button
+                onClick={() => { onClose(); onApprove(request); }}
+                className="px-5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center gap-1.5 font-bold"
+              >
+                <Check className="w-4 h-4" /> Approve
+              </button>
+
+              <button
+                onClick={() => { onClose(); onDecline(request); }}
+                className="px-5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold rounded-xl text-sm transition-all shadow-md flex items-center gap-1.5 font-bold"
+              >
+                <X className="w-4 h-4" /> Decline
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function QRScanner({ isOpen, onClose }) {
   const [scanning, setScanning] = useState(false);
   const [scanResult, setScanResult] = useState(null);
@@ -74,11 +173,50 @@ export default function QRScanner({ isOpen, onClose }) {
   const [cameras, setCameras] = useState([]);
   const [loading, setLoading] = useState(false);
   const [initialized, setInitialized] = useState(false);
-  const [showRecordsModal, setShowRecordsModal] = useState(false);
-  const [employeeData, setEmployeeData] = useState(null);
+  const [showRequestModal, setShowRequestModal] = useState(false);
+  const [pendingRequest, setPendingRequest] = useState(null);
   const scannerRef = useRef(null);
   const containerRef = useRef(null);
   const navigate = useNavigate();
+
+  const handleApprove = async (request) => {
+    try {
+      await leaveRequestsAPI.update(request.id, { status: 'Approved' });
+
+      if (request.request_type === REQUEST_TYPES.LEAVE) {
+        const leaveType = request.details?.leave_type;
+        const numDays = parseInt(request.details?.num_days, 10) || 0;
+        if (leaveType && numDays > 0 && request.user_id) {
+          decreaseLeaveBalance(request.user_id, leaveType, numDays);
+        }
+      }
+
+      setShowRequestModal(false);
+      setPendingRequest(null);
+      setSuccess(false);
+      setScanResult(null);
+      // Reset scanner for next scan
+      resetScanner();
+    } catch (error) {
+      console.error('Error approving request:', error);
+      setError('Failed to approve request. Please try again.');
+    }
+  };
+
+  const handleDecline = async (request) => {
+    try {
+      await leaveRequestsAPI.update(request.id, { status: 'Declined' });
+      setShowRequestModal(false);
+      setPendingRequest(null);
+      setSuccess(false);
+      setScanResult(null);
+      // Reset scanner for next scan
+      resetScanner();
+    } catch (error) {
+      console.error('Error declining request:', error);
+      setError('Failed to decline request. Please try again.');
+    }
+  };
 
   const cleanupScanner = useCallback(async () => {
     if (scannerRef.current) {
@@ -255,12 +393,35 @@ export default function QRScanner({ isOpen, onClose }) {
         cleanupScanner();
         setScanning(false);
 
-        // Navigate to admin/records with the scanned user ID
-        // Delay slightly to ensure UI shows success state before navigation
-        setTimeout(() => {
-          navigate(`/admin/records?userId=${userId}`, { replace: true });
-          onClose();
-        }, 500);
+        // Fetch user's applications to find most recent pending one
+        try {
+          const { data: userForms } = await leaveRequestsAPI.getAll({ user_id: userId });
+          
+          // Find most recent pending application
+          const pendingApps = (userForms || []).filter(f => f.status === 'Pending');
+          const mostRecentPending = pendingApps.sort((a, b) => 
+            new Date(b.submitted_at || b.created_at) - new Date(a.submitted_at || a.created_at)
+          )[0];
+
+          if (mostRecentPending) {
+            // Show the most recent pending application
+            setPendingRequest(mostRecentPending);
+            setShowRequestModal(true);
+          } else {
+            // If no pending apps, navigate to records page
+            setTimeout(() => {
+              navigate(`/admin/records?userId=${userId}`, { replace: true });
+              onClose();
+            }, 500);
+          }
+        } catch (error) {
+          console.error('Error fetching user applications:', error);
+          // Fallback to records page
+          setTimeout(() => {
+            navigate(`/admin/records?userId=${userId}`, { replace: true });
+            onClose();
+          }, 500);
+        }
       } else {
         setError('Invalid QR code. Please scan a valid employee ID.');
       }
@@ -423,17 +584,19 @@ export default function QRScanner({ isOpen, onClose }) {
         </div>
       </div>
 
-      {/* Employee Records Modal */}
-      {showRecordsModal && employeeData && (
-        <EmployeeRecordsModal
-          isOpen={showRecordsModal}
+      {/* View Request Modal */}
+      {showRequestModal && pendingRequest && (
+        <ViewRequestModal
+          request={pendingRequest}
           onClose={() => {
-            setShowRecordsModal(false);
-            setEmployeeData(null);
+            setShowRequestModal(false);
+            setPendingRequest(null);
             setSuccess(false);
             setScanResult(null);
+            resetScanner();
           }}
-          employee={employeeData}
+          onApprove={handleApprove}
+          onDecline={handleDecline}
         />
       )}
     </>

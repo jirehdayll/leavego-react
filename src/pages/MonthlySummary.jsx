@@ -196,6 +196,18 @@ export default function MonthlySummary() {
           <div>
             <h2 className="text-lg sm:text-xl lg:text-2xl font-black text-slate-800">Monthly Summary</h2>
             <p className="text-slate-500 text-xs sm:text-sm mt-0.5">Color-coded leave calendar for approved applications</p>
+            <p className="text-emerald-600 text-xs font-semibold mt-1">Last Used App #: {(() => {
+              const currentYear = new Date().getFullYear();
+              const yy = String(currentYear).slice(-2);
+              let maxSeq = 0;
+              forms.forEach((r) => {
+                const num = r.details?.control_number || r.details?.travel_no;
+                if (!num) return;
+                const match = String(num).match(new RegExp(`^${yy}-(\\d{5})$`));
+                if (match) maxSeq = Math.max(maxSeq, parseInt(match[1], 10));
+              });
+              return maxSeq > 0 ? `${yy}-${String(maxSeq).padStart(5, '0')}` : 'None';
+            })()}</p>
           </div>
           <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
 
@@ -389,7 +401,7 @@ export default function MonthlySummary() {
                                   });
 
                                   return Object.entries(typeGroups).map(([label, { count, color }]) => (
-                                    <span key={label} className={`px-1 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-xs font-bold border ${color.bg} ${color.text} ${color.border}`}>
+                                    <span key={label} className={`px-1 sm:px-2 py-0.5 rounded-full text-[8px] sm:text-xs font-medium border ${color.bg} ${color.text} ${color.border}`}>
                                       <span className="hidden sm:inline">{count > 1 ? `${count} ${label}` : label}</span>
                                       <span className="sm:hidden">{count > 1 ? `${count}` : label.split(' ')[0]}</span>
                                     </span>

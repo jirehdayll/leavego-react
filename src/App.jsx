@@ -20,6 +20,7 @@ import ScannedProfileView from './pages/ScannedProfileView';
 import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
 import { APP_ROUTES } from './constants';
 import { useHistoryBlockerWithSessionCheck } from './hooks/useHistoryBlocker';
+import { LeaveBalanceProvider } from './contexts/LeaveBalanceContext';
 
 // Enhanced Navigation Blocker with Session Validation
 function NavigationBlocker() {
@@ -68,39 +69,41 @@ function App() {
   }
 
   return (
-    <Router>
-      <NavigationBlocker />
-      <Routes>
-        {/* Public / Landing - Show login if not authenticated, dashboard if authenticated */}
-        <Route 
-          path={APP_ROUTES.ROOT} 
-          element={!hasSession ? <Login /> : <Navigate to="/dashboard" replace />} 
-        />
+    <LeaveBalanceProvider>
+      <Router>
+        <NavigationBlocker />
+        <Routes>
+          {/* Public / Landing - Show login if not authenticated, dashboard if authenticated */}
+          <Route 
+            path={APP_ROUTES.ROOT} 
+            element={!hasSession ? <Login /> : <Navigate to="/dashboard" replace />} 
+          />
 
-        {/* Login route - Only show if not authenticated */}
-        <Route path={APP_ROUTES.LOGIN} element={!hasSession ? <Login /> : <Navigate to="/dashboard" replace />} />
+          {/* Login route - Only show if not authenticated */}
+          <Route path={APP_ROUTES.LOGIN} element={!hasSession ? <Login /> : <Navigate to="/dashboard" replace />} />
 
-        {/* Password recovery from email (public) */}
-        <Route path={APP_ROUTES.RESET_PASSWORD} element={<ResetPassword />} />
+          {/* Password recovery from email (public) */}
+          <Route path={APP_ROUTES.RESET_PASSWORD} element={<ResetPassword />} />
 
-        {/* Employee Routes - Protected */}
-        <Route path="/dashboard" element={<ProtectedRoute><EmployeeDashboard /></ProtectedRoute>} />
-        <Route path="/forms/leave" element={<ProtectedRoute><LeaveForm /></ProtectedRoute>} />
-        <Route path="/forms/travel" element={<ProtectedRoute><TravelForm /></ProtectedRoute>} />
-        <Route path="/success" element={<ProtectedRoute><FormSuccessful /></ProtectedRoute>} />
+          {/* Employee Routes - Protected */}
+          <Route path="/dashboard" element={<ProtectedRoute><EmployeeDashboard /></ProtectedRoute>} />
+          <Route path="/forms/leave" element={<ProtectedRoute><LeaveForm /></ProtectedRoute>} />
+          <Route path="/forms/travel" element={<ProtectedRoute><TravelForm /></ProtectedRoute>} />
+          <Route path="/success" element={<ProtectedRoute><FormSuccessful /></ProtectedRoute>} />
 
-        {/* Admin Routes - Protected and require admin role */}
-        <Route path={APP_ROUTES.ADMIN_DASHBOARD} element={<AdminRoute><AdminDashboard /></AdminRoute>} />
-        <Route path="/admin/approved" element={<AdminRoute><ApprovedForms /></AdminRoute>} />
-        <Route path="/admin/archive" element={<AdminRoute><Archive /></AdminRoute>} />
-        <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
-        <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
-        <Route path="/admin/records" element={<AdminRoute><Records /></AdminRoute>} />
-        <Route path="/profile/view/:id" element={<ScannedProfileView />} />
+          {/* Admin Routes - Protected and require admin role */}
+          <Route path={APP_ROUTES.ADMIN_DASHBOARD} element={<AdminRoute><AdminDashboard /></AdminRoute>} />
+          <Route path="/admin/approved" element={<AdminRoute><ApprovedForms /></AdminRoute>} />
+          <Route path="/admin/archive" element={<AdminRoute><Archive /></AdminRoute>} />
+          <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
+          <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
+          <Route path="/admin/records" element={<AdminRoute><Records /></AdminRoute>} />
+          <Route path="/profile/view/:id" element={<ScannedProfileView />} />
 
-        <Route path="*" element={<Navigate to={!hasSession ? APP_ROUTES.LOGIN : "/dashboard"} replace />} />
-      </Routes>
-    </Router>
+          <Route path="*" element={<Navigate to={!hasSession ? APP_ROUTES.LOGIN : "/dashboard"} replace />} />
+        </Routes>
+      </Router>
+    </LeaveBalanceProvider>
   );
 }
 

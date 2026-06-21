@@ -3,8 +3,13 @@ import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { useAuth } from '../hooks/useAuth';
-import { 
-  Clock, CheckCircle2, Plane, FileText, 
+import {
+  getUnifiedLeaveBalances,
+  updateDailyLeaveAccumulation,
+  LEAVE_BALANCES_UPDATED_EVENT,
+} from '../lib/leaveBalanceManager';
+import {
+  Clock, CheckCircle2, Plane, FileText,
   Eye, Check, X, LogOut, User, Calendar, MapPin, Search, ChevronDown, UserCircle,
   TrendingUp, AlertCircle, BarChart3, Activity, QrCode, KeyRound, Eye as EyeIcon, EyeOff
 } from 'lucide-react';
@@ -111,6 +116,7 @@ export default function EmployeeDashboard() {
   const navigate = useNavigate();
   const { user, profile, logout } = useAuth();
   const [showProfileModal, setShowProfileModal] = useState(false);
+  const [showLeaveBalanceModal, setShowLeaveBalanceModal] = useState(false);
   const [requests, setRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({
@@ -121,7 +127,8 @@ export default function EmployeeDashboard() {
     thisMonth: 0
   });
   const [newlyApproved, setNewlyApproved] = useState([]);
-  
+  const [leaveBalances, setLeaveBalances] = useState(null);
+
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
   const [monthlySummary, setMonthlySummary] = useState({});
@@ -171,17 +178,31 @@ export default function EmployeeDashboard() {
         );
         setNewlyApproved(recentStatusChanges);
       }
+
+      // Load leave balances from account records (synced with approvals)
+      await updateDailyLeaveAccumulation(user.id);
+      setLeaveBalances(getUnifiedLeaveBalances(user.id));
     } catch (error) {
       console.error('Fetch employee data error:', error);
       setRequests([]);
     } finally {
       setLoading(false);
     }
-  }, [user?.id, calculateStats]);
+  }, [user?.id, user?.email, calculateStats]);
 
   useEffect(() => {
     fetchEmployeeData();
   }, [fetchEmployeeData]);
+
+  useEffect(() => {
+    const handleBalancesUpdated = (event) => {
+      if (event.detail?.accountId === user?.id) {
+        setLeaveBalances(getUnifiedLeaveBalances(user.id));
+      }
+    };
+    window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
+    return () => window.removeEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
+  }, [user?.id]);
 
   const handleViewRequest = (request) => {
     if (request.request_type === REQUEST_TYPES.LEAVE) {
@@ -247,6 +268,14 @@ export default function EmployeeDashboard() {
                 <Plane className="w-4 h-4" />
                 <span className="hidden sm:inline">Travel Form</span>
                 <span className="sm:hidden">Travel</span>
+              </button>
+              <button
+                onClick={() => setShowLeaveBalanceModal(true)}
+                className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm font-semibold rounded-xl transition-all hover:shadow-lg transform hover:scale-105 w-full sm:w-auto justify-center"
+              >
+                <Calendar className="w-4 h-4" />
+                <span className="hidden sm:inline">Leave Balances</span>
+                <span className="sm:hidden">Balances</span>
               </button>
             </div>
               <button
@@ -374,12 +403,122 @@ export default function EmployeeDashboard() {
     </div>
     {/* Profile Modal */}
     {showProfileModal && (
-      <ProfileModal 
-        user={user} 
-        onClose={() => setShowProfileModal(false)} 
+      <ProfileModal
+        user={user}
+        onClose={() => setShowProfileModal(false)}
+      />
+    )}
+
+    {/* Leave Balance Modal */}
+    {showLeaveBalanceModal && (
+      <LeaveBalanceModal
+        leaveBalances={leaveBalances}
+        onClose={() => setShowLeaveBalanceModal(false)}
       />
     )}
     </>
+  );
+}
+
+// Leave Balance Modal Component
+function LeaveBalanceModal({ leaveBalances, onClose }) {
+  // Handle both old localStorage format and new Supabase format
+  const formatBalances = (balances) => {
+    if (!balances) return null;
+    
+    // Check if it's the new Supabase format
+    if (balances.forced_leave && typeof balances.forced_leave === 'object') {
+      return {
+        forced_leave: balances.forced_leave?.balance || 5,
+        special_leave_privileges: balances.special_leave?.balance || 3,
+        wellness_leave: balances.wellness_leave?.balance || 5,
+        accumulated_sick: balances.sick_leave?.balance || 0,
+        accumulated_vacation: balances.vacation_leave?.balance || 0
+      };
+    }
+    
+    // It's the old localStorage format, return as is
+    return balances;
+  };
+
+  const formattedBalances = formatBalances(leaveBalances);
+
+  if (!formattedBalances) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-md max-h-[95vh] flex flex-col animate-[fadeIn_0.2s_ease-out]">
+        {/* Header */}
+        <div className="px-7 py-5 bg-gradient-to-r from-purple-600 to-purple-700 rounded-t-3xl flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-purple-400/30 rounded-xl flex items-center justify-center">
+              <Calendar className="w-6 h-6 text-white" />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-white">Leave Balances</h3>
+              <p className="text-purple-300/70 text-xs">Your available leave credits</p>
+            </div>
+          </div>
+          <button onClick={onClose} className="w-9 h-9 bg-white/10 hover:bg-white/20 rounded-full flex items-center justify-center text-white transition-colors">
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        <div className="p-7 overflow-y-auto flex-1 space-y-4">
+          {/* Special Leave Types */}
+          <div className="bg-purple-50 rounded-2xl p-5 border border-purple-100">
+            <h4 className="font-bold text-purple-800 text-sm mb-3">Special Leave Credits</h4>
+            <div className="space-y-3">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-700">Forced Leave</span>
+                <span className="text-sm font-bold text-purple-700">{formattedBalances.forced_leave.toFixed(1)} days</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-700">Special Leave Privileges</span>
+                <span className="text-sm font-bold text-purple-700">{formattedBalances.special_leave_privileges.toFixed(1)} days</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-slate-700">Wellness Leave</span>
+                <span className="text-sm font-bold text-purple-700">{formattedBalances.wellness_leave.toFixed(1)} days</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Accumulated Leave */}
+          <div className="bg-emerald-50 rounded-2xl p-4 border border-emerald-100">
+            <h4 className="font-bold text-emerald-800 text-sm mb-2">Accumulated Leave</h4>
+            <div className="flex gap-4">
+              <div className="text-center">
+                <p className="text-xs text-slate-600">Sick</p>
+                <p className="text-sm font-bold text-emerald-700">{Math.round(formattedBalances.accumulated_sick)}</p>
+              </div>
+              <div className="text-center">
+                <p className="text-xs text-slate-600">Vacation</p>
+                <p className="text-sm font-bold text-emerald-700">{Math.round(formattedBalances.accumulated_vacation)}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Info Note */}
+          <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
+            <p className="text-xs text-blue-700 leading-relaxed">
+              <strong>Note:</strong> Special leave credits are fixed annual allocations. Accumulated leave increases daily when no leave application is submitted and decreases when leave is used.
+            </p>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="p-5 bg-slate-50 border-t border-slate-100 rounded-b-3xl flex justify-end">
+          <button
+            onClick={onClose}
+            className="px-5 py-2.5 rounded-xl bg-purple-600 text-white font-semibold text-sm hover:bg-purple-700 transition-all"
+          >
+            Close
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

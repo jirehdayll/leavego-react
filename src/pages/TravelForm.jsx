@@ -24,7 +24,7 @@ export default function TravelForm() {
   const { user, profile } = useAuth();
   const [loading, setLoading] = useState(false);
   const [viewMode, setViewMode] = useState(false);
-  const [hasSubmittedToday, setHasSubmittedToday] = useState(false);
+  const [startDateError, setStartDateError] = useState('');
   const [departments, setDepartments] = useState(() => {
     const customDepts = JSON.parse(localStorage.getItem('customDepartments') || '[]');
     const allDepts = [...getAllDepartments(), ...customDepts];
@@ -68,22 +68,26 @@ export default function TravelForm() {
         }));
       }
       
-      // Check for same day submissions
-      const checkSameDaySubmission = async () => {
+      // Check for duplicate departure dates
+      const checkDuplicateDepartureDate = async () => {
         try {
           const { data } = await leaveRequestsAPI.getAll({ user_email: user.email });
-          if (data && data.length > 0) {
-            const today = new Date().toISOString().split('T')[0];
-            const submittedToday = data.some(req => 
-              new Date(req.submitted_at || req.created_at).toISOString().split('T')[0] === today
+          if (data && data.length > 0 && formData.departure_date) {
+            const hasDuplicate = data.some(req => 
+              req.details?.departure_date === formData.departure_date &&
+              (req.status === 'Pending' || req.status === 'Approved')
             );
-            setHasSubmittedToday(submittedToday);
+            if (hasDuplicate) {
+              setStartDateError('An application with this departure date already exists.');
+            } else {
+              setStartDateError('');
+            }
           }
         } catch (err) {
-          console.error('Error checking same day submissions:', err);
+          console.error('Error checking duplicate departure dates:', err);
         }
       };
-      checkSameDaySubmission();
+      checkDuplicateDepartureDate();
     }
   }, [user, location.state?.viewMode]);
 
@@ -134,6 +138,30 @@ export default function TravelForm() {
   const handleChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData({ ...formData, [name]: type === 'checkbox' ? checked : value });
+    
+    // Validate departure date when it changes
+    if (name === 'departure_date' && value && user) {
+      checkDuplicateDepartureDate(value);
+    }
+  };
+
+  const checkDuplicateDepartureDate = async (departureDate) => {
+    try {
+      const { data } = await leaveRequestsAPI.getAll({ user_email: user.email });
+      if (data && data.length > 0) {
+        const hasDuplicate = data.some(req => 
+          req.details?.departure_date === departureDate &&
+          (req.status === 'Pending' || req.status === 'Approved')
+        );
+        if (hasDuplicate) {
+          setStartDateError('An application with this departure date already exists.');
+        } else {
+          setStartDateError('');
+        }
+      }
+    } catch (err) {
+      console.error('Error checking duplicate departure dates:', err);
+    }
   };
 
   const validateDates = () => {
@@ -257,10 +285,10 @@ export default function TravelForm() {
             </div>
           </div>
           
-          {hasSubmittedToday && !viewMode && (
+          {startDateError && !viewMode && (
             <div className="bg-red-50 border-b border-red-200 px-8 py-4 flex items-center justify-center gap-2">
               <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
-              <p className="text-red-700 font-bold text-sm">You already submitted a form today.</p>
+              <p className="text-red-700 font-bold text-sm">{startDateError}</p>
             </div>
           )}
 
@@ -338,7 +366,7 @@ export default function TravelForm() {
                     required 
                     value={formData.departure_date} 
                     onChange={handleChange} 
-                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''}`} 
+                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''} ${startDateError ? 'border-rose-400 focus:ring-rose-400' : ''}`} 
                     readOnly={viewMode}
                   />
                 </InputField>
@@ -400,7 +428,7 @@ export default function TravelForm() {
               <div className="pt-2">
                 <button
                   type="submit"
-                  disabled={loading || hasSubmittedToday}
+                  disabled={loading || !!startDateError}
                   className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-emerald-600 to-teal-700 text-white font-bold shadow-lg shadow-emerald-500/25 hover:from-emerald-500 hover:to-teal-600 transition-all disabled:opacity-60 disabled:cursor-not-allowed btn-bounce"
                 >
                   {loading ? (

@@ -1,6 +1,7 @@
 import { supabase } from './supabaseClient';
 
 export const STORAGE_KEY = 'userAccounts';
+export const DELETED_ACCOUNTS_KEY = 'deletedDefaultAccountIds';
 
 /** Stable IDs so QR codes and logins stay consistent across sessions and devices. */
 export const DEFAULT_ACCOUNT_IDS = {
@@ -54,6 +55,14 @@ export type AppAccount = Record<string, unknown> & {
   fullName?: string;
   is_active?: boolean;
   isActive?: boolean;
+  leave_balances?: {
+    forced_leave: number;
+    special_leave_privileges: number;
+    wellness_leave: number;
+    accumulated_sick: number;
+    accumulated_vacation: number;
+    last_accumulation_date?: string;
+  };
 };
 
 export function isAccountActive(account: AppAccount | null | undefined): boolean {
@@ -70,6 +79,17 @@ export function normalizeAccount(raw: Record<string, unknown>): AppAccount {
     (raw.fullName as string) ||
     (raw.name as string) ||
     '';
+
+  // Initialize leave balances if not present
+  const leaveBalances = raw.leave_balances || {
+    forced_leave: 5,
+    special_leave_privileges: 3,
+    wellness_leave: 5,
+    accumulated_sick: 0,
+    accumulated_vacation: 0,
+    last_accumulation_date: new Date().toISOString()
+  };
+
   return {
     ...raw,
     id: String(raw.id),
@@ -79,6 +99,7 @@ export function normalizeAccount(raw: Record<string, unknown>): AppAccount {
     fullName,
     is_active: active,
     isActive: active,
+    leave_balances: leaveBalances as AppAccount['leave_balances'],
   } as AppAccount;
 }
 
@@ -124,8 +145,11 @@ function writeLocal(accounts: AppAccount[]) {
 }
 
 function mergeByEmail(local: AppAccount[], remote: AppAccount[]): AppAccount[] {
+  const deletedIds = getDeletedDefaultAccountIds();
   const map = new Map<string, AppAccount>();
   for (const acc of remote) {
+    // Skip deleted default accounts from remote
+    if (deletedIds.has(acc.id)) continue;
     map.set(acc.email.toLowerCase(), acc);
   }
   for (const acc of local) {
@@ -137,9 +161,24 @@ function mergeByEmail(local: AppAccount[], remote: AppAccount[]): AppAccount[] {
   return Array.from(map.values()).map(normalizeAccount);
 }
 
+function getDeletedDefaultAccountIds(): Set<string> {
+  try {
+    const raw = localStorage.getItem(DELETED_ACCOUNTS_KEY);
+    if (!raw) return new Set();
+    const parsed = JSON.parse(raw);
+    return new Set(Array.isArray(parsed) ? parsed : []);
+  } catch {
+    return new Set();
+  }
+}
+
 function ensureDefaults(accounts: AppAccount[]): AppAccount[] {
+  const deletedIds = getDeletedDefaultAccountIds();
   const byEmail = new Map(accounts.map((a) => [a.email.toLowerCase(), a]));
   for (const def of DEFAULT_ACCOUNTS) {
+    // Skip if this default account was intentionally deleted
+    if (deletedIds.has(def.id)) continue;
+    
     const key = def.email.toLowerCase();
     if (!byEmail.has(key)) {
       byEmail.set(key, normalizeAccount(def));
@@ -177,7 +216,12 @@ async function fetchRemoteAccounts(): Promise<AppAccount[]> {
     }
     return [];
   }
-  return (data || []).map((row) => fromRemoteRow(row as Record<string, unknown>));
+  
+  const deletedIds = getDeletedDefaultAccountIds();
+  const accounts = (data || []).map((row) => fromRemoteRow(row as Record<string, unknown>));
+  
+  // Filter out deleted default accounts from remote
+  return accounts.filter(acc => !deletedIds.has(acc.id));
 }
 
 async function pushAccountsToRemote(accounts: AppAccount[]) {
@@ -256,10 +300,22 @@ export async function syncAccount(account: AppAccount) {
   saveAccounts(existing);
 }
 
-export function removeAccount(id: string) {
+export async function removeAccount(id: string) {
   const next = readLocalRaw().filter((a) => a.id !== id);
   saveAccounts(next);
-  void supabase.from('app_accounts').delete().eq('id', id);
+  
+  // Track if this is a default account being deleted
+  const deletedIds = getDeletedDefaultAccountIds();
+  if (Object.values(DEFAULT_ACCOUNT_IDS).includes(id as any)) {
+    deletedIds.add(id);
+    localStorage.setItem(DELETED_ACCOUNTS_KEY, JSON.stringify(Array.from(deletedIds)));
+  }
+  
+  // Delete from Supabase app_accounts table
+  await supabase.from('app_accounts').delete().eq('id', id);
+  
+  // Delete all leave requests associated with this account
+  await supabase.from('leave_requests').delete().eq('user_id', id);
 }
 
 export function findAccountByCredentials(email: string, password: string): AppAccount | null {

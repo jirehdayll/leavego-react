@@ -3,8 +3,7 @@
 export const USER_ROLES = {
   ADMIN: 'admin',
   EMPLOYEE: 'employee',
-  SUPER_ADMIN: 'super_admin',
-  CENRO: 'cenro'
+  SUPER_ADMIN: 'super_admin'
 } as const;
 
 export type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES];
@@ -12,8 +11,7 @@ export type UserRole = typeof USER_ROLES[keyof typeof USER_ROLES];
 export const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
   [USER_ROLES.ADMIN]: 'Administrator',
   [USER_ROLES.EMPLOYEE]: 'Employee',
-  [USER_ROLES.SUPER_ADMIN]: 'Super Administrator',
-  [USER_ROLES.CENRO]: 'CENRO'
+  [USER_ROLES.SUPER_ADMIN]: 'Super Administrator'
 };
 
 export const APP_ROUTES = {
@@ -37,7 +35,6 @@ export const APP_ROUTES = {
 
 export const REQUEST_STATUS = {
   PENDING: 'Pending',
-  PENDING_CENRO: 'Pending CENRO Approval',
   APPROVED: 'Approved',
   DECLINED: 'Declined',
   ARCHIVED: 'Archived'
@@ -57,11 +54,6 @@ export const STATUS_COLORS: Record<RequestStatus, { bg: string; text: string; bo
     bg: 'bg-amber-100',
     text: 'text-amber-700',
     border: 'border-amber-200'
-  },
-  [REQUEST_STATUS.PENDING_CENRO]: {
-    bg: 'bg-blue-100',
-    text: 'text-blue-700',
-    border: 'border-blue-200'
   },
   [REQUEST_STATUS.APPROVED]: {
     bg: 'bg-emerald-100',
@@ -152,7 +144,7 @@ export const SALARY_RANGES = [
   '₱ 50,001 and above'
 ] as const;
 
-export const BOOTSTRAP_ADMIN_EMAILS = new Set(['admin@denr.gov.ph', 'cenro@denr.gov.ph']);
+export const BOOTSTRAP_ADMIN_EMAILS = new Set(['admin@denr.gov.ph']);
 
 export const LEAVE_REQUEST_ORDER_COLUMNS = Object.freeze([
   'submitted_at',
@@ -188,13 +180,5 @@ export const ROLE_PERMISSIONS: Record<UserRole, string[]> = {
     'manage_admins',
     'view_reports',
     'system_settings'
-  ],
-  [USER_ROLES.CENRO]: [
-    'view_dashboard',
-    'approve_requests',
-    'decline_requests',
-    'archive_requests',
-    'manage_accounts',
-    'view_reports'
   ]
 };
