@@ -86,8 +86,8 @@ export function normalizeAccount(raw: Record<string, unknown>): AppAccount {
     forced_leave: 5,
     special_leave_privileges: 3,
     wellness_leave: 5,
-    accumulated_sick: 0,
-    accumulated_vacation: 0,
+    accumulated_sick: 10,
+    accumulated_vacation: 10,
     last_accumulation_date: new Date().toISOString()
   };
 

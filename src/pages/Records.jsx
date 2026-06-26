@@ -8,6 +8,7 @@ import AdminLayout from '../components/AdminLayout';
 import { EmployeeRecordsModal } from '../components/EmployeeRecordsPanel';
 import { getUnifiedLeaveBalances, LEAVE_BALANCES_UPDATED_EVENT } from '../lib/leaveBalanceManager';
 import { isFormOfAccount, formatSalaryDisplay } from '../utils/employeeMatching';
+import { supabase } from '../lib/supabaseClient';
 import { X, User, RefreshCw, Filter, ChevronDown, Edit3 } from 'lucide-react';
 
 // ─── Email Masking Utility ─────────────────────────────────────────────────────
@@ -44,6 +45,7 @@ function RecordsContent() {
   const [editCountModal, setEditCountModal] = useState({ isOpen: false, employee: null, currentCount: 0, newCount: 0 });
   const [editAppNumberModal, setEditAppNumberModal] = useState({ isOpen: false, currentYear: new Date().getFullYear(), currentSequence: 0, newSequence: 0, currentApprovedCount: 0 });
   const [balanceRefreshKey, setBalanceRefreshKey] = useState(0);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -65,7 +67,25 @@ function RecordsContent() {
         console.log('Fetched forms from Supabase:', formsData?.length || 0);
       }
       
-      setAccounts(userAccounts || []);
+      // Ensure leave balances are initialized for all accounts (in memory only, don't save)
+      const accountsWithBalances = userAccounts?.map(acc => {
+        if (!acc.leave_balances) {
+          return {
+            ...acc,
+            leave_balances: {
+              forced_leave: 5,
+              special_leave_privileges: 3,
+              wellness_leave: 5,
+              accumulated_sick: 10,
+              accumulated_vacation: 10,
+              last_accumulation_date: new Date().toISOString()
+            }
+          };
+        }
+        return acc;
+      }) || [];
+      
+      setAccounts(accountsWithBalances);
       
       // Fetch leave balances for all employees (optional - won't break if it fails)
       try {
@@ -98,8 +118,73 @@ function RecordsContent() {
   useEffect(() => {
     const handleBalancesUpdated = () => setBalanceRefreshKey((k) => k + 1);
     window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
-    return () => window.removeEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
-  }, []);
+    
+    // Also refresh when an account is updated
+    const handleAccountUpdated = () => {
+      fetchData();
+    };
+    window.addEventListener('accountUpdated', handleAccountUpdated);
+    
+    return () => {
+      window.removeEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
+      window.removeEventListener('accountUpdated', handleAccountUpdated);
+    };
+  }, [fetchData]);
+
+  // Real-time subscription to app_accounts table changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('app-accounts-realtime-records')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'app_accounts'
+        },
+        (payload) => {
+          console.log('[Records Realtime] Change detected in app_accounts:', payload);
+          // Silent fetch to update page records without disruptive loading spinner
+          fetchData();
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Records Realtime] Subscription status:', status);
+        setConnectionStatus(status === 'SUBSCRIBED' ? 'connected' : 'connecting');
+      });
+
+    return () => {
+      console.log('[Records Realtime] Cleaning up subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [fetchData]);
+
+  // Real-time subscription to user_leave_balances table changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('user-leave-balances-realtime-records')
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_leave_balances'
+        },
+        (payload) => {
+          console.log('[Records Realtime] Change detected in user_leave_balances:', payload);
+          // Silent fetch to update page records without disruptive loading spinner
+          fetchData();
+        }
+      )
+      .subscribe((status) => {
+        console.log('[Records Realtime] user_leave_balances subscription status:', status);
+      });
+
+    return () => {
+      console.log('[Records Realtime] Cleaning up user_leave_balances subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [fetchData]);
 
   // Auto-select employee from URL query parameter
   useEffect(() => {
@@ -370,7 +455,7 @@ function RecordsContent() {
               const actualApproved = empForms.filter(f => f.status === REQUEST_STATUS.APPROVED).length;
               const approved = acc.approved_count_override !== undefined ? acc.approved_count_override : actualApproved;
               const isOverride = acc.approved_count_override !== undefined;
-              const balance = getUnifiedLeaveBalances(acc.id);
+              const balance = getUnifiedLeaveBalances(acc.id, balances[acc.id]);
               void balanceRefreshKey;
               return (
                 <button

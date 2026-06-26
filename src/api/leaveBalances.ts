@@ -54,7 +54,7 @@ export const leaveBalancesAPI = {
       .from('user_leave_balances')
       .select('*')
       .eq('user_id', userId)
-      .single();
+      .maybeSingle();
     if (error) throw error;
     return data;
   },

@@ -10,32 +10,22 @@ import {
   Bar, BarChart, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend
 } from 'recharts';
 import { X, TrendingUp, TrendingDown, Minus, Pencil, Check, Loader2 } from 'lucide-react';
+import { useLeaveBalance } from '../contexts/LeaveBalanceContext';
 
 function RecordsBody({ employee, allForms = [], onUpdateForms }) {
   const [period, setPeriod] = useState('monthly');
   const [editModal, setEditModal] = useState({ isOpen: false, form: null, counterValue: '', loading: false });
-  const [balance, setBalance] = useState(null);
+  const { balances, fetchUserBalance } = useLeaveBalance();
   const forms = (allForms || []).filter((f) => isFormOfAccount(f, employee));
 
-  const loadBalance = useCallback(() => {
+  useEffect(() => {
     if (employee?.id) {
-      setBalance(getUnifiedLeaveBalances(employee.id));
+      fetchUserBalance(employee.id);
     }
-  }, [employee?.id]);
+  }, [employee?.id, fetchUserBalance]);
 
-  useEffect(() => {
-    loadBalance();
-  }, [loadBalance]);
-
-  useEffect(() => {
-    const handleBalancesUpdated = (event) => {
-      if (event.detail?.accountId === employee?.id) {
-        loadBalance();
-      }
-    };
-    window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
-    return () => window.removeEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
-  }, [employee?.id, loadBalance]);
+  const dbBalance = balances[employee?.id];
+  const balance = getUnifiedLeaveBalances(employee?.id, dbBalance);
 
   const approved = forms.filter((f) => f.status === REQUEST_STATUS.APPROVED).length;
   const declined = forms.filter((f) => f.status === REQUEST_STATUS.DECLINED).length;
@@ -125,13 +115,26 @@ function RecordsBody({ employee, allForms = [], onUpdateForms }) {
     }
   }
 
+  const currentMonthForms = forms.filter((f) => {
+    const d = new Date(f.submitted_at || f.created_at);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  });
+  const currentMonthApproved = currentMonthForms.filter((f) => f.status === REQUEST_STATUS.APPROVED).length;
+
   const ratio = total > 0 ? approved / total : 0;
   let suggestion = { text: 'No applications yet.', icon: Minus, color: 'text-slate-500', bg: 'bg-slate-50' };
   if (total > 0) {
-    if (approved >= 10) {
+    if (currentMonthApproved >= 3) {
+      suggestion = {
+        text: 'High frequency of leave applications this month. Please review.',
+        icon: TrendingDown,
+        color: 'text-amber-600',
+        bg: 'bg-amber-50',
+      };
+    } else if (approved >= 10) {
       suggestion = {
         text: 'Frequent applicant. Monitor leave usage carefully.',
-        icon: TrendingUp,
+        icon: TrendingDown,
         color: 'text-amber-600',
         bg: 'bg-amber-50',
       };
@@ -182,23 +185,23 @@ function RecordsBody({ employee, allForms = [], onUpdateForms }) {
           <div className="grid grid-cols-5 gap-2">
             <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
               <p className="text-[9px] text-slate-500 uppercase font-semibold">Vacation</p>
-              <p className="text-sm font-bold text-blue-700">{Math.round(balance.vacation_leave?.balance || 0)}</p>
+              <p className="text-sm font-bold text-blue-700">{Math.floor(balance.vacation_leave?.balance || 0)}</p>
             </div>
             <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
               <p className="text-[9px] text-slate-500 uppercase font-semibold">Sick</p>
-              <p className="text-sm font-bold text-purple-700">{Math.round(balance.sick_leave?.balance || 0)}</p>
+              <p className="text-sm font-bold text-purple-700">{Math.floor(balance.sick_leave?.balance || 0)}</p>
             </div>
             <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
               <p className="text-[9px] text-slate-500 uppercase font-semibold">Forced</p>
-              <p className="text-sm font-bold text-amber-700">{Math.round(balance.forced_leave?.balance || 0)}</p>
+              <p className="text-sm font-bold text-amber-700">{Math.floor(balance.forced_leave?.balance || 0)}</p>
             </div>
             <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
               <p className="text-[9px] text-slate-500 uppercase font-semibold">Special</p>
-              <p className="text-sm font-bold text-emerald-700">{Math.round(balance.special_leave?.balance || 0)}</p>
+              <p className="text-sm font-bold text-emerald-700">{Math.floor(balance.special_leave?.balance || 0)}</p>
             </div>
             <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
               <p className="text-[9px] text-slate-500 uppercase font-semibold">Wellness</p>
-              <p className="text-sm font-bold text-teal-700">{Math.round(balance.wellness_leave?.balance || 0)}</p>
+              <p className="text-sm font-bold text-teal-700">{Math.floor(balance.wellness_leave?.balance || 0)}</p>
             </div>
           </div>
         ) : (
@@ -211,44 +214,12 @@ function RecordsBody({ employee, allForms = [], onUpdateForms }) {
         <p className={`text-sm font-semibold ${suggestion.color}`}>{suggestion.text}</p>
       </div>
 
-      <div>
-        <div className="flex items-center justify-between mb-4">
-          <h4 className="font-bold text-slate-800">Application History</h4>
-          <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
-            {['weekly', 'monthly', 'yearly'].map((p) => (
-              <button
-                key={p}
-                type="button"
-                onClick={() => setPeriod(p)}
-                className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${period === p ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
-              >
-                {p}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="h-52">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
-              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} allowDecimals={false} />
-              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Bar dataKey="Approved" fill="#10b981" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Declined" fill="#f87171" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </div>
-
       {forms.length > 0 && (
         <div>
           <h4 className="font-bold text-slate-800 mb-3">Recent Applications</h4>
           <div className="space-y-2 max-h-64 overflow-y-auto">
             {forms.slice(0, 10).map((f) => (
-              <div key={f.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-2.5">
+              <div key={f.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-4 py-2.5 border border-slate-100">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
                     <span
@@ -284,6 +255,40 @@ function RecordsBody({ employee, allForms = [], onUpdateForms }) {
           </div>
         </div>
       )}
+
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h4 className="font-bold text-slate-800">Application History</h4>
+          <div className="flex bg-slate-100 rounded-xl p-1 gap-1">
+            {['weekly', 'monthly', 'yearly'].map((p) => (
+              <button
+                key={p}
+                type="button"
+                onClick={() => setPeriod(p)}
+                className={`px-3 py-1.5 rounded-lg text-xs font-semibold capitalize transition-all ${period === p ? 'bg-white text-slate-800 shadow-sm' : 'text-slate-500 hover:text-slate-700'}`}
+              >
+                {p}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-52">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={chartData} margin={{ top: 5, right: 5, left: -20, bottom: 5 }}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#f0f0f0" />
+              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#94a3b8' }} />
+              <YAxis tick={{ fontSize: 11, fill: '#94a3b8' }} allowDecimals={false} />
+              <Tooltip contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 40px rgba(0,0,0,0.1)' }} />
+              <Legend wrapperStyle={{ fontSize: 11 }} />
+              <Bar dataKey="Approved" fill="#10b981" radius={[4, 4, 0, 0]} />
+              <Bar dataKey="Declined" fill="#f87171" radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </div>
+
+      {/* Recent Applications moved up */}
 
       {/* Counter Edit Modal */}
       {editModal.isOpen && (

@@ -16,6 +16,7 @@ import MonthlySummary from './pages/MonthlySummary';
 import AccountManagement from './pages/AccountManagement';
 import Records from './pages/Records';
 import ScannedProfileView from './pages/ScannedProfileView';
+import LeaveBalanceDebug from './pages/LeaveBalanceDebug';
 
 import { ProtectedRoute, AdminRoute } from './components/ProtectedRoute';
 import { APP_ROUTES } from './constants';
@@ -90,6 +91,7 @@ function App() {
           <Route path="/forms/leave" element={<ProtectedRoute><LeaveForm /></ProtectedRoute>} />
           <Route path="/forms/travel" element={<ProtectedRoute><TravelForm /></ProtectedRoute>} />
           <Route path="/success" element={<ProtectedRoute><FormSuccessful /></ProtectedRoute>} />
+          <Route path="/debug/balance" element={<ProtectedRoute><LeaveBalanceDebug /></ProtectedRoute>} />
 
           {/* Admin Routes - Protected and require admin role */}
           <Route path={APP_ROUTES.ADMIN_DASHBOARD} element={<AdminRoute><AdminDashboard /></AdminRoute>} />
@@ -98,6 +100,8 @@ function App() {
           <Route path="/admin/monthly-summary" element={<AdminRoute><MonthlySummary /></AdminRoute>} />
           <Route path="/admin/account-management" element={<AdminRoute><AccountManagement /></AdminRoute>} />
           <Route path="/admin/records" element={<AdminRoute><Records /></AdminRoute>} />
+          <Route path="/admin/debug/balance" element={<AdminRoute><LeaveBalanceDebug /></AdminRoute>} />
+          <Route path="/debug/balance" element={<ProtectedRoute><LeaveBalanceDebug /></ProtectedRoute>} />
           <Route path="/profile/view/:id" element={<ScannedProfileView />} />
 
           <Route path="*" element={<Navigate to={!hasSession ? APP_ROUTES.LOGIN : "/dashboard"} replace />} />

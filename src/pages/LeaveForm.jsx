@@ -3,7 +3,6 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../hooks/useAuth';
 import {
   getUnifiedLeaveBalances,
-  hasSufficientBalance,
   getAvailableBalanceForLeaveType,
   getInsufficientBalanceMessage,
   isCreditTrackedLeaveType,
@@ -15,6 +14,7 @@ import { ArrowLeft, Send, ChevronDown, Edit, AlertCircle, Info } from 'lucide-re
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { generateUUID, isValidUUID } from '../utils/uuid';
 import { getAllDepartments, getAllPositions } from '../utils/departmentsPositions';
+import { supabase } from '../lib/supabaseClient';
 
 const InputField = ({ label, required, children }) => (
   <div>
@@ -129,9 +129,16 @@ export default function LeaveForm() {
         setValidationError('');
       }
 
-      // Check leave credit balance
+      // Check leave credit balance immediately when values change
       if (leaveBalance && calculatedDays > 0 && isCreditTrackedLeaveType(leave_type)) {
-        checkLeaveCreditBalance(leave_type, calculatedDays);
+        const availableBalance = getAvailableBalanceForLeaveType(leaveBalance, leave_type);
+        if (calculatedDays > availableBalance) {
+          setInsufficientBalanceError(
+            getInsufficientBalanceMessage(leave_type, calculatedDays, availableBalance)
+          );
+        } else {
+          setInsufficientBalanceError('');
+        }
       } else {
         setInsufficientBalanceError('');
       }
@@ -186,17 +193,29 @@ export default function LeaveForm() {
     }
   }, [user, location.state?.viewMode]);
 
-  // Fetch user's leave balance from account store (connected to records)
+  // Fetch user's leave balance from database (synced with approvals)
   const fetchUserLeaveBalance = async () => {
     if (!user?.id) return;
 
     setBalanceLoading(true);
     try {
+      // First sync from database to get the latest approved deductions
+      const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
+      await getLeaveBalancesFromDB(user.id);
+      
+      // Then update daily accumulation
       await updateDailyLeaveAccumulation(user.id);
-      setLeaveBalance(getUnifiedLeaveBalances(user.id));
+      
+      // Finally set the balance from localStorage (now synced with DB) - use raw format
+      const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+      const currentAccount = accounts.find(acc => acc.id === user.id);
+      setLeaveBalance(currentAccount?.leave_balances || null);
     } catch (err) {
       console.error('Error fetching leave balance:', err);
-      setLeaveBalance(getUnifiedLeaveBalances(user.id));
+      // Fallback to localStorage if DB sync fails
+      const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+      const currentAccount = accounts.find(acc => acc.id === user.id);
+      setLeaveBalance(currentAccount?.leave_balances || null);
     } finally {
       setBalanceLoading(false);
     }
@@ -205,11 +224,47 @@ export default function LeaveForm() {
   useEffect(() => {
     const handleBalancesUpdated = (event) => {
       if (event.detail?.accountId === user?.id) {
-        setLeaveBalance(getUnifiedLeaveBalances(user.id));
+        const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+        const currentAccount = accounts.find(acc => acc.id === user.id);
+        setLeaveBalance(currentAccount?.leave_balances || null);
       }
     };
     window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
     return () => window.removeEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
+  }, [user?.id]);
+
+  // Real-time subscription to user_leave_balances table changes
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`user-leave-balances-form-realtime-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_leave_balances',
+          filter: `user_id=eq.${user.id}`
+        },
+        async (payload) => {
+          console.log('[LeaveForm Realtime] Change detected in user_leave_balances:', payload);
+          // Sync database balances to localStorage
+          const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
+          await getLeaveBalancesFromDB(user.id);
+          const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+          const currentAccount = accounts.find(acc => acc.id === user.id);
+          setLeaveBalance(currentAccount?.leave_balances || null);
+        }
+      )
+      .subscribe((status) => {
+        console.log('[LeaveForm Realtime] user_leave_balances subscription status:', status);
+      });
+
+    return () => {
+      console.log('[LeaveForm Realtime] Cleaning up user_leave_balances subscription');
+      supabase.removeChannel(channel);
+    };
   }, [user?.id]);
 
   // Check if user has enough leave credit balance
@@ -219,9 +274,8 @@ export default function LeaveForm() {
       return;
     }
 
-    const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
-    const currentAccount = accounts.find((a) => a.id === user.id || a.email === user.email);
-    const balances = currentAccount?.leave_balances;
+    // Use the leaveBalance state instead of reading from localStorage
+    const balances = leaveBalance;
 
     if (!balances) {
       setInsufficientBalanceError('');
@@ -337,13 +391,16 @@ export default function LeaveForm() {
       return;
     }
 
+    // Enhanced balance validation using current state
     const numDays = parseInt(formData.num_days, 10) || 0;
-    if (
-      isCreditTrackedLeaveType(formData.leave_type) &&
-      !hasSufficientBalance(user.id, formData.leave_type, numDays)
-    ) {
-      alert(insufficientBalanceError || 'You do not have enough leave credit left.');
-      return;
+    if (isCreditTrackedLeaveType(formData.leave_type) && numDays > 0) {
+      const availableBalance = getAvailableBalanceForLeaveType(leaveBalance, formData.leave_type);
+      
+      if (availableBalance < numDays) {
+        const errorMsg = getInsufficientBalanceMessage(formData.leave_type, numDays, availableBalance);
+        alert(errorMsg);
+        return;
+      }
     }
     
     setLoading(true);
@@ -470,23 +527,23 @@ export default function LeaveForm() {
               <div className="grid grid-cols-5 gap-2">
                 <div className="bg-white rounded-lg p-2 border border-purple-100 text-center">
                   <p className="text-[9px] text-slate-500 uppercase font-semibold">Forced</p>
-                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.forced_leave?.balance || 5)}</p>
+                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.forced_leave || 5)}</p>
                 </div>
                 <div className="bg-white rounded-lg p-2 border border-purple-100 text-center">
                   <p className="text-[9px] text-slate-500 uppercase font-semibold">Special</p>
-                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.special_leave?.balance || 3)}</p>
+                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.special_leave_privileges || 3)}</p>
                 </div>
                 <div className="bg-white rounded-lg p-2 border border-purple-100 text-center">
                   <p className="text-[9px] text-slate-500 uppercase font-semibold">Wellness</p>
-                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.wellness_leave?.balance || 5)}</p>
+                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.wellness_leave || 5)}</p>
                 </div>
                 <div className="bg-white rounded-lg p-2 border border-emerald-100 text-center">
                   <p className="text-[9px] text-slate-500 uppercase font-semibold">Vacation</p>
-                  <p className="text-sm font-bold text-emerald-700">{Math.round(leaveBalance.vacation_leave?.balance || 0)}</p>
+                  <p className="text-sm font-bold text-emerald-700">{Math.round(leaveBalance.accumulated_vacation || 0)}</p>
                 </div>
                 <div className="bg-white rounded-lg p-2 border border-emerald-100 text-center">
                   <p className="text-[9px] text-slate-500 uppercase font-semibold">Sick</p>
-                  <p className="text-sm font-bold text-emerald-700">{Math.round(leaveBalance.sick_leave?.balance || 0)}</p>
+                  <p className="text-sm font-bold text-emerald-700">{Math.round(leaveBalance.accumulated_sick || 0)}</p>
                 </div>
               </div>
             </div>

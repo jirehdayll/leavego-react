@@ -6,6 +6,7 @@ import { useAuth } from '../hooks/useAuth';
 import {
   getUnifiedLeaveBalances,
   updateDailyLeaveAccumulation,
+  getLeaveBalancesFromDB,
   LEAVE_BALANCES_UPDATED_EVENT,
 } from '../lib/leaveBalanceManager';
 import {
@@ -128,6 +129,7 @@ export default function EmployeeDashboard() {
   });
   const [newlyApproved, setNewlyApproved] = useState([]);
   const [leaveBalances, setLeaveBalances] = useState(null);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
 
   const [selectedMonth, setSelectedMonth] = useState(new Date());
   const [showCalendar, setShowCalendar] = useState(false);
@@ -155,33 +157,37 @@ export default function EmployeeDashboard() {
       setLoading(false);
       return;
     }
-    
+
     setLoading(true);
-    
+
     try {
-      const { data, error } = await leaveRequestsAPI.getAll({ 
+      const { data, error } = await leaveRequestsAPI.getAll({
         user_id: user.id,
-        user_email: user.email 
+        user_email: user.email
       });
-      
+
       if (error) {
         console.error('Error fetching employee requests:', error);
         setRequests([]);
       } else {
         setRequests(data || []);
         calculateStats(data || []);
-        
+
         const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-        const recentStatusChanges = (data || []).filter(req => 
-          (req.status === REQUEST_STATUS.APPROVED || req.status === REQUEST_STATUS.DECLINED) && 
+        const recentStatusChanges = (data || []).filter(req =>
+          (req.status === REQUEST_STATUS.APPROVED || req.status === REQUEST_STATUS.DECLINED) &&
           new Date(req.updated_at || req.submitted_at) > oneDayAgo
         );
         setNewlyApproved(recentStatusChanges);
       }
 
-      // Load leave balances from account records (synced with approvals)
+      // Sync leave balances from database first, then update daily accumulation
+      await getLeaveBalancesFromDB(user.id);
       await updateDailyLeaveAccumulation(user.id);
-      setLeaveBalances(getUnifiedLeaveBalances(user.id));
+      // Get the raw LeaveBalances format for the modal
+      const accounts = getAccountsSync();
+      const account = accounts.find(a => a.id === user.id);
+      setLeaveBalances(account?.leave_balances || null);
     } catch (error) {
       console.error('Fetch employee data error:', error);
       setRequests([]);
@@ -197,11 +203,97 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     const handleBalancesUpdated = (event) => {
       if (event.detail?.accountId === user?.id) {
-        setLeaveBalances(getUnifiedLeaveBalances(user.id));
+        const accounts = getAccountsSync();
+        const account = accounts.find(a => a.id === user.id);
+        setLeaveBalances(account?.leave_balances || null);
       }
     };
     window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
-    return () => window.removeEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
+
+    // Also refresh when an account is updated
+    const handleAccountUpdated = (event) => {
+      if (event.detail?.accountId === user?.id) {
+        const accounts = getAccountsSync();
+        const account = accounts.find(a => a.id === user.id);
+        setLeaveBalances(account?.leave_balances || null);
+      }
+    };
+    window.addEventListener('accountUpdated', handleAccountUpdated);
+
+    return () => {
+      window.removeEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
+      window.removeEventListener('accountUpdated', handleAccountUpdated);
+    };
+  }, [user?.id]);
+
+  // Real-time subscription to app_accounts table changes
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel('app-accounts-realtime-employee')
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'app_accounts',
+          filter: `id=eq.${user.id}`
+        },
+        (payload) => {
+          console.log('[EmployeeDashboard Realtime] Change detected in app_accounts:', payload);
+          // Refresh profile data when current user's account is updated
+          const updatedProfile = payload.new;
+          // Update local state with new profile data
+          if (updatedProfile) {
+            // Trigger a re-render by updating a dummy state or calling a refresh function
+            // The useAuth hook should handle this automatically
+            window.dispatchEvent(new CustomEvent('profileUpdated', { detail: { profile: updatedProfile } }));
+          }
+        }
+      )
+      .subscribe((status) => {
+        console.log('[EmployeeDashboard Realtime] Subscription status:', status);
+        setConnectionStatus(status === 'SUBSCRIBED' ? 'connected' : 'connecting');
+      });
+
+    return () => {
+      console.log('[EmployeeDashboard Realtime] Cleaning up subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [user?.id]);
+
+  // Real-time subscription to user_leave_balances table changes
+  useEffect(() => {
+    if (!user?.id) return;
+
+    const channel = supabase
+      .channel(`user-leave-balances-realtime-${user.id}`)
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'user_leave_balances',
+          filter: `user_id=eq.${user.id}`
+        },
+        async (payload) => {
+          console.log('[EmployeeDashboard Realtime] Change detected in user_leave_balances:', payload);
+          // Sync database balances to localStorage
+          await getLeaveBalancesFromDB(user.id);
+          const accounts = getAccountsSync();
+          const account = accounts.find(a => a.id === user.id);
+          setLeaveBalances(account?.leave_balances || null);
+        }
+      )
+      .subscribe((status) => {
+        console.log('[EmployeeDashboard Realtime] user_leave_balances subscription status:', status);
+      });
+
+    return () => {
+      console.log('[EmployeeDashboard Realtime] Cleaning up user_leave_balances subscription');
+      supabase.removeChannel(channel);
+    };
   }, [user?.id]);
 
   const handleViewRequest = (request) => {
@@ -422,23 +514,34 @@ export default function EmployeeDashboard() {
 
 // Leave Balance Modal Component
 function LeaveBalanceModal({ leaveBalances, onClose }) {
-  // Handle both old localStorage format and new Supabase format
+  // Handle the raw LeaveBalances format
   const formatBalances = (balances) => {
     if (!balances) return null;
     
-    // Check if it's the new Supabase format
+    // If it's already in the correct format (numbers), return as is
+    if (typeof balances.forced_leave === 'number') {
+      return balances;
+    }
+    
+    // If it's in display format (objects with balance property), convert
     if (balances.forced_leave && typeof balances.forced_leave === 'object') {
       return {
         forced_leave: balances.forced_leave?.balance || 5,
         special_leave_privileges: balances.special_leave?.balance || 3,
         wellness_leave: balances.wellness_leave?.balance || 5,
-        accumulated_sick: balances.sick_leave?.balance || 0,
-        accumulated_vacation: balances.vacation_leave?.balance || 0
+        accumulated_sick: balances.sick_leave?.balance || 10,
+        accumulated_vacation: balances.vacation_leave?.balance || 10
       };
     }
     
-    // It's the old localStorage format, return as is
-    return balances;
+    // Default fallback
+    return {
+      forced_leave: 5,
+      special_leave_privileges: 3,
+      wellness_leave: 5,
+      accumulated_sick: 10,
+      accumulated_vacation: 10
+    };
   };
 
   const formattedBalances = formatBalances(leaveBalances);
@@ -472,15 +575,15 @@ function LeaveBalanceModal({ leaveBalances, onClose }) {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-700">Forced Leave</span>
-                <span className="text-sm font-bold text-purple-700">{formattedBalances.forced_leave.toFixed(1)} days</span>
+                <span className="text-sm font-bold text-purple-700">{Math.floor(formattedBalances.forced_leave)} days</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-700">Special Leave Privileges</span>
-                <span className="text-sm font-bold text-purple-700">{formattedBalances.special_leave_privileges.toFixed(1)} days</span>
+                <span className="text-sm font-bold text-purple-700">{Math.floor(formattedBalances.special_leave_privileges)} days</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-700">Wellness Leave</span>
-                <span className="text-sm font-bold text-purple-700">{formattedBalances.wellness_leave.toFixed(1)} days</span>
+                <span className="text-sm font-bold text-purple-700">{Math.floor(formattedBalances.wellness_leave)} days</span>
               </div>
             </div>
           </div>
@@ -491,11 +594,11 @@ function LeaveBalanceModal({ leaveBalances, onClose }) {
             <div className="flex gap-4">
               <div className="text-center">
                 <p className="text-xs text-slate-600">Sick</p>
-                <p className="text-sm font-bold text-emerald-700">{Math.round(formattedBalances.accumulated_sick)}</p>
+                <p className="text-sm font-bold text-emerald-700">{Math.floor(formattedBalances.accumulated_sick)}</p>
               </div>
               <div className="text-center">
                 <p className="text-xs text-slate-600">Vacation</p>
-                <p className="text-sm font-bold text-emerald-700">{Math.round(formattedBalances.accumulated_vacation)}</p>
+                <p className="text-sm font-bold text-emerald-700">{Math.floor(formattedBalances.accumulated_vacation)}</p>
               </div>
             </div>
           </div>
@@ -503,7 +606,7 @@ function LeaveBalanceModal({ leaveBalances, onClose }) {
           {/* Info Note */}
           <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
             <p className="text-xs text-blue-700 leading-relaxed">
-              <strong>Note:</strong> Special leave credits are fixed annual allocations. Accumulated leave increases daily when no leave application is submitted and decreases when leave is used.
+              <strong>Note:</strong> Special leave credits are fixed annual allocations. Using Forced, Special, or Wellness Leave will also deduct from your Vacation and Sick leave balances. Accumulated leave starts at 10 days each and increases when no leave is used.
             </p>
           </div>
         </div>
@@ -568,19 +671,37 @@ function ProfileModal({ user, onClose }) {
     setSaveError('');
     setSaveSuccess(false);
     try {
-      // Re-build full_name
-      const full_name = [
-        account.first_name || '',
-        account.middle_name || '',
-        account.surname || ''
-      ].filter(Boolean).join(' ').trim() || account.full_name || '';
+      // Only update organizational metadata (department, position) - names are read-only
       const updatedAccount = {
         ...account,
-        full_name,
-        fullName: full_name,
+        // Only update department and position
+        department: account.department,
+        position: account.position,
         ...(showPasswordSection && newPassword ? { password: newPassword } : {})
       };
+
+      // Update database directly with atomic operation
+      // Note: Only updating columns that exist in the database schema
+      const { error: dbError } = await supabase
+        .from('app_accounts')
+        .update({
+          department: updatedAccount.department,
+          position: updatedAccount.position,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', user.id);
+
+      if (dbError) {
+        console.error('Database update error:', dbError);
+        throw dbError;
+      }
+
+      // Update localStorage as well
       await syncAccount(updatedAccount);
+
+      // Dispatch event to notify other components
+      window.dispatchEvent(new CustomEvent('accountUpdated', { detail: { accountId: user.id } }));
+
       setSaveSuccess(true);
       setTimeout(() => { setSaveSuccess(false); onClose(); }, 1200);
     } catch (err) {
@@ -641,86 +762,94 @@ function ProfileModal({ user, onClose }) {
           )}
 
           <form id="profile-form" onSubmit={handleSave} className="space-y-5" autoComplete="on">
-            {/* Name Fields */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">First Name</label>
-                <input
-                  type="text"
-                  name="first_name"
-                  value={account.first_name || ''}
-                  onChange={handleChange}
-                  autoComplete="given-name"
-                  placeholder="Juan"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
-                />
+            {/* Personal Identity Fields - Read Only */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Personal Identity (Read-Only)</p>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">First Name</label>
+                  <input
+                    type="text"
+                    name="first_name"
+                    value={account.first_name || ''}
+                    onChange={handleChange}
+                    autoComplete="given-name"
+                    placeholder="Juan"
+                    disabled
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 text-slate-600 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Middle Name</label>
+                  <input
+                    type="text"
+                    name="middle_name"
+                    value={account.middle_name || ''}
+                    onChange={handleChange}
+                    autoComplete="additional-name"
+                    placeholder="Santos"
+                    disabled
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 text-slate-600 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Last Name</label>
+                  <input
+                    type="text"
+                    name="surname"
+                    value={account.surname || ''}
+                    onChange={handleChange}
+                    autoComplete="family-name"
+                    placeholder="Dela Cruz"
+                    disabled
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 text-slate-600 disabled:opacity-60 disabled:cursor-not-allowed transition"
+                  />
+                </div>
               </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Middle Name</label>
+              <div className="mt-3">
+                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Email Address</label>
                 <input
-                  type="text"
-                  name="middle_name"
-                  value={account.middle_name || ''}
+                  type="email"
+                  name="email"
+                  value={account.email}
                   onChange={handleChange}
-                  autoComplete="additional-name"
-                  placeholder="Santos"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Last Name</label>
-                <input
-                  type="text"
-                  name="surname"
-                  value={account.surname || ''}
-                  onChange={handleChange}
-                  autoComplete="family-name"
-                  placeholder="Dela Cruz"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
+                  autoComplete="email"
+                  disabled
+                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm bg-slate-50 text-slate-600 disabled:opacity-60 disabled:cursor-not-allowed transition"
                 />
               </div>
             </div>
 
-            {/* Email - editable */}
-            <div>
-              <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Email Address</label>
-              <input
-                type="email"
-                name="email"
-                value={account.email}
-                onChange={handleChange}
-                autoComplete="email"
-                className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
-              />
-            </div>
-
-            {/* Department & Position */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Office/Department</label>
-                <select
-                  name="department"
-                  value={account.department || ''}
-                  onChange={handleChange}
-                  autoComplete="organization"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
-                >
-                  <option value="">Select Department...</option>
-                  {getAllDepartments().map(d => <option key={d} value={d}>{d}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Position</label>
-                <select
-                  name="position"
-                  value={account.position || ''}
-                  onChange={handleChange}
-                  autoComplete="organization-title"
-                  className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
-                >
-                  <option value="">Select Position...</option>
-                  {getAllPositions().map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
+            {/* Organizational Metadata - Editable */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-3">Organizational Metadata</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Office/Department</label>
+                  <select
+                    name="department"
+                    value={account.department || ''}
+                    onChange={handleChange}
+                    autoComplete="organization"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
+                  >
+                    <option value="">Select Department...</option>
+                    {getAllDepartments().map(d => <option key={d} value={d}>{d}</option>)}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-600 mb-1.5 uppercase tracking-wide">Position</label>
+                  <select
+                    name="position"
+                    value={account.position || ''}
+                    onChange={handleChange}
+                    autoComplete="organization-title"
+                    className="w-full px-4 py-3 rounded-xl border border-slate-200 text-sm focus:ring-2 focus:ring-emerald-400 focus:outline-none transition"
+                  >
+                    <option value="">Select Position...</option>
+                    {getAllPositions().map(p => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                </div>
               </div>
             </div>
 

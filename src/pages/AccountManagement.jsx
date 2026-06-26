@@ -390,6 +390,14 @@ function CreateAccountModal({ onClose, onSuccess }) {
               employee_type: formData.employeeType,
               is_active: true,
               isActive: true,
+              leave_balances: {
+                forced_leave: 5,
+                special_leave_privileges: 3,
+                wellness_leave: 5,
+                accumulated_sick: 10,
+                accumulated_vacation: 10,
+                last_accumulation_date: new Date().toISOString()
+              }
             };
           }
           return acc;
@@ -516,6 +524,7 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState(null);
   const [success, setSuccess]   = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [resetLoading, setResetLoading] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
   const [customDepartments, setCustomDepartments] = useState(() => {
@@ -594,24 +603,75 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
     try {
       // Update in localStorage
       const existingAccounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+      const fullName = `${formData.firstName} ${formData.middleName} ${formData.surname}`.trim();
+      
+      console.log('Editing account with ID:', account.id);
+      console.log('Existing accounts count:', existingAccounts.length);
+      console.log('Form data:', formData);
+      
       const updatedAccounts = existingAccounts.map(acc => {
-        if (acc.id === account.id) {
-          return {
+        console.log('Comparing account ID:', acc.id, 'with target ID:', account.id, 'Match:', acc.id === account.id, 'String match:', String(acc.id) === String(account.id));
+        if (String(acc.id) === String(account.id)) {
+          const updated = {
             ...acc,
+            first_name: formData.firstName,
+            middle_name: formData.middleName,
+            surname: formData.surname,
+            full_name: fullName,
             position: formData.position,
             department: formData.department,
             employee_type: formData.employeeType,
             is_active: formData.is_active,
             isActive: formData.is_active
           };
+          console.log('Updated account:', updated);
+          return updated;
         }
         return acc;
       });
       
-      updateAccounts(updatedAccounts);
-      setSuccess('Account updated successfully.');
-      onSuccess();
+      console.log('Updated accounts count:', updatedAccounts.length);
+      
+      // Save to localStorage
+      localStorage.setItem('userAccounts', JSON.stringify(updatedAccounts));
+      console.log('Saved to localStorage');
+      
+      // Verify save
+      const verifyAccounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+      const verifyAccount = verifyAccounts.find(a => String(a.id) === String(account.id));
+      console.log('Verification - Account after save:', verifyAccount);
+      
+      // Update database (Supabase) - atomic update of only organizational metadata
+      const { error: dbError } = await supabase
+        .from('app_accounts')
+        .update({
+          position: formData.position,
+          department: formData.department,
+          is_active: formData.is_active,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', String(account.id));
+      
+      if (dbError) {
+        console.error('Database update error:', dbError);
+        setError('Failed to sync with database. Changes saved locally.');
+      } else {
+        console.log('Database update successful');
+      }
+      
+      // Dispatch event to notify other components (Records, Dashboard) to refresh
+      window.dispatchEvent(new CustomEvent('accountUpdated', { detail: { accountId: account.id } }));
+      
+      // Show success popup
+      setShowSuccessModal(true);
+      
+      // Close modal after short delay
+      setTimeout(() => {
+        setShowSuccessModal(false);
+        onSuccess();
+      }, 2000);
     } catch (err) {
+      console.error('Save error:', err);
       setError(err.message || 'Failed to update account.');
     } finally {
       setLoading(false);
@@ -619,90 +679,107 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
   };
 
   return (
-    <Modal title="Edit Account" subtitle={`Editing: ${account.full_name || account.denr_email}`} onClose={onClose}>
-      <div className="p-7 space-y-5">
-        {error   && <ErrorBanner   message={error}   />}
-        {success && <SuccessBanner message={success} />}
-        {resetSuccess && <SuccessBanner message="Password reset email sent successfully." />}
+    <>
+      <Modal title="Edit Account" subtitle={`Editing: ${account.full_name || account.denr_email}`} onClose={onClose}>
+        <div className="p-7 space-y-5">
+          {error   && <ErrorBanner   message={error}   />}
+          {resetSuccess && <SuccessBanner message="Password reset email sent successfully." />}
 
-        <form onSubmit={handleSave} className="space-y-4 overflow-visible">
-          {/* Personal Identity Fields - Read Only */}
-          <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Personal Identity (Read-Only)</p>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              <Field label="First Name">
-                <input disabled className={disabledInputCls} value={formData.firstName} />
-              </Field>
-              <Field label="Middle Name">
-                <input disabled className={disabledInputCls} value={formData.middleName} />
-              </Field>
-              <Field label="Surname">
-                <input disabled className={disabledInputCls} value={formData.surname} />
+          <form onSubmit={handleSave} className="space-y-4 overflow-visible">
+            {/* Personal Identity Fields - Read Only */}
+            <div className="bg-slate-50 border border-slate-200 rounded-xl p-4">
+              <p className="text-xs font-semibold text-slate-500 uppercase tracking-wide mb-3">Personal Identity (Read-Only)</p>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                <Field label="First Name">
+                  <input disabled className={disabledInputCls} value={formData.firstName} />
+                </Field>
+                <Field label="Middle Name">
+                  <input disabled className={disabledInputCls} value={formData.middleName} />
+                </Field>
+                <Field label="Surname">
+                  <input disabled className={disabledInputCls} value={formData.surname} />
+                </Field>
+              </div>
+              <Field label="Email Address">
+                <input disabled type="email" className={disabledInputCls} value={maskEmail(formData.email)} />
               </Field>
             </div>
-            <Field label="Email Address">
-              <input disabled type="email" className={disabledInputCls} value={maskEmail(formData.email)} />
-            </Field>
-          </div>
 
-          {/* Organizational Metadata - Editable */}
-          <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
-            <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-3">Organizational Metadata</p>
-            <Field label="Position">
-              <select required className={inputCls} value={formData.position}
-                onChange={e => set('position', e.target.value)}>
-                <option value="">Select Position...</option>
-                {allPositions.map(pos => (
-                  <option key={pos} value={pos}>{pos}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Department">
-              <select className={inputCls} value={formData.department}
-                onChange={e => set('department', e.target.value)}>
-                <option value="">Select Department...</option>
-                {allDepartments.map(dept => (
-                  <option key={dept} value={dept}>{dept}</option>
-                ))}
-              </select>
-            </Field>
-            <Field label="Employee Type">
-              <select className={inputCls} value={formData.employeeType}
-                onChange={e => set('employeeType', e.target.value)}>
-                {EMPLOYEE_TYPES.map(type => (
-                  <option key={type} value={type}>{type}</option>
-                ))}
-              </select>
-            </Field>
-          </div>
+            {/* Organizational Metadata - Editable */}
+            <div className="bg-emerald-50 border border-emerald-200 rounded-xl p-4">
+              <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-3">Organizational Metadata</p>
+              <Field label="Position">
+                <select required className={inputCls} value={formData.position}
+                  onChange={e => set('position', e.target.value)}>
+                  <option value="">Select Position...</option>
+                  {allPositions.map(pos => (
+                    <option key={pos} value={pos}>{pos}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Department">
+                <select className={inputCls} value={formData.department}
+                  onChange={e => set('department', e.target.value)}>
+                  <option value="">Select Department...</option>
+                  {allDepartments.map(dept => (
+                    <option key={dept} value={dept}>{dept}</option>
+                  ))}
+                </select>
+              </Field>
+              <Field label="Employee Type">
+                <select className={inputCls} value={formData.employeeType}
+                  onChange={e => set('employeeType', e.target.value)}>
+                  {EMPLOYEE_TYPES.map(type => (
+                    <option key={type} value={type}>{type}</option>
+                  ))}
+                </select>
+              </Field>
+            </div>
 
-          {/* Password Reset Section */}
-          <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-            <div className="flex items-start gap-3">
-              <KeyRound className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
-              <div className="flex-1">
-                <p className="text-sm font-semibold text-blue-800 mb-1">Password Management</p>
-                <p className="text-xs text-blue-600 mb-3">
-                  Send a secure password reset link to the user's email. They will set their own password.
-                </p>
-                <button
-                  type="button"
-                  onClick={handlePasswordReset}
-                  disabled={resetLoading}
-                  className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {resetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                  {resetLoading ? 'Sending...' : 'Send Password Reset Link'}
-                </button>
+            {/* Password Reset Section */}
+            <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
+              <div className="flex items-start gap-3">
+                <KeyRound className="w-5 h-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-blue-800 mb-1">Password Management</p>
+                  <p className="text-xs text-blue-600 mb-3">
+                    Send a secure password reset link to the user's email. They will set their own password.
+                  </p>
+                  <button
+                    type="button"
+                    onClick={handlePasswordReset}
+                    disabled={resetLoading}
+                    className="flex items-center gap-2 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-sm font-semibold transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {resetLoading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    {resetLoading ? 'Sending...' : 'Send Password Reset Link'}
+                  </button>
+                </div>
               </div>
             </div>
+            
+            <SubmitButton loading={loading} label="Save Changes" loadingLabel="Saving…"
+              icon={<Pencil className="w-4 h-4" />} />
+          </form>
+        </div>
+      </Modal>
+
+      {/* Success Popup Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" />
+          <div className="relative bg-white rounded-3xl shadow-2xl w-full max-w-sm overflow-hidden animate-[fadeIn_0.2s_ease-out]">
+            <div className="p-7 text-center">
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto mb-4 bg-emerald-100">
+                <CheckCircle2 className="w-8 h-8 text-emerald-600" />
+              </div>
+              <h3 className="text-xl font-bold text-slate-800 mb-2">Account Updated!</h3>
+              <p className="text-slate-600 text-sm mb-6">Your changes have been saved successfully and will be reflected across all pages.</p>
+            </div>
           </div>
-          
-          <SubmitButton loading={loading} label="Save Changes" loadingLabel="Saving…"
-            icon={<Pencil className="w-4 h-4" />} />
-        </form>
-      </div>
-    </Modal>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -917,6 +994,7 @@ export default function AccountManagement() {
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [editingAccount, setEditingAccount] = useState(null);
   const [showDeptPosModal, setShowDeptPosModal] = useState(false);
+  const [connectionStatus, setConnectionStatus] = useState('connecting');
 
   // Fetch accounts from localStorage
   const fetchAccounts = useCallback(() => {
@@ -938,6 +1016,34 @@ export default function AccountManagement() {
   useEffect(() => {
     if (accountsReady) fetchAccounts();
   }, [fetchAccounts, accountsReady]);
+
+  // Real-time subscription to app_accounts table changes
+  useEffect(() => {
+    const channel = supabase
+      .channel('app-accounts-realtime')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'app_accounts'
+        },
+        (payload) => {
+          console.log('[AccountManagement Realtime] Change detected in app_accounts:', payload);
+          // Silent fetch to update page records without disruptive loading spinner
+          fetchAccounts();
+        }
+      )
+      .subscribe((status) => {
+        console.log('[AccountManagement Realtime] Subscription status:', status);
+        setConnectionStatus(status === 'SUBSCRIBED' ? 'connected' : 'connecting');
+      });
+
+    return () => {
+      console.log('[AccountManagement Realtime] Cleaning up subscription');
+      supabase.removeChannel(channel);
+    };
+  }, [fetchAccounts]);
 
   // Toggle active / inactive
   const toggleAccountStatus = (id, currentStatus) => {

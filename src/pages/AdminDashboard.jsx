@@ -4,6 +4,7 @@ import { useAuth } from '../hooks/useAuth';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { emailService } from '../services/emailService';
 import { supabase, supabaseServiceRole } from '../lib/supabaseClient';
+import { decreaseLeaveBalance, isFixedCapLeaveType, calculateWorkingDays } from '../lib/leaveBalanceManager';
 import {
   Clock, CheckCircle2, Plane, FileText, TrendingUp,
   Eye, Check, X, Archive, Download, User, Calendar, Mail,
@@ -215,7 +216,7 @@ export default function AdminDashboard() {
         console.log('Approving request - direct approval');
         const approvedResult = await leaveRequestsAPI.getAll({ status: REQUEST_STATUS.APPROVED });
         const appNumber = getNextApplicationNumber(approvedResult.data || [], new Date());
-        
+
         // Use service role client to bypass RLS for approval
         const { error: updateError } = await supabaseServiceRole
           .from('leave_requests')
@@ -224,11 +225,27 @@ export default function AdminDashboard() {
             details: buildDetailsWithApplicationNumber(request.details || {}, appNumber),
           })
           .eq('id', id);
-        
+
         if (updateError) {
           throw new Error(updateError.message || 'Failed to approve request');
         }
+
+        // Balance deduction is handled automatically by the database trigger (deduct_leave_on_approval)
+        // No manual deduction needed here - the trigger handles it atomically with the status update
+        console.log('Balance deduction handled by database trigger');
         
+        // Sync the user's balance from database to localStorage to ensure consistency
+        if (request.request_type === REQUEST_TYPES.LEAVE && request.user_id) {
+          try {
+            const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
+            await getLeaveBalancesFromDB(request.user_id);
+            console.log('Synced balance from database for user:', request.user_id);
+          } catch (syncError) {
+            console.warn('Failed to sync balance from database:', syncError);
+            // Don't fail the approval if sync fails - real-time subscription will handle it
+          }
+        }
+
         await emailService.sendApprovalNotification(request);
         showToast('Request approved successfully!', 'success');
       } else if (status === REQUEST_STATUS.DECLINED) {

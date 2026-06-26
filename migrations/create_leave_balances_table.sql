@@ -24,8 +24,8 @@ CREATE TABLE IF NOT EXISTS public.user_leave_balances (
   wellness_leave_balance DECIMAL(5,2) NOT NULL DEFAULT 5.00,
   
   -- Accrual-based leaves (shared balance)
-  vacation_leave_balance DECIMAL(8,3) NOT NULL DEFAULT 0.000,
-  sick_leave_balance DECIMAL(8,3) NOT NULL DEFAULT 0.000,
+  vacation_leave_balance DECIMAL(8,3) NOT NULL DEFAULT 10.000,
+  sick_leave_balance DECIMAL(8,3) NOT NULL DEFAULT 10.000,
   
   -- Accrual tracking
   daily_accrual_rate DECIMAL(8,5) NOT NULL DEFAULT 0.04167, -- ~1.25 days per month (15 days / 365 days)
