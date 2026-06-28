@@ -12,6 +12,8 @@ import {
 import { X, TrendingUp, TrendingDown, Minus, Pencil, Check, Loader2 } from 'lucide-react';
 import { useLeaveBalance } from '../contexts/LeaveBalanceContext';
 
+const formatDays = (val) => val !== undefined && val !== null ? Number(Number(val).toFixed(2)).toString() : '0';
+
 function RecordsBody({ employee, allForms = [], onUpdateForms }) {
   const [period, setPeriod] = useState('monthly');
   const [editModal, setEditModal] = useState({ isOpen: false, form: null, counterValue: '', loading: false });
@@ -185,23 +187,23 @@ function RecordsBody({ employee, allForms = [], onUpdateForms }) {
           <div className="grid grid-cols-5 gap-2">
             <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
               <p className="text-[9px] text-slate-500 uppercase font-semibold">Vacation</p>
-              <p className="text-sm font-bold text-blue-700">{Math.floor(balance.vacation_leave?.balance || 0)}</p>
+              <p className="text-sm font-bold text-blue-700">{formatDays(balance.vacation_leave?.balance)}</p>
             </div>
             <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
               <p className="text-[9px] text-slate-500 uppercase font-semibold">Sick</p>
-              <p className="text-sm font-bold text-purple-700">{Math.floor(balance.sick_leave?.balance || 0)}</p>
+              <p className="text-sm font-bold text-purple-700">{formatDays(balance.sick_leave?.balance)}</p>
             </div>
             <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
               <p className="text-[9px] text-slate-500 uppercase font-semibold">Forced</p>
-              <p className="text-sm font-bold text-amber-700">{Math.floor(balance.forced_leave?.balance || 0)}</p>
+              <p className="text-sm font-bold text-amber-700">{formatDays(balance.forced_leave?.balance)}</p>
             </div>
             <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
               <p className="text-[9px] text-slate-500 uppercase font-semibold">Special</p>
-              <p className="text-sm font-bold text-emerald-700">{Math.floor(balance.special_leave?.balance || 0)}</p>
+              <p className="text-sm font-bold text-emerald-700">{formatDays(balance.special_leave?.balance)}</p>
             </div>
             <div className="bg-white rounded-lg p-2 border border-slate-200 text-center">
               <p className="text-[9px] text-slate-500 uppercase font-semibold">Wellness</p>
-              <p className="text-sm font-bold text-teal-700">{Math.floor(balance.wellness_leave?.balance || 0)}</p>
+              <p className="text-sm font-bold text-teal-700">{formatDays(balance.wellness_leave?.balance)}</p>
             </div>
           </div>
         ) : (

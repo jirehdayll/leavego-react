@@ -27,6 +27,8 @@ const InputField = ({ label, required, children }) => (
 
 const inputCls = "w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all shadow-sm";
 
+const formatDays = (val) => val !== undefined && val !== null ? Number(Number(val).toFixed(2)).toString() : '0';
+
 export default function LeaveForm() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -86,9 +88,9 @@ export default function LeaveForm() {
       return diffDays.toString();
     }
 
-    const excludeWeekends = 
-      leaveType === 'Mandatory/Forced Leave' || 
-      leaveType === 'Special Privilege Leave' || 
+    const excludeWeekends =
+      leaveType === 'Mandatory/Forced Leave' ||
+      leaveType === 'Special Privilege Leave' ||
       leaveType === 'Wellness Leave';
 
     if (excludeWeekends) {
@@ -114,7 +116,7 @@ export default function LeaveForm() {
     if (start_date && end_date && leave_type) {
       const calculatedDaysStr = calculateLeaveDuration(start_date, end_date, leave_type);
       const calculatedDays = parseInt(calculatedDaysStr, 10) || 0;
-      
+
       setFormData(prev => {
         if (prev.num_days !== calculatedDaysStr) {
           return { ...prev, num_days: calculatedDaysStr };
@@ -154,7 +156,7 @@ export default function LeaveForm() {
       // Get account information from localStorage
       const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
       const currentAccount = accounts.find(acc => acc.email === user.email);
-      
+
       if (currentAccount) {
         setFormData(prev => ({
           ...prev,
@@ -166,16 +168,16 @@ export default function LeaveForm() {
           employee_type: currentAccount.employee_type || ''
         }));
       }
-      
+
       // Load leave balances from account records (synced with approvals)
       fetchUserLeaveBalance();
-      
+
       // Check for duplicate start dates
       const checkDuplicateStartDate = async () => {
         try {
           const { data } = await leaveRequestsAPI.getAll({ user_email: user.email });
           if (data && data.length > 0 && formData.start_date) {
-            const hasDuplicate = data.some(req => 
+            const hasDuplicate = data.some(req =>
               req.details?.start_date === formData.start_date &&
               (req.status === 'Pending' || req.status === 'Approved')
             );
@@ -202,10 +204,10 @@ export default function LeaveForm() {
       // First sync from database to get the latest approved deductions
       const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
       await getLeaveBalancesFromDB(user.id);
-      
+
       // Then update daily accumulation
       await updateDailyLeaveAccumulation(user.id);
-      
+
       // Finally set the balance from localStorage (now synced with DB) - use raw format
       const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
       const currentAccount = accounts.find(acc => acc.id === user.id);
@@ -341,7 +343,7 @@ export default function LeaveForm() {
   const handleChange = (e) => {
     const { name, value } = e.target;
     setFormData({ ...formData, [name]: value });
-    
+
     // Validate start date when it changes
     if (name === 'start_date' && value && user) {
       checkDuplicateStartDate(value);
@@ -352,7 +354,7 @@ export default function LeaveForm() {
     try {
       const { data } = await leaveRequestsAPI.getAll({ user_email: user.email });
       if (data && data.length > 0) {
-        const hasDuplicate = data.some(req => 
+        const hasDuplicate = data.some(req =>
           req.details?.start_date === startDate &&
           (req.status === 'Pending' || req.status === 'Approved')
         );
@@ -370,18 +372,18 @@ export default function LeaveForm() {
   const validateDates = () => {
     const startDate = new Date(formData.start_date);
     const endDate = new Date(formData.end_date);
-    
+
     if (endDate < startDate) {
       alert('End date cannot be before start date.');
       return false;
     }
-    
+
     return true;
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!validateDates()) {
       return;
     }
@@ -395,14 +397,14 @@ export default function LeaveForm() {
     const numDays = parseInt(formData.num_days, 10) || 0;
     if (isCreditTrackedLeaveType(formData.leave_type) && numDays > 0) {
       const availableBalance = getAvailableBalanceForLeaveType(leaveBalance, formData.leave_type);
-      
+
       if (availableBalance < numDays) {
         const errorMsg = getInsufficientBalanceMessage(formData.leave_type, numDays, availableBalance);
         alert(errorMsg);
         return;
       }
     }
-    
+
     setLoading(true);
 
     try {
@@ -412,7 +414,7 @@ export default function LeaveForm() {
 
       // Validate and ensure user_id is a proper UUID
       const userId = isValidUUID(user.id) ? user.id : generateUUID();
-      
+
       // If the user.id was invalid, update the stored session with a valid UUID
       if (!isValidUUID(user.id)) {
         const updatedUser = { ...user, id: userId };
@@ -421,7 +423,7 @@ export default function LeaveForm() {
       }
 
       const fullName = `${formData.first_name} ${formData.middle_name} ${formData.last_name}`.trim();
-      
+
       // Create leave request object for API
       const leaveRequest = {
         user_id: userId,
@@ -444,7 +446,7 @@ export default function LeaveForm() {
           date_of_filing: formData.date_of_filing
         }
       };
-      
+
       console.log('Submitting leave request:', leaveRequest);
 
       // Save to Supabase via API
@@ -459,7 +461,7 @@ export default function LeaveForm() {
     } catch (err) {
       console.error('Submit error:', err);
       console.error('Error details:', JSON.stringify(err, null, 2));
-      
+
       // Extract more specific error message
       let errorMessage = 'Error submitting form. Please try again.';
       if (err.message) {
@@ -467,7 +469,7 @@ export default function LeaveForm() {
       } else if (err.originalError) {
         errorMessage = err.originalError.message || errorMessage;
       }
-      
+
       // Check for specific Supabase error patterns
       const errorStr = JSON.stringify(err);
       if (errorStr.includes('duplicate')) {
@@ -477,7 +479,7 @@ export default function LeaveForm() {
       } else if (errorStr.includes('network') || errorStr.includes('fetch')) {
         errorMessage = 'Network error. Please check your internet connection and try again.';
       }
-      
+
       alert(errorMessage);
       setLoading(false);
     }
@@ -509,7 +511,7 @@ export default function LeaveForm() {
               <img src="/denr-logo.png" alt="DENR" className="w-12 h-12 object-contain opacity-100 rounded-full" />
             </div>
           </div>
-          
+
           {startDateError && !viewMode && (
             <div className="bg-red-50 border-b border-red-200 px-8 py-4 flex items-center justify-center gap-2">
               <span className="w-2 h-2 rounded-full bg-red-600 animate-pulse"></span>
@@ -527,23 +529,23 @@ export default function LeaveForm() {
               <div className="grid grid-cols-5 gap-2">
                 <div className="bg-white rounded-lg p-2 border border-purple-100 text-center">
                   <p className="text-[9px] text-slate-500 uppercase font-semibold">Forced</p>
-                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.forced_leave || 5)}</p>
+                  <p className="text-sm font-bold text-purple-700">{formatDays(leaveBalance.forced_leave !== undefined ? leaveBalance.forced_leave : 5)}</p>
                 </div>
                 <div className="bg-white rounded-lg p-2 border border-purple-100 text-center">
                   <p className="text-[9px] text-slate-500 uppercase font-semibold">Special</p>
-                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.special_leave_privileges || 3)}</p>
+                  <p className="text-sm font-bold text-purple-700">{formatDays(leaveBalance.special_leave_privileges !== undefined ? leaveBalance.special_leave_privileges : 3)}</p>
                 </div>
                 <div className="bg-white rounded-lg p-2 border border-purple-100 text-center">
                   <p className="text-[9px] text-slate-500 uppercase font-semibold">Wellness</p>
-                  <p className="text-sm font-bold text-purple-700">{Math.round(leaveBalance.wellness_leave || 5)}</p>
+                  <p className="text-sm font-bold text-purple-700">{formatDays(leaveBalance.wellness_leave !== undefined ? leaveBalance.wellness_leave : 5)}</p>
                 </div>
                 <div className="bg-white rounded-lg p-2 border border-emerald-100 text-center">
                   <p className="text-[9px] text-slate-500 uppercase font-semibold">Vacation</p>
-                  <p className="text-sm font-bold text-emerald-700">{Math.round(leaveBalance.accumulated_vacation || 0)}</p>
+                  <p className="text-sm font-bold text-emerald-700">{formatDays(leaveBalance.accumulated_vacation !== undefined ? leaveBalance.accumulated_vacation : 0)}</p>
                 </div>
                 <div className="bg-white rounded-lg p-2 border border-emerald-100 text-center">
                   <p className="text-[9px] text-slate-500 uppercase font-semibold">Sick</p>
-                  <p className="text-sm font-bold text-emerald-700">{Math.round(leaveBalance.accumulated_sick || 0)}</p>
+                  <p className="text-sm font-bold text-emerald-700">{formatDays(leaveBalance.accumulated_sick !== undefined ? leaveBalance.accumulated_sick : 0)}</p>
                 </div>
               </div>
             </div>
@@ -584,13 +586,13 @@ export default function LeaveForm() {
                   </div>
                 </InputField>
                 <InputField label="Date of Filing" required>
-                  <input 
-                    type="date" 
-                    name="date_of_filing" 
-                    required 
-                    value={formData.date_of_filing} 
+                  <input
+                    type="date"
+                    name="date_of_filing"
+                    required
+                    value={formData.date_of_filing}
                     readOnly
-                    className={`${inputCls} bg-slate-50 cursor-not-allowed`} 
+                    className={`${inputCls} bg-slate-50 cursor-not-allowed`}
                   />
                 </InputField>
               </div>
@@ -678,25 +680,25 @@ export default function LeaveForm() {
               </h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <InputField label="Start Date" required>
-                  <input 
-                    type="date" 
-                    name="start_date" 
-                    required 
-                    value={formData.start_date} 
-                    onChange={handleChange} 
-                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''} ${validationError || startDateError ? 'border-rose-400 focus:ring-rose-400' : ''}`} 
+                  <input
+                    type="date"
+                    name="start_date"
+                    required
+                    value={formData.start_date}
+                    onChange={handleChange}
+                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''} ${validationError || startDateError ? 'border-rose-400 focus:ring-rose-400' : ''}`}
                     readOnly={viewMode}
                   />
                 </InputField>
                 <InputField label="End Date" required>
-                  <input 
-                    type="date" 
-                    name="end_date" 
-                    required 
-                    value={formData.end_date} 
-                    onChange={handleChange} 
+                  <input
+                    type="date"
+                    name="end_date"
+                    required
+                    value={formData.end_date}
+                    onChange={handleChange}
                     min={formData.start_date}
-                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''} ${validationError ? 'border-rose-400 focus:ring-rose-400' : ''}`} 
+                    className={`${inputCls} ${viewMode ? 'bg-slate-50 cursor-not-allowed' : ''} ${validationError ? 'border-rose-400 focus:ring-rose-400' : ''}`}
                     readOnly={viewMode}
                   />
                 </InputField>

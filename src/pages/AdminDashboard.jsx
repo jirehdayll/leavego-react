@@ -233,6 +233,15 @@ export default function AdminDashboard() {
         // Balance deduction is handled automatically by the database trigger (deduct_leave_on_approval)
         // No manual deduction needed here - the trigger handles it atomically with the status update
         console.log('Balance deduction handled by database trigger');
+
+        // Apply local storage deduction as fallback/offline support
+        if (request.request_type === REQUEST_TYPES.LEAVE && request.user_id) {
+          const leaveType = request.details?.leave_type;
+          const numDays = parseFloat(request.details?.num_days || request.details?.number_of_days || 0);
+          if (leaveType && numDays > 0) {
+            decreaseLeaveBalance(request.user_id, leaveType, numDays);
+          }
+        }
         
         // Sync the user's balance from database to localStorage to ensure consistency
         if (request.request_type === REQUEST_TYPES.LEAVE && request.user_id) {

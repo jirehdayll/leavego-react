@@ -248,17 +248,16 @@ export async function updateDailyLeaveAccumulation(accountId: string): Promise<v
 
 /**
  * Decrease leave balances when a leave application is approved.
- * Only applies to fixed-cap leave types (Forced Leave, Special Leave Privileges, Wellness Leave).
- * Accrual leave types (Vacation Leave, Sick Leave) are skipped.
+ * Applies to all credit-tracked leave types (Forced, Special, Wellness, Vacation, Sick).
  */
 export function decreaseLeaveBalance(
   accountId: string,
   leaveType: string,
   numDays: number
 ): void {
-  // Conditional check: Only deduct for fixed-cap leave types
-  if (!isFixedCapLeaveType(leaveType)) {
-    console.log(`[Balance Deduction] Skipping deduction for accrual leave type: ${leaveType}`);
+  // Check if leave type is tracked
+  if (!isCreditTrackedLeaveType(leaveType)) {
+    console.log(`[Balance Deduction] Skipping deduction for non-credit-tracked leave type: ${leaveType}`);
     return;
   }
 
@@ -291,31 +290,44 @@ export function decreaseLeaveBalance(
   const leaveTypeLower = leaveType.toLowerCase();
 
   console.log(`[Balance Deduction] Before:`, balances);
-  console.log(`[Balance Deduction] Deducting ${numDays} days from ${leaveType} (Fixed-Cap + Vacation/Sick)`);
+  console.log(`[Balance Deduction] Deducting ${numDays} days from ${leaveType}`);
 
-  // Deduct from the specific fixed-cap leave type
   if (leaveTypeLower.includes('forced')) {
     balances.forced_leave = Math.max(0, balances.forced_leave - numDays);
+    // Also deduct from vacation and sick leave balances (shared deduction)
+    const deductionPerType = numDays / 2;
+    balances.accumulated_vacation = Math.max(0, balances.accumulated_vacation - deductionPerType);
+    balances.accumulated_sick = Math.max(0, balances.accumulated_sick - deductionPerType);
+    console.log(`[Balance Deduction] Deducted ${numDays} from Forced Leave and ${deductionPerType} from both Vacation and Sick Leave`);
   } else if (leaveTypeLower.includes('special') || leaveTypeLower.includes('privilege')) {
     balances.special_leave_privileges = Math.max(
       0,
       balances.special_leave_privileges - numDays
     );
+    // Also deduct from vacation and sick leave balances (shared deduction)
+    const deductionPerType = numDays / 2;
+    balances.accumulated_vacation = Math.max(0, balances.accumulated_vacation - deductionPerType);
+    balances.accumulated_sick = Math.max(0, balances.accumulated_sick - deductionPerType);
+    console.log(`[Balance Deduction] Deducted ${numDays} from Special Leave and ${deductionPerType} from both Vacation and Sick Leave`);
   } else if (leaveTypeLower.includes('wellness')) {
     balances.wellness_leave = Math.max(0, balances.wellness_leave - numDays);
+    // Also deduct from vacation and sick leave balances (shared deduction)
+    const deductionPerType = numDays / 2;
+    balances.accumulated_vacation = Math.max(0, balances.accumulated_vacation - deductionPerType);
+    balances.accumulated_sick = Math.max(0, balances.accumulated_sick - deductionPerType);
+    console.log(`[Balance Deduction] Deducted ${numDays} from Wellness Leave and ${deductionPerType} from both Vacation and Sick Leave`);
+  } else if (leaveTypeLower.includes('sick')) {
+    balances.accumulated_sick = Math.max(0, balances.accumulated_sick - numDays);
+    console.log(`[Balance Deduction] Deducted ${numDays} from Sick Leave`);
+  } else if (leaveTypeLower.includes('vacation')) {
+    balances.accumulated_vacation = Math.max(0, balances.accumulated_vacation - numDays);
+    console.log(`[Balance Deduction] Deducted ${numDays} from Vacation Leave`);
   } else {
-    console.warn('Unknown fixed-cap leave type for deduction:', leaveType);
+    console.warn('Unknown leave type for deduction:', leaveType);
     return;
   }
 
-  // Also deduct from vacation and sick leave balances (shared deduction)
-  // Deduct equally from both vacation and sick leave
-  const deductionPerType = numDays / 2;
-  balances.accumulated_vacation = Math.max(0, balances.accumulated_vacation - deductionPerType);
-  balances.accumulated_sick = Math.max(0, balances.accumulated_sick - deductionPerType);
-
   console.log(`[Balance Deduction] After:`, balances);
-  console.log(`[Balance Deduction] Deducted ${deductionPerType} days from vacation and ${deductionPerType} days from sick leave`);
 
   persistBalances(accountId, balances);
 }
@@ -340,14 +352,7 @@ export async function getLeaveBalancesFromDB(accountId: string): Promise<LeaveBa
     const dbBalance = await leaveBalancesAPI.getBalanceByUserId(accountId);
     if (dbBalance) {
       // Convert database format to LeaveBalances format
-      const balances: LeaveBalances = {
-        forced_leave: dbBalance.forced_leave_balance || 5,
-        special_leave_privileges: dbBalance.special_leave_balance || 3,
-        wellness_leave: dbBalance.wellness_leave_balance || 5,
-        accumulated_sick: dbBalance.sick_leave_balance || 10,
-        accumulated_vacation: dbBalance.vacation_leave_balance || 10,
-        last_accumulation_date: dbBalance.last_accrual_date,
-      };
+      const balances = convertDBBalanceToLeaveBalances(dbBalance);
       
       // Sync to localStorage
       const accounts = getAccountsSync();
@@ -383,12 +388,27 @@ export function convertDBBalanceToLeaveBalances(dbBalance: any): LeaveBalances {
     };
   }
 
-  // If it is already in LeaveBalances format (i.e. has wellness_leave as a number)
+  // If it is in LeaveBalances format (i.e. has wellness_leave as a number)
   if (typeof dbBalance.wellness_leave === 'number') {
     return dbBalance as LeaveBalances;
   }
 
-  // Otherwise, map from database row format
+  // If it is in RPC summary format (i.e. has wellness_leave as an object with balance property)
+  if (dbBalance.wellness_leave && typeof dbBalance.wellness_leave === 'object') {
+    return {
+      forced_leave: dbBalance.forced_leave?.balance !== undefined ? Number(dbBalance.forced_leave.balance) : 5,
+      special_leave_privileges: (dbBalance.special_leave?.balance !== undefined ? Number(dbBalance.special_leave.balance) : 
+                                 dbBalance.special_leave_privileges?.balance !== undefined ? Number(dbBalance.special_leave_privileges.balance) : 3),
+      wellness_leave: dbBalance.wellness_leave?.balance !== undefined ? Number(dbBalance.wellness_leave.balance) : 5,
+      accumulated_sick: (dbBalance.sick_leave?.balance !== undefined ? Number(dbBalance.sick_leave.balance) : 
+                         dbBalance.accumulated_sick?.balance !== undefined ? Number(dbBalance.accumulated_sick.balance) : 10),
+      accumulated_vacation: (dbBalance.vacation_leave?.balance !== undefined ? Number(dbBalance.vacation_leave.balance) : 
+                             dbBalance.accumulated_vacation?.balance !== undefined ? Number(dbBalance.accumulated_vacation.balance) : 10),
+      last_accumulation_date: dbBalance.vacation_leave?.last_accrual || dbBalance.last_accumulation_date,
+    };
+  }
+
+  // Otherwise, map from database row format (user_leave_balances columns)
   return {
     forced_leave: dbBalance.forced_leave_balance !== undefined && dbBalance.forced_leave_balance !== null ? Number(dbBalance.forced_leave_balance) : 5,
     special_leave_privileges: dbBalance.special_leave_balance !== undefined && dbBalance.special_leave_balance !== null ? Number(dbBalance.special_leave_balance) : 3,

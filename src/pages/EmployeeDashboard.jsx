@@ -548,6 +548,8 @@ function LeaveBalanceModal({ leaveBalances, onClose }) {
 
   if (!formattedBalances) return null;
 
+  const formatDays = (val) => val !== undefined && val !== null ? Number(Number(val).toFixed(2)).toString() : '0';
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
@@ -575,15 +577,15 @@ function LeaveBalanceModal({ leaveBalances, onClose }) {
             <div className="space-y-3">
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-700">Forced Leave</span>
-                <span className="text-sm font-bold text-purple-700">{Math.floor(formattedBalances.forced_leave)} days</span>
+                <span className="text-sm font-bold text-purple-700">{formatDays(formattedBalances.forced_leave)} days</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-700">Special Leave Privileges</span>
-                <span className="text-sm font-bold text-purple-700">{Math.floor(formattedBalances.special_leave_privileges)} days</span>
+                <span className="text-sm font-bold text-purple-700">{formatDays(formattedBalances.special_leave_privileges)} days</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-sm text-slate-700">Wellness Leave</span>
-                <span className="text-sm font-bold text-purple-700">{Math.floor(formattedBalances.wellness_leave)} days</span>
+                <span className="text-sm font-bold text-purple-700">{formatDays(formattedBalances.wellness_leave)} days</span>
               </div>
             </div>
           </div>
@@ -594,11 +596,11 @@ function LeaveBalanceModal({ leaveBalances, onClose }) {
             <div className="flex gap-4">
               <div className="text-center">
                 <p className="text-xs text-slate-600">Sick</p>
-                <p className="text-sm font-bold text-emerald-700">{Math.floor(formattedBalances.accumulated_sick)}</p>
+                <p className="text-sm font-bold text-emerald-700">{formatDays(formattedBalances.accumulated_sick)}</p>
               </div>
               <div className="text-center">
                 <p className="text-xs text-slate-600">Vacation</p>
-                <p className="text-sm font-bold text-emerald-700">{Math.floor(formattedBalances.accumulated_vacation)}</p>
+                <p className="text-sm font-bold text-emerald-700">{formatDays(formattedBalances.accumulated_vacation)}</p>
               </div>
             </div>
           </div>
