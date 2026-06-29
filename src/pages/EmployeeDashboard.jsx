@@ -182,26 +182,15 @@ export default function EmployeeDashboard() {
         setNewlyApproved(recentStatusChanges);
       }
 
-<<<<<<< Updated upstream
       // Supabase is the source of truth. Fetch from the SECURITY DEFINER RPC first.
       // Then run DB accrual and fetch again. Do not fall back to default localStorage
       // unless the database is truly unavailable.
-      const dbBalances = await getLeaveBalancesFromDB(user.id);
-      const updatedBalances = await updateDailyLeaveAccumulation(user.id);
-      setLeaveBalances(updatedBalances || dbBalances);
-=======
-      // Sync leave balances from database first, then update daily accumulation
       console.log('[EmployeeDashboard] Starting balance sync for user:', user.id);
-      await getLeaveBalancesFromDB(user.id);
-      await updateDailyLeaveAccumulation(user.id);
-      // Get the raw LeaveBalances format for the modal
-      const accounts = getAccountsSync();
-      const account = accounts.find(a => a.id === user.id);
-      const newBalances = account?.leave_balances || null;
-      console.log('[EmployeeDashboard] Initial balances loaded:', newBalances);
-      console.log('[EmployeeDashboard] Account found:', !!account, 'Balances found:', !!newBalances);
-      setLeaveBalances(newBalances);
->>>>>>> Stashed changes
+      const dbBalances = await getLeaveBalancesFromDB(user.id);
+      console.log('[EmployeeDashboard] Database balances loaded:', dbBalances);
+      const updatedBalances = await updateDailyLeaveAccumulation(user.id);
+      console.log('[EmployeeDashboard] Updated balances after accrual:', updatedBalances);
+      setLeaveBalances(updatedBalances || dbBalances);
     } catch (error) {
       console.error('Fetch employee data error:', error);
       setRequests([]);
