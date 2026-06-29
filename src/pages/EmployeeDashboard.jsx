@@ -7,6 +7,7 @@ import {
   getUnifiedLeaveBalances,
   updateDailyLeaveAccumulation,
   getLeaveBalancesFromDB,
+  recalculateLeaveBalancesFromApprovedRequests,
   LEAVE_BALANCES_UPDATED_EVENT,
 } from '../lib/leaveBalanceManager';
 import {
@@ -181,13 +182,12 @@ export default function EmployeeDashboard() {
         setNewlyApproved(recentStatusChanges);
       }
 
-      // Sync leave balances from database first, then update daily accumulation
-      await getLeaveBalancesFromDB(user.id);
-      await updateDailyLeaveAccumulation(user.id);
-      // Get the raw LeaveBalances format for the modal
-      const accounts = getAccountsSync();
-      const account = accounts.find(a => a.id === user.id);
-      setLeaveBalances(account?.leave_balances || null);
+      // Supabase is the source of truth. Fetch from the SECURITY DEFINER RPC first.
+      // Then run DB accrual and fetch again. Do not fall back to default localStorage
+      // unless the database is truly unavailable.
+      const dbBalances = await getLeaveBalancesFromDB(user.id);
+      const updatedBalances = await updateDailyLeaveAccumulation(user.id);
+      setLeaveBalances(updatedBalances || dbBalances);
     } catch (error) {
       console.error('Fetch employee data error:', error);
       setRequests([]);
@@ -203,9 +203,9 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     const handleBalancesUpdated = (event) => {
       if (event.detail?.accountId === user?.id) {
-        const accounts = getAccountsSync();
-        const account = accounts.find(a => a.id === user.id);
-        setLeaveBalances(account?.leave_balances || null);
+        getLeaveBalancesFromDB(user.id).then((freshBalances) => {
+          setLeaveBalances(freshBalances);
+        });
       }
     };
     window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
@@ -213,9 +213,9 @@ export default function EmployeeDashboard() {
     // Also refresh when an account is updated
     const handleAccountUpdated = (event) => {
       if (event.detail?.accountId === user?.id) {
-        const accounts = getAccountsSync();
-        const account = accounts.find(a => a.id === user.id);
-        setLeaveBalances(account?.leave_balances || null);
+        getLeaveBalancesFromDB(user.id).then((freshBalances) => {
+          setLeaveBalances(freshBalances);
+        });
       }
     };
     window.addEventListener('accountUpdated', handleAccountUpdated);
@@ -279,11 +279,9 @@ export default function EmployeeDashboard() {
         },
         async (payload) => {
           console.log('[EmployeeDashboard Realtime] Change detected in user_leave_balances:', payload);
-          // Sync database balances to localStorage
-          await getLeaveBalancesFromDB(user.id);
-          const accounts = getAccountsSync();
-          const account = accounts.find(a => a.id === user.id);
-          setLeaveBalances(account?.leave_balances || null);
+          // Sync database balances to UI state.
+          const freshBalances = await getLeaveBalancesFromDB(user.id);
+          setLeaveBalances(freshBalances);
         }
       )
       .subscribe((status) => {
@@ -526,11 +524,11 @@ function LeaveBalanceModal({ leaveBalances, onClose }) {
     // If it's in display format (objects with balance property), convert
     if (balances.forced_leave && typeof balances.forced_leave === 'object') {
       return {
-        forced_leave: balances.forced_leave?.balance || 5,
-        special_leave_privileges: balances.special_leave?.balance || 3,
-        wellness_leave: balances.wellness_leave?.balance || 5,
-        accumulated_sick: balances.sick_leave?.balance || 10,
-        accumulated_vacation: balances.vacation_leave?.balance || 10
+        forced_leave: balances.forced_leave?.balance ?? 5,
+        special_leave_privileges: balances.special_leave?.balance ?? 3,
+        wellness_leave: balances.wellness_leave?.balance ?? 5,
+        accumulated_sick: balances.sick_leave?.balance ?? 10,
+        accumulated_vacation: balances.vacation_leave?.balance ?? 10
       };
     }
     
@@ -606,7 +604,7 @@ function LeaveBalanceModal({ leaveBalances, onClose }) {
           {/* Info Note */}
           <div className="bg-blue-50 rounded-xl p-4 border border-blue-100">
             <p className="text-xs text-blue-700 leading-relaxed">
-              <strong>Note:</strong> Special leave credits are fixed annual allocations. Using Forced, Special, or Wellness Leave will also deduct from your Vacation and Sick leave balances. Accumulated leave starts at 10 days each and increases when no leave is used.
+              <strong>Note:</strong> Special leave credits are fixed annual allocations. Forced, Special, and Wellness Leave use separate fixed balances. Vacation and Sick Leave start at 10 days each, accrue separately, and are deducted only when Vacation or Sick Leave is approved.
             </p>
           </div>
         </div>

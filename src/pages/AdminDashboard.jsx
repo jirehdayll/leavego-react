@@ -230,19 +230,23 @@ export default function AdminDashboard() {
           throw new Error(updateError.message || 'Failed to approve request');
         }
 
-        // Balance deduction is handled automatically by the database trigger (deduct_leave_on_approval)
-        // No manual deduction needed here - the trigger handles it atomically with the status update
-        console.log('Balance deduction handled by database trigger');
-        
-        // Sync the user's balance from database to localStorage to ensure consistency
+        // Recalculate balances from all approved leave requests. This makes the result
+        // idempotent and fixes existing already-approved requests that were not deducted
+        // because of an older/missing database trigger.
         if (request.request_type === REQUEST_TYPES.LEAVE && request.user_id) {
           try {
-            const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
-            await getLeaveBalancesFromDB(request.user_id);
-            console.log('Synced balance from database for user:', request.user_id);
+            const { recalculateLeaveBalancesFromApprovedRequests } = await import('../lib/leaveBalanceManager');
+            const latestApprovedResult = await leaveRequestsAPI.getAll({
+              user_id: request.user_id,
+              status: REQUEST_STATUS.APPROVED,
+            });
+            await recalculateLeaveBalancesFromApprovedRequests(
+              request.user_id,
+              latestApprovedResult.data || []
+            );
+            console.log('Recalculated leave balance for user:', request.user_id);
           } catch (syncError) {
-            console.warn('Failed to sync balance from database:', syncError);
-            // Don't fail the approval if sync fails - real-time subscription will handle it
+            console.warn('Failed to recalculate leave balance:', syncError);
           }
         }
 
