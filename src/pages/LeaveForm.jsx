@@ -5,8 +5,10 @@ import {
   getUnifiedLeaveBalances,
   getAvailableBalanceForLeaveType,
   getInsufficientBalanceMessage,
+  getLeaveBalancesFromDB,
   isCreditTrackedLeaveType,
   updateDailyLeaveAccumulation,
+  recalculateLeaveBalancesFromApprovedRequests,
   LEAVE_BALANCES_UPDATED_EVENT,
 } from '../lib/leaveBalanceManager';
 import { LEAVE_TYPES, REQUEST_TYPES } from '../constants';
@@ -226,9 +228,9 @@ export default function LeaveForm() {
   useEffect(() => {
     const handleBalancesUpdated = (event) => {
       if (event.detail?.accountId === user?.id) {
-        const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
-        const currentAccount = accounts.find(acc => acc.id === user.id);
-        setLeaveBalance(currentAccount?.leave_balances || null);
+        getLeaveBalancesFromDB(user.id).then((freshBalances) => {
+          setLeaveBalance(freshBalances);
+        });
       }
     };
     window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
@@ -251,12 +253,9 @@ export default function LeaveForm() {
         },
         async (payload) => {
           console.log('[LeaveForm Realtime] Change detected in user_leave_balances:', payload);
-          // Sync database balances to localStorage
-          const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
-          await getLeaveBalancesFromDB(user.id);
-          const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
-          const currentAccount = accounts.find(acc => acc.id === user.id);
-          setLeaveBalance(currentAccount?.leave_balances || null);
+          // Sync database balances directly to UI state.
+          const freshBalances = await getLeaveBalancesFromDB(user.id);
+          setLeaveBalance(freshBalances);
         }
       )
       .subscribe((status) => {

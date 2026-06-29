@@ -234,12 +234,23 @@ export default function AdminDashboard() {
         // No manual deduction needed here - the trigger handles it atomically with the status update
         console.log('Balance deduction handled by database trigger');
 
-        // Apply local storage deduction as fallback/offline support
+        // Recalculate balances from all approved leave requests. This makes the result
+        // idempotent and fixes existing already-approved requests that were not deducted
+        // because of an older/missing database trigger.
         if (request.request_type === REQUEST_TYPES.LEAVE && request.user_id) {
-          const leaveType = request.details?.leave_type;
-          const numDays = parseFloat(request.details?.num_days || request.details?.number_of_days || 0);
-          if (leaveType && numDays > 0) {
-            decreaseLeaveBalance(request.user_id, leaveType, numDays);
+          try {
+            const { recalculateLeaveBalancesFromApprovedRequests } = await import('../lib/leaveBalanceManager');
+            const latestApprovedResult = await leaveRequestsAPI.getAll({
+              user_id: request.user_id,
+              status: REQUEST_STATUS.APPROVED,
+            });
+            await recalculateLeaveBalancesFromApprovedRequests(
+              request.user_id,
+              latestApprovedResult.data || []
+            );
+            console.log('Recalculated leave balance for user:', request.user_id);
+          } catch (syncError) {
+            console.warn('Failed to recalculate leave balance:', syncError);
           }
         }
         
@@ -249,6 +260,11 @@ export default function AdminDashboard() {
             const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
             await getLeaveBalancesFromDB(request.user_id);
             console.log('Synced balance from database for user:', request.user_id);
+            
+            // Trigger a custom event to notify the employee's dashboard
+            window.dispatchEvent(new CustomEvent('leaveBalancesUpdated', { 
+              detail: { accountId: request.user_id } 
+            }));
           } catch (syncError) {
             console.warn('Failed to sync balance from database:', syncError);
             // Don't fail the approval if sync fails - real-time subscription will handle it

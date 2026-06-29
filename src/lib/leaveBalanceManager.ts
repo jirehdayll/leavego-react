@@ -2,7 +2,7 @@ import { getAccountsSync, saveAccounts } from './accountStore';
 import { leaveRequestsAPI } from '../api/leaveRequests';
 import { leaveBalancesAPI } from '../api/leaveBalances';
 import { REQUEST_STATUS } from '../constants';
-import { supabase } from './supabaseClient';
+import { supabase, supabaseServiceRole } from './supabaseClient';
 
 export interface LeaveBalances {
   forced_leave: number;
@@ -44,6 +44,134 @@ const ACCRUAL_LEAVE_TYPES = [
   'Sick Leave',
 ];
 
+
+
+function toNumber(value: unknown, fallback = 0): number {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : fallback;
+}
+
+function getRequestLeaveType(form: any): string {
+  return String(form?.details?.leave_type || form?.leave_type || '');
+}
+
+function getRequestDays(form: any): number {
+  return toNumber(
+    form?.details?.num_days ??
+    form?.details?.number_of_days ??
+    form?.num_days ??
+    form?.number_of_days,
+    0
+  );
+}
+
+function getRequestDate(form: any): Date {
+  const rawDate = form?.details?.start_date || form?.submitted_at || form?.created_at || new Date().toISOString();
+  const parsed = new Date(rawDate);
+  return Number.isNaN(parsed.getTime()) ? new Date() : parsed;
+}
+
+function isApprovedLeaveForm(form: any): boolean {
+  return String(form?.status || '').toLowerCase() === REQUEST_STATUS.APPROVED.toLowerCase()
+    && String(form?.request_type || '').toLowerCase() === 'leave';
+}
+
+function isDateInCurrentMonth(date: Date): boolean {
+  const today = new Date();
+  return date.getFullYear() === today.getFullYear() && date.getMonth() === today.getMonth();
+}
+
+function computeBalancesFromApprovedRequests(forms: any[] = []): LeaveBalances {
+  const balances: LeaveBalances = {
+    forced_leave: 5,
+    special_leave_privileges: 3,
+    wellness_leave: 5,
+    accumulated_sick: 10,
+    accumulated_vacation: 10,
+    last_accumulation_date: new Date().toISOString(),
+  };
+
+  for (const form of forms.filter(isApprovedLeaveForm)) {
+    const leaveType = getRequestLeaveType(form).toLowerCase();
+    const days = getRequestDays(form);
+    if (!leaveType || days <= 0) continue;
+
+    // Confirmed business rule:
+    // - Forced Leave deducts only Forced Leave.
+    // - Special Privilege Leave deducts only Special Leave.
+    // - Wellness Leave deducts only Wellness Leave.
+    // - Vacation Leave deducts only Vacation Leave.
+    // - Sick Leave deducts only Sick Leave.
+    // FL/SPL/WL must NOT deduct from Vacation/Sick.
+    if (leaveType.includes('forced')) {
+      balances.forced_leave = Math.max(0, balances.forced_leave - days);
+    } else if (leaveType.includes('special') || leaveType.includes('privilege')) {
+      balances.special_leave_privileges = Math.max(0, balances.special_leave_privileges - days);
+    } else if (leaveType.includes('wellness')) {
+      balances.wellness_leave = Math.max(0, balances.wellness_leave - days);
+    } else if (leaveType.includes('sick')) {
+      balances.accumulated_sick = Math.max(0, balances.accumulated_sick - days);
+    } else if (leaveType.includes('vacation')) {
+      balances.accumulated_vacation = Math.max(0, balances.accumulated_vacation - days);
+    }
+  }
+
+  return balances;
+}
+
+async function persistBalancesToDatabase(accountId: string, balances: LeaveBalances): Promise<void> {
+  const row = {
+    user_id: accountId,
+    forced_leave_balance: balances.forced_leave,
+    special_leave_balance: balances.special_leave_privileges,
+    wellness_leave_balance: balances.wellness_leave,
+    vacation_leave_balance: balances.accumulated_vacation,
+    sick_leave_balance: balances.accumulated_sick,
+    last_accrual_date: new Date().toISOString().split('T')[0],
+    updated_at: new Date().toISOString(),
+  };
+
+  const upsertWith = async (client: typeof supabase) => client
+    .from('user_leave_balances')
+    .upsert(row, { onConflict: 'user_id' });
+
+  let result = await upsertWith(supabase);
+  if (result.error) {
+    result = await upsertWith(supabaseServiceRole);
+  }
+  if (result.error) {
+    console.warn('[Leave Balance] Could not persist recalculated balance to database:', result.error.message);
+  }
+}
+
+/**
+ * Refreshes the user's leave balances from Supabase.
+ * The database is the source of truth; frontend recalculation must not overwrite DB balances.
+ */
+export async function recalculateLeaveBalancesFromApprovedRequests(
+  accountId: string,
+  knownForms?: any[]
+): Promise<LeaveBalances> {
+  // The database is the source of truth. A previous frontend recalculation wrote
+  // stale/default balances back to Supabase and fought with the approval trigger.
+  // Keep this function name for existing callers, but make it refresh from DB.
+  const dbBalances = await getLeaveBalancesFromDB(accountId);
+  if (dbBalances) {
+    return dbBalances;
+  }
+
+  // Offline fallback only. Do not write this fallback back to Supabase.
+  const forms = knownForms || [];
+  const relevantForms = forms.filter((form) => {
+    if (!isApprovedLeaveForm(form)) return false;
+    return String(form.user_id || '') === accountId;
+  });
+
+  const balances = computeBalancesFromApprovedRequests(relevantForms);
+  persistBalances(accountId, balances);
+  return balances;
+}
+
 function notifyBalancesUpdated(accountId: string) {
   window.dispatchEvent(
     new CustomEvent(LEAVE_BALANCES_UPDATED_EVENT, { detail: { accountId } })
@@ -67,8 +195,13 @@ export function isCreditTrackedLeaveType(leaveType: string): boolean {
  * Check if a leave type belongs to the fixed-cap tier (should be deducted on approval)
  */
 export function isFixedCapLeaveType(leaveType: string): boolean {
-  const leaveTypeLower = leaveType.toLowerCase();
-  return FIXED_CAP_LEAVE_TYPES.some(type => leaveTypeLower.includes(type.toLowerCase().replace('/', '')));
+  const leaveTypeLower = String(leaveType || '').toLowerCase();
+  return (
+    leaveTypeLower.includes('forced') ||
+    leaveTypeLower.includes('special') ||
+    leaveTypeLower.includes('privilege') ||
+    leaveTypeLower.includes('wellness')
+  );
 }
 
 /**
@@ -157,93 +290,19 @@ export function hasSufficientBalance(
 }
 
 /**
- * Adds +1 day to vacation and sick leave for each month with no approved leave applications.
- * Also ensures initial balances are set if user has zero accumulated leave.
- * Called when the user logs in or views their dashboard.
+ * Runs the Supabase accrual function and refreshes the user's balance.
+ * Vacation/Sick accrual is centralized in the database to avoid client-side drift.
  */
-export async function updateDailyLeaveAccumulation(accountId: string): Promise<void> {
-  const accounts = getAccountsSync();
-  const account = accounts.find((a) => a.id === accountId);
-
-  if (!account || !account.leave_balances) {
-    // Initialize with default balances if none exist
-    if (account) {
-      const defaultBalances: LeaveBalances = {
-        forced_leave: 5,
-        special_leave_privileges: 3,
-        wellness_leave: 5,
-        accumulated_sick: 10, // Give initial 10 days
-        accumulated_vacation: 10, // Give initial 10 days
-        last_accumulation_date: new Date().toISOString(),
-      };
-      persistBalances(accountId, defaultBalances);
-    }
-    return;
+export async function updateDailyLeaveAccumulation(accountId: string): Promise<LeaveBalances | null> {
+  // Accrual must be handled in Supabase so all clients see the same result.
+  // The DB function uses the rule: Vacation/Sick start at 10 and accrue +6/year.
+  try {
+    await leaveBalancesAPI.processDailyAccrual(new Date().toISOString().split('T')[0]);
+    return await getLeaveBalancesFromDB(accountId);
+  } catch (error) {
+    console.warn('[Accrual] Database accrual failed. Falling back to current cached balance only:', error);
+    return getLeaveBalances(accountId);
   }
-
-  const balances = account.leave_balances;
-  
-  // Give initial 10 days if user has zero accumulated leave
-  if (balances.accumulated_sick === 0 && balances.accumulated_vacation === 0) {
-    const newBalances: LeaveBalances = {
-      ...balances,
-      accumulated_sick: 10,
-      accumulated_vacation: 10,
-      last_accumulation_date: new Date().toISOString(),
-    };
-    persistBalances(accountId, newBalances);
-    console.log('[Accrual] Added initial 10 days to vacation and sick leave');
-    return;
-  }
-
-  const lastAccumulationDate = balances.last_accumulation_date
-    ? new Date(balances.last_accumulation_date)
-    : new Date((account.createdAt as string) || '2020-01-01');
-
-  const today = new Date();
-
-  const monthsDiff =
-    (today.getFullYear() - lastAccumulationDate.getFullYear()) * 12 +
-    (today.getMonth() - lastAccumulationDate.getMonth());
-
-  if (monthsDiff <= 0) {
-    return;
-  }
-
-  const { data: userForms } = await leaveRequestsAPI.getAll({ user_id: accountId });
-
-  let monthsWithoutLeave = 0;
-
-  for (let i = 0; i < monthsDiff; i++) {
-    const checkDate = new Date(lastAccumulationDate);
-    checkDate.setMonth(checkDate.getMonth() + i + 1);
-
-    const monthStart = new Date(checkDate.getFullYear(), checkDate.getMonth(), 1);
-    const monthEnd = new Date(checkDate.getFullYear(), checkDate.getMonth() + 1, 0);
-
-    const hasApprovedLeaveInMonth = (userForms || []).some((form) => {
-      if (form.status !== REQUEST_STATUS.APPROVED) return false;
-      const formDate = new Date(form.submitted_at || form.created_at);
-      return formDate >= monthStart && formDate <= monthEnd;
-    });
-
-    if (!hasApprovedLeaveInMonth) {
-      monthsWithoutLeave++;
-    }
-  }
-
-  const newBalances: LeaveBalances = {
-    ...balances,
-    last_accumulation_date: today.toISOString(),
-  };
-
-  if (monthsWithoutLeave > 0) {
-    newBalances.accumulated_sick = balances.accumulated_sick + monthsWithoutLeave;
-    newBalances.accumulated_vacation = balances.accumulated_vacation + monthsWithoutLeave;
-    console.log(`[Accrual] Added ${monthsWithoutLeave} days to vacation and sick leave`);
-  }
-
-  persistBalances(accountId, newBalances);
 }
 
 /**
@@ -269,7 +328,11 @@ export function decreaseLeaveBalance(
     return;
   }
 
-  // Initialize leave_balances if it doesn't exist
+  if (numDays <= 0) {
+    console.warn('Invalid number of days for deduction:', numDays);
+    return;
+  }
+
   if (!account.leave_balances) {
     account.leave_balances = {
       forced_leave: 5,
@@ -281,13 +344,8 @@ export function decreaseLeaveBalance(
     };
   }
 
-  if (numDays <= 0) {
-    console.warn('Invalid number of days for deduction:', numDays);
-    return;
-  }
-
   const balances = { ...account.leave_balances };
-  const leaveTypeLower = leaveType.toLowerCase();
+  const leaveTypeLower = String(leaveType || '').toLowerCase();
 
   console.log(`[Balance Deduction] Before:`, balances);
   console.log(`[Balance Deduction] Deducting ${numDays} days from ${leaveType}`);
@@ -328,7 +386,6 @@ export function decreaseLeaveBalance(
   }
 
   console.log(`[Balance Deduction] After:`, balances);
-
   persistBalances(accountId, balances);
 }
 
@@ -348,7 +405,19 @@ export function getLeaveBalances(accountId: string): LeaveBalances | null {
  */
 export async function getLeaveBalancesFromDB(accountId: string): Promise<LeaveBalances | null> {
   try {
-    // Try to fetch from database
+    // Prefer the SECURITY DEFINER RPC. Direct table SELECT can be blocked by RLS
+    // because this app uses app_accounts/local session instead of Supabase auth.users.
+    try {
+      const rpcBalance = await leaveBalancesAPI.getUserBalance(accountId);
+      if (rpcBalance) {
+        const balances = convertDBBalanceToLeaveBalances(rpcBalance);
+        persistBalances(accountId, balances);
+        return balances;
+      }
+    } catch (rpcError: any) {
+      console.warn('[Leave Balance] RPC balance fetch failed, trying table fallback:', rpcError?.message || rpcError);
+    }
+
     const dbBalance = await leaveBalancesAPI.getBalanceByUserId(accountId);
     if (dbBalance) {
       // Convert database format to LeaveBalances format
@@ -361,19 +430,22 @@ export async function getLeaveBalancesFromDB(accountId: string): Promise<LeaveBa
       );
       saveAccounts(updatedAccounts);
       
+      // Notify components that balances have been updated
+      notifyBalancesUpdated(accountId);
+      
       return balances;
-    } else {
-      console.log('No balance record found in database for user:', accountId);
     }
-  } catch (error) {
-    if (error.message && error.message.includes('PGRST116')) {
-      console.log('No balance record found in database for user:', accountId);
+
+    console.warn('[Leave Balance] No balance record found in database for user:', accountId);
+  } catch (error: any) {
+    if (error?.message && error.message.includes('PGRST116')) {
+      console.warn('[Leave Balance] No balance record found in database for user:', accountId);
     } else {
-      console.error('Error fetching balance from database:', error);
+      console.error('[Leave Balance] Error fetching balance from database:', error);
     }
   }
 
-  // Fallback to localStorage
+  // Last-resort fallback only. This may be default localStorage data.
   return getLeaveBalances(accountId);
 }
 
@@ -390,12 +462,14 @@ export function convertDBBalanceToLeaveBalances(dbBalance: any): LeaveBalances {
 
   // If it is in LeaveBalances format (i.e. has wellness_leave as a number)
   if (typeof dbBalance.wellness_leave === 'number') {
+    console.log('[convertDBBalanceToLeaveBalances] Already in LeaveBalances format');
     return dbBalance as LeaveBalances;
   }
 
   // If it is in RPC summary format (i.e. has wellness_leave as an object with balance property)
   if (dbBalance.wellness_leave && typeof dbBalance.wellness_leave === 'object') {
-    return {
+    console.log('[convertDBBalanceToLeaveBalances] Converting from RPC summary format');
+    const converted = {
       forced_leave: dbBalance.forced_leave?.balance !== undefined ? Number(dbBalance.forced_leave.balance) : 5,
       special_leave_privileges: (dbBalance.special_leave?.balance !== undefined ? Number(dbBalance.special_leave.balance) : 
                                  dbBalance.special_leave_privileges?.balance !== undefined ? Number(dbBalance.special_leave_privileges.balance) : 3),
@@ -406,10 +480,13 @@ export function convertDBBalanceToLeaveBalances(dbBalance: any): LeaveBalances {
                              dbBalance.accumulated_vacation?.balance !== undefined ? Number(dbBalance.accumulated_vacation.balance) : 10),
       last_accumulation_date: dbBalance.vacation_leave?.last_accrual || dbBalance.last_accumulation_date,
     };
+    console.log('[convertDBBalanceToLeaveBalances] Converted from RPC format:', converted);
+    return converted;
   }
 
   // Otherwise, map from database row format (user_leave_balances columns)
-  return {
+  console.log('[convertDBBalanceToLeaveBalances] Converting from database row format');
+  const converted = {
     forced_leave: dbBalance.forced_leave_balance !== undefined && dbBalance.forced_leave_balance !== null ? Number(dbBalance.forced_leave_balance) : 5,
     special_leave_privileges: dbBalance.special_leave_balance !== undefined && dbBalance.special_leave_balance !== null ? Number(dbBalance.special_leave_balance) : 3,
     wellness_leave: dbBalance.wellness_leave_balance !== undefined && dbBalance.wellness_leave_balance !== null ? Number(dbBalance.wellness_leave_balance) : 5,
@@ -417,6 +494,8 @@ export function convertDBBalanceToLeaveBalances(dbBalance: any): LeaveBalances {
     accumulated_vacation: dbBalance.vacation_leave_balance !== undefined && dbBalance.vacation_leave_balance !== null ? Number(dbBalance.vacation_leave_balance) : 10,
     last_accumulation_date: dbBalance.last_accrual_date || dbBalance.last_accumulation_date,
   };
+  console.log('[convertDBBalanceToLeaveBalances] Converted from row format:', converted);
+  return converted;
 }
 
 export function getUnifiedLeaveBalances(accountId: string, dbBalance?: any): LeaveBalanceDisplay {

@@ -6,7 +6,7 @@ import { leaveRequestsAPI } from '../api/leaveRequests';
 import { LeaveBalanceProvider, useLeaveBalance } from '../contexts/LeaveBalanceContext';
 import AdminLayout from '../components/AdminLayout';
 import { EmployeeRecordsModal } from '../components/EmployeeRecordsPanel';
-import { getUnifiedLeaveBalances, LEAVE_BALANCES_UPDATED_EVENT } from '../lib/leaveBalanceManager';
+import { getUnifiedLeaveBalances, LEAVE_BALANCES_UPDATED_EVENT, recalculateLeaveBalancesFromApprovedRequests } from '../lib/leaveBalanceManager';
 import { isFormOfAccount, formatSalaryDisplay } from '../utils/employeeMatching';
 import { supabase } from '../lib/supabaseClient';
 import { X, User, RefreshCw, Filter, ChevronDown, Edit3 } from 'lucide-react';
@@ -85,20 +85,33 @@ function RecordsContent() {
         return acc;
       }) || [];
       
-      setAccounts(accountsWithBalances);
+      // Recalculate balances for every employee from the approved requests currently loaded.
+      // This keeps Admin Records aligned with User Leave Balance.
+      const employeeIds = userAccounts
+        ?.filter(a => a.role !== USER_ROLES.ADMIN && a.role !== USER_ROLES.SUPER_ADMIN)
+        .map(a => a.id) || [];
+
+      await Promise.all(
+        employeeIds.map((employeeId) =>
+          recalculateLeaveBalancesFromApprovedRequests(employeeId, formsData || [])
+        )
+      );
+
+      const refreshedAccounts = getAccounts()?.map(acc => {
+        const recalculated = JSON.parse(localStorage.getItem('userAccounts') || '[]')
+          .find(a => a.id === acc.id);
+        return recalculated || acc;
+      }) || accountsWithBalances;
+
+      setAccounts(refreshedAccounts);
       
-      // Fetch leave balances for all employees (optional - won't break if it fails)
+      // Fetch leave balances for all employees after recalculation.
       try {
-        const employeeIds = userAccounts
-          ?.filter(a => a.role !== USER_ROLES.ADMIN && a.role !== USER_ROLES.SUPER_ADMIN)
-          .map(a => a.id) || [];
-        
         if (employeeIds.length > 0) {
           await fetchBatchBalances(employeeIds);
         }
       } catch (balanceError) {
         console.warn('Balance fetching failed (balance system may not be set up yet):', balanceError);
-        // Continue without balances - page should still work
       }
     } catch (err) {
       console.error('Fetch data error:', err);
