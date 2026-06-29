@@ -296,20 +296,10 @@ export default function EmployeeDashboard() {
         },
         async (payload) => {
           console.log('[EmployeeDashboard Realtime] Change detected in user_leave_balances:', payload);
-<<<<<<< Updated upstream
           // Sync database balances to UI state.
           const freshBalances = await getLeaveBalancesFromDB(user.id);
+          console.log('[EmployeeDashboard Realtime] Updated balances:', freshBalances);
           setLeaveBalances(freshBalances);
-=======
-          // Sync database balances to localStorage
-          await getLeaveBalancesFromDB(user.id);
-          await updateDailyLeaveAccumulation(user.id);
-          const accounts = getAccountsSync();
-          const account = accounts.find(a => a.id === user.id);
-          const newBalances = account?.leave_balances || null;
-          console.log('[EmployeeDashboard Realtime] Updated balances:', newBalances);
-          setLeaveBalances(newBalances);
->>>>>>> Stashed changes
         }
       )
       .subscribe((status) => {
