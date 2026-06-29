@@ -228,20 +228,11 @@ export default function LeaveForm() {
   useEffect(() => {
     const handleBalancesUpdated = async (event) => {
       if (event.detail?.accountId === user?.id) {
-<<<<<<< Updated upstream
-        getLeaveBalancesFromDB(user.id).then((freshBalances) => {
-          setLeaveBalance(freshBalances);
-        });
-=======
+        console.log('[LeaveForm] Balances updated event received for user:', user.id);
         // Refresh from database to get latest values
-        const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
-        await getLeaveBalancesFromDB(user.id);
-        const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
-        const currentAccount = accounts.find(acc => acc.id === user.id);
-        const newBalances = currentAccount?.leave_balances || null;
-        console.log('[LeaveForm] Balances updated via event:', newBalances);
-        setLeaveBalance(newBalances);
->>>>>>> Stashed changes
+        const freshBalances = await getLeaveBalancesFromDB(user.id);
+        console.log('[LeaveForm] Fresh balances from DB:', freshBalances);
+        setLeaveBalance(freshBalances);
       }
     };
     window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
@@ -264,20 +255,10 @@ export default function LeaveForm() {
         },
         async (payload) => {
           console.log('[LeaveForm Realtime] Change detected in user_leave_balances:', payload);
-<<<<<<< Updated upstream
           // Sync database balances directly to UI state.
           const freshBalances = await getLeaveBalancesFromDB(user.id);
+          console.log('[LeaveForm Realtime] Updated balances:', freshBalances);
           setLeaveBalance(freshBalances);
-=======
-          // Sync database balances to localStorage
-          const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
-          await getLeaveBalancesFromDB(user.id);
-          const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
-          const currentAccount = accounts.find(acc => acc.id === user.id);
-          const newBalances = currentAccount?.leave_balances || null;
-          console.log('[LeaveForm Realtime] Updated balances:', newBalances);
-          setLeaveBalance(newBalances);
->>>>>>> Stashed changes
         }
       )
       .subscribe((status) => {

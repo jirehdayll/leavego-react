@@ -405,26 +405,37 @@ export function getLeaveBalances(accountId: string): LeaveBalances | null {
  */
 export async function getLeaveBalancesFromDB(accountId: string): Promise<LeaveBalances | null> {
   try {
-<<<<<<< Updated upstream
+    console.log('[getLeaveBalancesFromDB] Fetching balance for user:', accountId);
+    
     // Prefer the SECURITY DEFINER RPC. Direct table SELECT can be blocked by RLS
     // because this app uses app_accounts/local session instead of Supabase auth.users.
     try {
       const rpcBalance = await leaveBalancesAPI.getUserBalance(accountId);
       if (rpcBalance) {
+        console.log('[getLeaveBalancesFromDB] Raw database response from RPC:', rpcBalance);
         const balances = convertDBBalanceToLeaveBalances(rpcBalance);
-        persistBalances(accountId, balances);
+        console.log('[getLeaveBalancesFromDB] Converted balances:', balances);
+        
+        // Sync to localStorage
+        const accounts = getAccountsSync();
+        const updatedAccounts = accounts.map((a) =>
+          a.id === accountId ? { ...a, leave_balances: balances } : a
+        );
+        saveAccounts(updatedAccounts);
+        console.log('[getLeaveBalancesFromDB] Saved to localStorage for user:', accountId);
+        
+        // Notify components that balances have been updated
+        notifyBalancesUpdated(accountId);
+        
         return balances;
       }
     } catch (rpcError: any) {
       console.warn('[Leave Balance] RPC balance fetch failed, trying table fallback:', rpcError?.message || rpcError);
     }
 
-=======
-    console.log('[getLeaveBalancesFromDB] Fetching balance for user:', accountId);
-    // Try to fetch from database
->>>>>>> Stashed changes
+    // Fallback to direct table access
     const dbBalance = await leaveBalancesAPI.getBalanceByUserId(accountId);
-    console.log('[getLeaveBalancesFromDB] Raw database response:', dbBalance);
+    console.log('[getLeaveBalancesFromDB] Raw database response from table:', dbBalance);
     
     if (dbBalance) {
       // Convert database format to LeaveBalances format
@@ -442,30 +453,13 @@ export async function getLeaveBalancesFromDB(accountId: string): Promise<LeaveBa
       // Notify components that balances have been updated
       notifyBalancesUpdated(accountId);
       
-      // Notify components that balances have been updated
-      notifyBalancesUpdated(accountId);
-      
       return balances;
-<<<<<<< Updated upstream
-    }
-
-    console.warn('[Leave Balance] No balance record found in database for user:', accountId);
-  } catch (error: any) {
-    if (error?.message && error.message.includes('PGRST116')) {
-      console.warn('[Leave Balance] No balance record found in database for user:', accountId);
-    } else {
-      console.error('[Leave Balance] Error fetching balance from database:', error);
-    }
-  }
-
-  // Last-resort fallback only. This may be default localStorage data.
-=======
     } else {
       console.log('[getLeaveBalancesFromDB] No balance record found in database for user:', accountId);
     }
-  } catch (error) {
+  } catch (error: any) {
     console.error('[getLeaveBalancesFromDB] Error fetching balance from database:', error);
-    if (error.message && error.message.includes('PGRST116')) {
+    if (error?.message && error.message.includes('PGRST116')) {
       console.log('[getLeaveBalancesFromDB] No balance record found in database for user:', accountId);
     } else {
       console.error('[getLeaveBalancesFromDB] Error fetching balance from database:', error);
@@ -474,7 +468,6 @@ export async function getLeaveBalancesFromDB(accountId: string): Promise<LeaveBa
 
   // Fallback to localStorage
   console.log('[getLeaveBalancesFromDB] Falling back to localStorage for user:', accountId);
->>>>>>> Stashed changes
   return getLeaveBalances(accountId);
 }
 
