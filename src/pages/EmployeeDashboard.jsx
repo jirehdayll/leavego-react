@@ -206,19 +206,10 @@ export default function EmployeeDashboard() {
   useEffect(() => {
     const handleBalancesUpdated = async (event) => {
       if (event.detail?.accountId === user?.id) {
-<<<<<<< Updated upstream
-        getLeaveBalancesFromDB(user.id).then((freshBalances) => {
-          setLeaveBalances(freshBalances);
-        });
-=======
-        // Refresh from database to get latest values
-        await getLeaveBalancesFromDB(user.id);
-        const accounts = getAccountsSync();
-        const account = accounts.find(a => a.id === user.id);
-        const newBalances = account?.leave_balances || null;
-        console.log('[EmployeeDashboard] Balances updated via event:', newBalances);
-        setLeaveBalances(newBalances);
->>>>>>> Stashed changes
+        console.log('[EmployeeDashboard] Balances updated event received for user:', user.id);
+        const freshBalances = await getLeaveBalancesFromDB(user.id);
+        console.log('[EmployeeDashboard] Fresh balances from DB:', freshBalances);
+        setLeaveBalances(freshBalances);
       }
     };
     window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
@@ -226,19 +217,10 @@ export default function EmployeeDashboard() {
     // Also refresh when an account is updated
     const handleAccountUpdated = async (event) => {
       if (event.detail?.accountId === user?.id) {
-<<<<<<< Updated upstream
-        getLeaveBalancesFromDB(user.id).then((freshBalances) => {
-          setLeaveBalances(freshBalances);
-        });
-=======
-        // Refresh from database to get latest values
-        await getLeaveBalancesFromDB(user.id);
-        const accounts = getAccountsSync();
-        const account = accounts.find(a => a.id === user.id);
-        const newBalances = account?.leave_balances || null;
-        console.log('[EmployeeDashboard] Account updated, refreshing balances:', newBalances);
-        setLeaveBalances(newBalances);
->>>>>>> Stashed changes
+        console.log('[EmployeeDashboard] Account updated event received for user:', user.id);
+        const freshBalances = await getLeaveBalancesFromDB(user.id);
+        console.log('[EmployeeDashboard] Fresh balances from DB:', freshBalances);
+        setLeaveBalances(freshBalances);
       }
     };
     window.addEventListener('accountUpdated', handleAccountUpdated);
@@ -246,13 +228,10 @@ export default function EmployeeDashboard() {
     // Handle storage events (for cross-tab sync)
     const handleStorageChange = async (event) => {
       if (event.key === 'accounts' && event.newValue) {
-        // Refresh from database to get latest values
-        await getLeaveBalancesFromDB(user.id);
-        const accounts = getAccountsSync();
-        const account = accounts.find(a => a.id === user.id);
-        const newBalances = account?.leave_balances || null;
-        console.log('[EmployeeDashboard] Storage changed, refreshing balances:', newBalances);
-        setLeaveBalances(newBalances);
+        console.log('[EmployeeDashboard] Storage changed event received for user:', user.id);
+        const freshBalances = await getLeaveBalancesFromDB(user.id);
+        console.log('[EmployeeDashboard] Fresh balances from DB:', freshBalances);
+        setLeaveBalances(freshBalances);
       }
     };
     window.addEventListener('storage', handleStorageChange);
