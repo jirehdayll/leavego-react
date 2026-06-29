@@ -226,11 +226,22 @@ export default function LeaveForm() {
   };
 
   useEffect(() => {
-    const handleBalancesUpdated = (event) => {
+    const handleBalancesUpdated = async (event) => {
       if (event.detail?.accountId === user?.id) {
+<<<<<<< Updated upstream
         getLeaveBalancesFromDB(user.id).then((freshBalances) => {
           setLeaveBalance(freshBalances);
         });
+=======
+        // Refresh from database to get latest values
+        const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
+        await getLeaveBalancesFromDB(user.id);
+        const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+        const currentAccount = accounts.find(acc => acc.id === user.id);
+        const newBalances = currentAccount?.leave_balances || null;
+        console.log('[LeaveForm] Balances updated via event:', newBalances);
+        setLeaveBalance(newBalances);
+>>>>>>> Stashed changes
       }
     };
     window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
@@ -253,9 +264,20 @@ export default function LeaveForm() {
         },
         async (payload) => {
           console.log('[LeaveForm Realtime] Change detected in user_leave_balances:', payload);
+<<<<<<< Updated upstream
           // Sync database balances directly to UI state.
           const freshBalances = await getLeaveBalancesFromDB(user.id);
           setLeaveBalance(freshBalances);
+=======
+          // Sync database balances to localStorage
+          const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
+          await getLeaveBalancesFromDB(user.id);
+          const accounts = JSON.parse(localStorage.getItem('userAccounts') || '[]');
+          const currentAccount = accounts.find(acc => acc.id === user.id);
+          const newBalances = currentAccount?.leave_balances || null;
+          console.log('[LeaveForm Realtime] Updated balances:', newBalances);
+          setLeaveBalance(newBalances);
+>>>>>>> Stashed changes
         }
       )
       .subscribe((status) => {

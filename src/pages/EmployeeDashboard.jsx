@@ -13,7 +13,7 @@ import {
 import {
   Clock, CheckCircle2, Plane, FileText,
   Eye, Check, X, LogOut, User, Calendar, MapPin, Search, ChevronDown, UserCircle,
-  TrendingUp, AlertCircle, BarChart3, Activity, QrCode, KeyRound, Eye as EyeIcon, EyeOff
+  TrendingUp, AlertCircle, BarChart3, Activity, QrCode, KeyRound, Eye as EyeIcon, EyeOff, RefreshCw
 } from 'lucide-react';
 import { getAccountsSync, syncAccount } from '../lib/accountStore';
 import { MONTHS, REQUEST_STATUS, STATUS_COLORS, REQUEST_TYPES } from '../constants';
@@ -182,12 +182,26 @@ export default function EmployeeDashboard() {
         setNewlyApproved(recentStatusChanges);
       }
 
+<<<<<<< Updated upstream
       // Supabase is the source of truth. Fetch from the SECURITY DEFINER RPC first.
       // Then run DB accrual and fetch again. Do not fall back to default localStorage
       // unless the database is truly unavailable.
       const dbBalances = await getLeaveBalancesFromDB(user.id);
       const updatedBalances = await updateDailyLeaveAccumulation(user.id);
       setLeaveBalances(updatedBalances || dbBalances);
+=======
+      // Sync leave balances from database first, then update daily accumulation
+      console.log('[EmployeeDashboard] Starting balance sync for user:', user.id);
+      await getLeaveBalancesFromDB(user.id);
+      await updateDailyLeaveAccumulation(user.id);
+      // Get the raw LeaveBalances format for the modal
+      const accounts = getAccountsSync();
+      const account = accounts.find(a => a.id === user.id);
+      const newBalances = account?.leave_balances || null;
+      console.log('[EmployeeDashboard] Initial balances loaded:', newBalances);
+      console.log('[EmployeeDashboard] Account found:', !!account, 'Balances found:', !!newBalances);
+      setLeaveBalances(newBalances);
+>>>>>>> Stashed changes
     } catch (error) {
       console.error('Fetch employee data error:', error);
       setRequests([]);
@@ -201,28 +215,63 @@ export default function EmployeeDashboard() {
   }, [fetchEmployeeData]);
 
   useEffect(() => {
-    const handleBalancesUpdated = (event) => {
+    const handleBalancesUpdated = async (event) => {
       if (event.detail?.accountId === user?.id) {
+<<<<<<< Updated upstream
         getLeaveBalancesFromDB(user.id).then((freshBalances) => {
           setLeaveBalances(freshBalances);
         });
+=======
+        // Refresh from database to get latest values
+        await getLeaveBalancesFromDB(user.id);
+        const accounts = getAccountsSync();
+        const account = accounts.find(a => a.id === user.id);
+        const newBalances = account?.leave_balances || null;
+        console.log('[EmployeeDashboard] Balances updated via event:', newBalances);
+        setLeaveBalances(newBalances);
+>>>>>>> Stashed changes
       }
     };
     window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
 
     // Also refresh when an account is updated
-    const handleAccountUpdated = (event) => {
+    const handleAccountUpdated = async (event) => {
       if (event.detail?.accountId === user?.id) {
+<<<<<<< Updated upstream
         getLeaveBalancesFromDB(user.id).then((freshBalances) => {
           setLeaveBalances(freshBalances);
         });
+=======
+        // Refresh from database to get latest values
+        await getLeaveBalancesFromDB(user.id);
+        const accounts = getAccountsSync();
+        const account = accounts.find(a => a.id === user.id);
+        const newBalances = account?.leave_balances || null;
+        console.log('[EmployeeDashboard] Account updated, refreshing balances:', newBalances);
+        setLeaveBalances(newBalances);
+>>>>>>> Stashed changes
       }
     };
     window.addEventListener('accountUpdated', handleAccountUpdated);
 
+    // Handle storage events (for cross-tab sync)
+    const handleStorageChange = async (event) => {
+      if (event.key === 'accounts' && event.newValue) {
+        // Refresh from database to get latest values
+        await getLeaveBalancesFromDB(user.id);
+        const accounts = getAccountsSync();
+        const account = accounts.find(a => a.id === user.id);
+        const newBalances = account?.leave_balances || null;
+        console.log('[EmployeeDashboard] Storage changed, refreshing balances:', newBalances);
+        setLeaveBalances(newBalances);
+      }
+    };
+    window.addEventListener('storage', handleStorageChange);
+
     return () => {
       window.removeEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
       window.removeEventListener('accountUpdated', handleAccountUpdated);
+      window.removeEventListener('storage', handleStorageChange);
     };
   }, [user?.id]);
 
@@ -279,9 +328,20 @@ export default function EmployeeDashboard() {
         },
         async (payload) => {
           console.log('[EmployeeDashboard Realtime] Change detected in user_leave_balances:', payload);
+<<<<<<< Updated upstream
           // Sync database balances to UI state.
           const freshBalances = await getLeaveBalancesFromDB(user.id);
           setLeaveBalances(freshBalances);
+=======
+          // Sync database balances to localStorage
+          await getLeaveBalancesFromDB(user.id);
+          await updateDailyLeaveAccumulation(user.id);
+          const accounts = getAccountsSync();
+          const account = accounts.find(a => a.id === user.id);
+          const newBalances = account?.leave_balances || null;
+          console.log('[EmployeeDashboard Realtime] Updated balances:', newBalances);
+          setLeaveBalances(newBalances);
+>>>>>>> Stashed changes
         }
       )
       .subscribe((status) => {
@@ -309,6 +369,22 @@ export default function EmployeeDashboard() {
   const handleLogout = () => {
     logout();
     navigate('/login', { replace: true });
+  };
+
+  const handleRefreshBalances = async () => {
+    if (!user?.id) return;
+    console.log('[EmployeeDashboard] Manual balance refresh triggered');
+    try {
+      await getLeaveBalancesFromDB(user.id);
+      await updateDailyLeaveAccumulation(user.id);
+      const accounts = getAccountsSync();
+      const account = accounts.find(a => a.id === user.id);
+      const newBalances = account?.leave_balances || null;
+      console.log('[EmployeeDashboard] Manual refresh completed:', newBalances);
+      setLeaveBalances(newBalances);
+    } catch (error) {
+      console.error('[EmployeeDashboard] Manual refresh failed:', error);
+    }
   };
 
   if (loading) {
@@ -360,7 +436,10 @@ export default function EmployeeDashboard() {
                 <span className="sm:hidden">Travel</span>
               </button>
               <button
-                onClick={() => setShowLeaveBalanceModal(true)}
+                onClick={() => {
+                  console.log('[EmployeeDashboard] Leave Balances button clicked, current balances:', leaveBalances);
+                  setShowLeaveBalanceModal(true);
+                }}
                 className="flex items-center gap-2 px-3 sm:px-4 py-2 bg-purple-600 hover:bg-purple-700 text-white text-xs sm:text-sm font-semibold rounded-xl transition-all hover:shadow-lg transform hover:scale-105 w-full sm:w-auto justify-center"
               >
                 <Calendar className="w-4 h-4" />
@@ -504,6 +583,7 @@ export default function EmployeeDashboard() {
       <LeaveBalanceModal
         leaveBalances={leaveBalances}
         onClose={() => setShowLeaveBalanceModal(false)}
+        onRefresh={handleRefreshBalances}
       />
     )}
     </>
@@ -511,18 +591,24 @@ export default function EmployeeDashboard() {
 }
 
 // Leave Balance Modal Component
-function LeaveBalanceModal({ leaveBalances, onClose }) {
+function LeaveBalanceModal({ leaveBalances, onClose, onRefresh }) {
   // Handle the raw LeaveBalances format
   const formatBalances = (balances) => {
-    if (!balances) return null;
+    console.log('[LeaveBalanceModal] formatBalances called with:', balances);
+    if (!balances) {
+      console.log('[LeaveBalanceModal] No balances provided, returning null');
+      return null;
+    }
     
     // If it's already in the correct format (numbers), return as is
     if (typeof balances.forced_leave === 'number') {
+      console.log('[LeaveBalanceModal] Balances already in correct format');
       return balances;
     }
     
     // If it's in display format (objects with balance property), convert
     if (balances.forced_leave && typeof balances.forced_leave === 'object') {
+      console.log('[LeaveBalanceModal] Converting from display format');
       return {
         forced_leave: balances.forced_leave?.balance ?? 5,
         special_leave_privileges: balances.special_leave?.balance ?? 3,
@@ -533,6 +619,7 @@ function LeaveBalanceModal({ leaveBalances, onClose }) {
     }
     
     // Default fallback
+    console.log('[LeaveBalanceModal] Using default fallback values');
     return {
       forced_leave: 5,
       special_leave_privileges: 3,
@@ -543,6 +630,8 @@ function LeaveBalanceModal({ leaveBalances, onClose }) {
   };
 
   const formattedBalances = formatBalances(leaveBalances);
+
+  console.log('[LeaveBalanceModal] Rendered with formattedBalances:', formattedBalances);
 
   if (!formattedBalances) return null;
 
@@ -612,7 +701,14 @@ function LeaveBalanceModal({ leaveBalances, onClose }) {
         </div>
 
         {/* Footer */}
-        <div className="p-5 bg-slate-50 border-t border-slate-100 rounded-b-3xl flex justify-end">
+        <div className="p-5 bg-slate-50 border-t border-slate-100 rounded-b-3xl flex justify-between">
+          <button
+            onClick={onRefresh}
+            className="px-4 py-2.5 rounded-xl bg-slate-200 text-slate-700 font-semibold text-sm hover:bg-slate-300 transition-all flex items-center gap-2"
+          >
+            <RefreshCw className="w-4 h-4" />
+            Refresh
+          </button>
           <button
             onClick={onClose}
             className="px-5 py-2.5 rounded-xl bg-purple-600 text-white font-semibold text-sm hover:bg-purple-700 transition-all"

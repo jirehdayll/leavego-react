@@ -129,7 +129,14 @@ function RecordsContent() {
   }, [fetchData, accountsReady]);
 
   useEffect(() => {
-    const handleBalancesUpdated = () => setBalanceRefreshKey((k) => k + 1);
+    const handleBalancesUpdated = async () => {
+      // Refresh balances from database for all displayed accounts
+      const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
+      for (const account of accounts) {
+        await getLeaveBalancesFromDB(account.id);
+      }
+      setBalanceRefreshKey((k) => k + 1);
+    };
     window.addEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
     
     // Also refresh when an account is updated
@@ -142,7 +149,7 @@ function RecordsContent() {
       window.removeEventListener(LEAVE_BALANCES_UPDATED_EVENT, handleBalancesUpdated);
       window.removeEventListener('accountUpdated', handleAccountUpdated);
     };
-  }, [fetchData]);
+  }, [fetchData, accounts]);
 
   // Real-time subscription to app_accounts table changes
   useEffect(() => {
@@ -183,8 +190,13 @@ function RecordsContent() {
           schema: 'public',
           table: 'user_leave_balances'
         },
-        (payload) => {
+        async (payload) => {
           console.log('[Records Realtime] Change detected in user_leave_balances:', payload);
+          // Refresh balances from database for the affected user
+          const { getLeaveBalancesFromDB } = await import('../lib/leaveBalanceManager');
+          if (payload.new?.user_id) {
+            await getLeaveBalancesFromDB(payload.new.user_id);
+          }
           // Silent fetch to update page records without disruptive loading spinner
           fetchData();
         }

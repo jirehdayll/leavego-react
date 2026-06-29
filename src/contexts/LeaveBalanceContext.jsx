@@ -200,10 +200,14 @@ export const LeaveBalanceProvider = ({ children }) => {
           table: 'user_leave_balances',
           filter: `user_id=eq.${userId}`
         },
-        (payload) => {
+        async (payload) => {
           console.log('Balance change received:', payload);
           if (callback) callback(payload);
-          fetchUserBalance(userId);
+          await fetchUserBalance(userId);
+          // Also trigger the custom event for components that depend on it
+          window.dispatchEvent(new CustomEvent('leaveBalancesUpdated', { 
+            detail: { accountId: userId } 
+          }));
         }
       )
       .subscribe();

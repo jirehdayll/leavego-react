@@ -50,12 +50,19 @@ export const leaveBalancesAPI = {
 
   // Get balance by user ID
   async getBalanceByUserId(userId: string) {
+    console.log('[leaveBalancesAPI] Getting balance for user:', userId);
     const { data, error } = await supabase
       .from('user_leave_balances')
       .select('*')
       .eq('user_id', userId)
       .maybeSingle();
-    if (error) throw error;
+    
+    if (error) {
+      console.error('[leaveBalancesAPI] Error getting balance:', error);
+      throw error;
+    }
+    
+    console.log('[leaveBalancesAPI] Balance data retrieved:', data);
     return data;
   },
 
