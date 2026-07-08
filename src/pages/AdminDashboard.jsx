@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { REQUEST_STATUS, REQUEST_TYPES } from '../constants';
 import { useAuth } from '../hooks/useAuth';
 import { leaveRequestsAPI } from '../api/leaveRequests';
+import { leaveBalancesAPI } from '../api/leaveBalances';
 import { emailService } from '../services/emailService';
 import { supabase, supabaseServiceRole } from '../lib/supabaseClient';
 import { decreaseLeaveBalance, isFixedCapLeaveType, calculateWorkingDays } from '../lib/leaveBalanceManager';
@@ -425,7 +426,25 @@ export default function AdminDashboard() {
     window.location.href = '/';
   };
 
-  
+  const handleYearlyRollover = async () => {
+    if (!window.confirm('Are you sure you want to run the Yearly Reset & Rollover? This will reset Forced, Special, and Wellness leaves and transfer the remaining balance equally to Vacation and Sick leaves.')) {
+      return;
+    }
+    
+    try {
+      setActionLoading(true);
+      await leaveBalancesAPI.triggerYearlyRollover();
+      showToast('Yearly reset and rollover completed successfully!', 'success');
+      // Trigger a balance update event to refresh UI
+      window.dispatchEvent(new CustomEvent('leaveBalancesUpdated'));
+    } catch (error) {
+      console.error('Error running yearly rollover:', error);
+      showToast('Failed to run yearly rollover. ' + (error.message || 'Please check console.'), 'danger');
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   // Sort pending applications by newest first for notifications
   const pending = requests
     .filter(r => r.status === REQUEST_STATUS.PENDING || r.status === REQUEST_STATUS.PENDING_CENRO)
@@ -470,6 +489,15 @@ export default function AdminDashboard() {
               {monthName} {year} - Real-time overview
             </p>
           </div>
+          {isAdmin && (
+            <button
+              onClick={handleYearlyRollover}
+              disabled={actionLoading}
+              className="px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-all flex items-center gap-2 text-sm disabled:opacity-50"
+            >
+              <TrendingUp className="w-4 h-4" /> Run Yearly Rollover
+            </button>
+          )}
         </div>
 
         {/* Stats */}

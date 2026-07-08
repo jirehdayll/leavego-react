@@ -86,8 +86,8 @@ function computeBalancesFromApprovedRequests(forms: any[] = []): LeaveBalances {
     forced_leave: 5,
     special_leave_privileges: 3,
     wellness_leave: 5,
-    accumulated_sick: 10,
-    accumulated_vacation: 10,
+    accumulated_sick: 0,
+    accumulated_vacation: 0,
     last_accumulation_date: new Date().toISOString(),
   };
 
@@ -338,8 +338,8 @@ export function decreaseLeaveBalance(
       forced_leave: 5,
       special_leave_privileges: 3,
       wellness_leave: 5,
-      accumulated_sick: 10,
-      accumulated_vacation: 10,
+      accumulated_sick: 0,
+      accumulated_vacation: 0,
       last_accumulation_date: new Date().toISOString(),
     };
   }
@@ -352,28 +352,16 @@ export function decreaseLeaveBalance(
 
   if (leaveTypeLower.includes('forced')) {
     balances.forced_leave = Math.max(0, balances.forced_leave - numDays);
-    // Also deduct from vacation and sick leave balances (shared deduction)
-    const deductionPerType = numDays / 2;
-    balances.accumulated_vacation = Math.max(0, balances.accumulated_vacation - deductionPerType);
-    balances.accumulated_sick = Math.max(0, balances.accumulated_sick - deductionPerType);
-    console.log(`[Balance Deduction] Deducted ${numDays} from Forced Leave and ${deductionPerType} from both Vacation and Sick Leave`);
+    console.log(`[Balance Deduction] Deducted ${numDays} from Forced Leave`);
   } else if (leaveTypeLower.includes('special') || leaveTypeLower.includes('privilege')) {
     balances.special_leave_privileges = Math.max(
       0,
       balances.special_leave_privileges - numDays
     );
-    // Also deduct from vacation and sick leave balances (shared deduction)
-    const deductionPerType = numDays / 2;
-    balances.accumulated_vacation = Math.max(0, balances.accumulated_vacation - deductionPerType);
-    balances.accumulated_sick = Math.max(0, balances.accumulated_sick - deductionPerType);
-    console.log(`[Balance Deduction] Deducted ${numDays} from Special Leave and ${deductionPerType} from both Vacation and Sick Leave`);
+    console.log(`[Balance Deduction] Deducted ${numDays} from Special Leave`);
   } else if (leaveTypeLower.includes('wellness')) {
     balances.wellness_leave = Math.max(0, balances.wellness_leave - numDays);
-    // Also deduct from vacation and sick leave balances (shared deduction)
-    const deductionPerType = numDays / 2;
-    balances.accumulated_vacation = Math.max(0, balances.accumulated_vacation - deductionPerType);
-    balances.accumulated_sick = Math.max(0, balances.accumulated_sick - deductionPerType);
-    console.log(`[Balance Deduction] Deducted ${numDays} from Wellness Leave and ${deductionPerType} from both Vacation and Sick Leave`);
+    console.log(`[Balance Deduction] Deducted ${numDays} from Wellness Leave`);
   } else if (leaveTypeLower.includes('sick')) {
     balances.accumulated_sick = Math.max(0, balances.accumulated_sick - numDays);
     console.log(`[Balance Deduction] Deducted ${numDays} from Sick Leave`);
@@ -480,8 +468,8 @@ export function convertDBBalanceToLeaveBalances(dbBalance: any): LeaveBalances {
       forced_leave: 5,
       special_leave_privileges: 3,
       wellness_leave: 5,
-      accumulated_sick: 10,
-      accumulated_vacation: 10,
+      accumulated_sick: 0,
+      accumulated_vacation: 0,
     };
   }
 
@@ -500,9 +488,9 @@ export function convertDBBalanceToLeaveBalances(dbBalance: any): LeaveBalances {
                                  dbBalance.special_leave_privileges?.balance !== undefined ? Number(dbBalance.special_leave_privileges.balance) : 3),
       wellness_leave: dbBalance.wellness_leave?.balance !== undefined ? Number(dbBalance.wellness_leave.balance) : 5,
       accumulated_sick: (dbBalance.sick_leave?.balance !== undefined ? Number(dbBalance.sick_leave.balance) : 
-                         dbBalance.accumulated_sick?.balance !== undefined ? Number(dbBalance.accumulated_sick.balance) : 10),
+                         dbBalance.accumulated_sick?.balance !== undefined ? Number(dbBalance.accumulated_sick.balance) : 0),
       accumulated_vacation: (dbBalance.vacation_leave?.balance !== undefined ? Number(dbBalance.vacation_leave.balance) : 
-                             dbBalance.accumulated_vacation?.balance !== undefined ? Number(dbBalance.accumulated_vacation.balance) : 10),
+                             dbBalance.accumulated_vacation?.balance !== undefined ? Number(dbBalance.accumulated_vacation.balance) : 0),
       last_accumulation_date: dbBalance.vacation_leave?.last_accrual || dbBalance.last_accumulation_date,
     };
     console.log('[convertDBBalanceToLeaveBalances] Converted from RPC format:', converted);
@@ -515,8 +503,8 @@ export function convertDBBalanceToLeaveBalances(dbBalance: any): LeaveBalances {
     forced_leave: dbBalance.forced_leave_balance !== undefined && dbBalance.forced_leave_balance !== null ? Number(dbBalance.forced_leave_balance) : 5,
     special_leave_privileges: dbBalance.special_leave_balance !== undefined && dbBalance.special_leave_balance !== null ? Number(dbBalance.special_leave_balance) : 3,
     wellness_leave: dbBalance.wellness_leave_balance !== undefined && dbBalance.wellness_leave_balance !== null ? Number(dbBalance.wellness_leave_balance) : 5,
-    accumulated_sick: dbBalance.sick_leave_balance !== undefined && dbBalance.sick_leave_balance !== null ? Number(dbBalance.sick_leave_balance) : 10,
-    accumulated_vacation: dbBalance.vacation_leave_balance !== undefined && dbBalance.vacation_leave_balance !== null ? Number(dbBalance.vacation_leave_balance) : 10,
+    accumulated_sick: dbBalance.sick_leave_balance !== undefined && dbBalance.sick_leave_balance !== null ? Number(dbBalance.sick_leave_balance) : 0,
+    accumulated_vacation: dbBalance.vacation_leave_balance !== undefined && dbBalance.vacation_leave_balance !== null ? Number(dbBalance.vacation_leave_balance) : 0,
     last_accumulation_date: dbBalance.last_accrual_date || dbBalance.last_accumulation_date,
   };
   console.log('[convertDBBalanceToLeaveBalances] Converted from row format:', converted);
@@ -533,8 +521,8 @@ export function getUnifiedLeaveBalances(accountId: string, dbBalance?: any): Lea
       forced_leave: 5,
       special_leave_privileges: 3,
       wellness_leave: 5,
-      accumulated_sick: 10,
-      accumulated_vacation: 10,
+      accumulated_sick: 0,
+      accumulated_vacation: 0,
     });
   }
   return formatBalancesForDisplay(balances);

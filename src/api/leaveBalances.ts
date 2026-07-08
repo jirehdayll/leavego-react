@@ -105,6 +105,13 @@ export const leaveBalancesAPI = {
     return data;
   },
 
+  // Trigger yearly rollover of unused leaves to vacation/sick leave
+  async triggerYearlyRollover() {
+    const { data, error } = await supabase.rpc('yearly_leave_rollover');
+    if (error) throw error;
+    return data;
+  },
+
   // Subscribe to balance changes for a user
   subscribeToBalanceChanges(userId: string, callback: (payload: any) => void) {
     return supabase
