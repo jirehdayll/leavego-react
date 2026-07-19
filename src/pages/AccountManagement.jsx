@@ -317,8 +317,9 @@ function CreateAccountModal({ onClose, onSuccess }) {
     setResetSuccess(false);
 
     try {
+      const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${baseUrl}/password-reset`,
       });
 
       if (resetError) {
@@ -565,8 +566,9 @@ function EditAccountModal({ account, onClose, onSuccess, updateAccounts }) {
     setResetSuccess(false);
 
     try {
+      const baseUrl = import.meta.env.VITE_APP_URL || window.location.origin;
       const { error: resetError } = await supabase.auth.resetPasswordForEmail(formData.email, {
-        redirectTo: `${window.location.origin}/reset-password`,
+        redirectTo: `${baseUrl}/password-reset`,
       });
 
       if (resetError) {

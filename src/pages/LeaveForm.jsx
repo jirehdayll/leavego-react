@@ -29,7 +29,7 @@ const InputField = ({ label, required, children }) => (
 
 const inputCls = "w-full px-4 py-3 rounded-xl border border-slate-200 bg-white text-slate-900 placeholder-slate-400 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-transparent transition-all shadow-sm";
 
-const formatDays = (val) => val !== undefined && val !== null ? Number(Number(val).toFixed(2)).toString() : '0';
+const formatDays = (val) => val !== undefined && val !== null ? Math.round(Number(val)).toString() : '0';
 
 export default function LeaveForm() {
   const navigate = useNavigate();

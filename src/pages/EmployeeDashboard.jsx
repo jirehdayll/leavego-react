@@ -593,7 +593,7 @@ function LeaveBalanceModal({ leaveBalances, onClose, onRefresh }) {
 
   if (!formattedBalances) return null;
 
-  const formatDays = (val) => val !== undefined && val !== null ? Number(Number(val).toFixed(2)).toString() : '0';
+  const formatDays = (val) => val !== undefined && val !== null ? Math.round(Number(val)).toString() : '0';
 
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">

@@ -185,7 +185,7 @@ export default function QRScanner({ isOpen, onClose }) {
 
       if (request.request_type === REQUEST_TYPES.LEAVE) {
         const leaveType = request.details?.leave_type;
-        const numDays = parseFloat(request.details?.number_of_days || request.details?.num_days || 0);
+        const numDays = parseInt(request.details?.number_of_days || request.details?.num_days || 0, 10);
         if (leaveType && numDays > 0 && request.user_id) {
           decreaseLeaveBalance(request.user_id, leaveType, numDays);
         }

@@ -12,7 +12,7 @@ import {
 import { X, TrendingUp, TrendingDown, Minus, Pencil, Check, Loader2 } from 'lucide-react';
 import { useLeaveBalance } from '../contexts/LeaveBalanceContext';
 
-const formatDays = (val) => val !== undefined && val !== null ? Number(Number(val).toFixed(2)).toString() : '0';
+const formatDays = (val) => val !== undefined && val !== null ? Math.round(Number(val)).toString() : '0';
 
 function RecordsBody({ employee, allForms = [], onUpdateForms }) {
   const [period, setPeriod] = useState('monthly');
