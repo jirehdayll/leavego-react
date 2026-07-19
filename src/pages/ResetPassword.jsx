@@ -32,11 +32,20 @@ export default function ResetPassword() {
 
     const t = setTimeout(() => {
       if (cancelled) return;
-      setReady((r) => r || false);
-      // If we still don't have a session after timeout, and there is an error in URL hash
-      if ((window.location.hash || '').includes('error')) {
-        setError('Recovery link error. Request a new reset from the login page.');
-      }
+      
+      // Stop the loading spinner after 2.5 seconds regardless of session state
+      setReady((r) => {
+        if (!r) {
+          // If we still don't have a session, check if there's a specific URL error
+          if ((window.location.hash || '').includes('error')) {
+            setError('Recovery link error. Request a new reset from the login page.');
+          } else {
+            // Optional: You could show a generic error here if you want to strictly prevent 
+            // access without a session, e.g. setError('No active recovery session found.');
+          }
+        }
+        return true;
+      });
     }, 2500);
 
     return () => {
