@@ -18,7 +18,7 @@ This implementation updates the web application and database infrastructure to s
   - Special: 3
   - Wellness: 5
 - Implemented integer conversion for rollover amounts using `ROUND()` function
-- Created helper function `ensure_all_users_have_balances()` to guarantee all auth users have balance records
+- Created helper function `ensure_all_users_have_balances()` to guarantee all app_accounts have balance records
 - Enhanced transaction logging for better audit trail
 
 **How to Apply:**

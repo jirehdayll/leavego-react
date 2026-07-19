@@ -2,7 +2,7 @@
 -- Update Yearly Leave Rollover to Handle New/Empty Accounts
 -- =========================================================
 -- This migration updates the yearly_leave_rollover() function to:
--- 1. Include auth users who don't have leave balance records yet
+-- 1. Include app_accounts who don't have leave balance records yet
 -- 2. Initialize accounts with zero/null balances with correct defaults
 -- 3. Apply rollover calculations to all accounts consistently
 -- =========================================================
@@ -27,8 +27,8 @@ DECLARE
   v_previous_wellness DECIMAL(8,3);
   v_balance_id UUID;
 BEGIN
-  -- Step 1: Find auth users who don't have leave balance records and initialize them
-  FOR v_auth_user IN SELECT id FROM auth.users
+  -- Step 1: Find app_accounts who don't have leave balance records and initialize them
+  FOR v_auth_user IN SELECT id FROM public.app_accounts
   LOOP
     -- Check if user already has a balance record
     SELECT id INTO v_balance_id
@@ -147,25 +147,25 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Add a helper function to ensure all auth users have balance records
+-- Add a helper function to ensure all app_accounts have balance records
 CREATE OR REPLACE FUNCTION ensure_all_users_have_balances()
 RETURNS VOID
 SECURITY DEFINER
 SET search_path = public
 AS $$
 DECLARE
-  v_auth_user RECORD;
+  v_app_account RECORD;
   v_balance_id UUID;
 BEGIN
-  FOR v_auth_user IN SELECT id FROM auth.users
+  FOR v_app_account IN SELECT id FROM public.app_accounts
   LOOP
     SELECT id INTO v_balance_id
     FROM public.user_leave_balances
-    WHERE user_id = v_auth_user.id;
+    WHERE user_id = v_app_account.id;
     
     IF v_balance_id IS NULL THEN
-      v_balance_id := initialize_user_leave_balance(v_auth_user.id);
-      RAISE NOTICE 'Ensured balance record exists for user: %', v_auth_user.id;
+      v_balance_id := initialize_user_leave_balance(v_app_account.id);
+      RAISE NOTICE 'Ensured balance record exists for user: %', v_app_account.id;
     END IF;
   END LOOP;
 END;
