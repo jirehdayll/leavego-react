@@ -20,6 +20,8 @@ This implementation updates the web application and database infrastructure to s
 - Implemented integer conversion for rollover amounts using `ROUND()` function
 - Created helper function `ensure_all_users_have_balances()` to guarantee all app_accounts have balance records
 - Enhanced transaction logging for better audit trail
+- Added safety check in `initialize_user_leave_balance()` to prevent foreign key violations
+- Only creates balance records for users that exist in `app_accounts` table
 
 **How to Apply:**
 ```sql
@@ -135,6 +137,8 @@ npm run build
 - [ ] Test rollover with newly created accounts (no balance record)
 - [ ] Verify integer conversion of rollover amounts
 - [ ] Check transaction logging for all operations
+- [ ] Verify foreign key constraint violations are handled gracefully
+- [ ] Test with auth users that don't exist in app_accounts (should skip safely)
 
 ### Auth Testing
 - [ ] Test password reset email in development (localhost)
@@ -162,7 +166,7 @@ npm run build
 ## Rollback Plan
 
 If issues arise:
-1. **Database:** Restore previous function versions from migration comments
+1. **Database:** Restore previous function versions from migration comments, remove safety check from `initialize_user_leave_balance()`
 2. **Auth:** Revert `src/api/auth.ts` to use `window.location.origin`
 3. **Frontend:** Remove new route and revert to old password reset flow
 4. **Environment:** Remove `VITE_APP_URL` from configuration

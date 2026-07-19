@@ -9,6 +9,56 @@
 
 BEGIN;
 
+-- First, update the initialize_user_leave_balance function to check if user exists in app_accounts
+CREATE OR REPLACE FUNCTION initialize_user_leave_balance(p_user_id UUID)
+RETURNS UUID
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  v_balance_id UUID;
+  v_user_exists BOOLEAN;
+BEGIN
+  -- Check if user exists in app_accounts
+  SELECT EXISTS(
+    SELECT 1 FROM public.app_accounts WHERE id = p_user_id
+  ) INTO v_user_exists;
+  
+  IF NOT v_user_exists THEN
+    RAISE NOTICE 'User % does not exist in app_accounts, skipping balance initialization', p_user_id;
+    RETURN NULL;
+  END IF;
+  
+  -- Check if balance already exists
+  SELECT id INTO v_balance_id
+  FROM public.user_leave_balances
+  WHERE user_id = p_user_id;
+  
+  IF v_balance_id IS NOT NULL THEN
+    RETURN v_balance_id;
+  END IF;
+  
+  -- Create new balance record (vacation and sick will default to 0 per table schema)
+  INSERT INTO public.user_leave_balances (user_id)
+  VALUES (p_user_id)
+  RETURNING id INTO v_balance_id;
+  
+  -- Log initialization transactions
+  INSERT INTO public.leave_balance_transactions (
+    user_id, balance_id, transaction_type, leave_type,
+    previous_balance, amount_change, new_balance,
+    reason, created_by
+  ) VALUES 
+    (p_user_id, v_balance_id, 'adjustment', 'forced_leave', 0, 5, 5, 'Initial balance setup', 'system'),
+    (p_user_id, v_balance_id, 'adjustment', 'special_leave', 0, 3, 3, 'Initial balance setup', 'system'),
+    (p_user_id, v_balance_id, 'adjustment', 'wellness_leave', 0, 5, 5, 'Initial balance setup', 'system'),
+    (p_user_id, v_balance_id, 'adjustment', 'vacation_leave', 0, 0, 0, 'Initial balance setup', 'system'),
+    (p_user_id, v_balance_id, 'adjustment', 'sick_leave', 0, 0, 0, 'Initial balance setup', 'system');
+  
+  RETURN v_balance_id;
+END;
+$$ LANGUAGE plpgsql;
+
 -- Create improved yearly rollover function that handles new/empty accounts
 CREATE OR REPLACE FUNCTION yearly_leave_rollover()
 RETURNS VOID
@@ -38,7 +88,9 @@ BEGIN
     -- If no balance record exists, initialize one
     IF v_balance_id IS NULL THEN
       v_balance_id := initialize_user_leave_balance(v_auth_user.id);
-      RAISE NOTICE 'Initialized leave balance for new user: %', v_auth_user.id;
+      IF v_balance_id IS NOT NULL THEN
+        RAISE NOTICE 'Initialized leave balance for new user: %', v_auth_user.id;
+      END IF;
     END IF;
   END LOOP;
 
@@ -165,7 +217,9 @@ BEGIN
     
     IF v_balance_id IS NULL THEN
       v_balance_id := initialize_user_leave_balance(v_app_account.id);
-      RAISE NOTICE 'Ensured balance record exists for user: %', v_app_account.id;
+      IF v_balance_id IS NOT NULL THEN
+        RAISE NOTICE 'Ensured balance record exists for user: %', v_app_account.id;
+      END IF;
     END IF;
   END LOOP;
 END;
