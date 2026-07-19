@@ -427,14 +427,17 @@ export default function AdminDashboard() {
   };
 
   const handleYearlyRollover = async () => {
-    if (!window.confirm('Are you sure you want to run the Yearly Reset & Rollover? This will reset Forced, Special, and Wellness leaves and transfer the remaining balance equally to Vacation and Sick leaves.')) {
+    if (!window.confirm('Are you sure you want to run the Yearly Reset & Rollover? This will ensure all users have balance records, reset Forced, Special, and Wellness leaves, and transfer the remaining balance equally to Vacation and Sick leaves.')) {
       return;
     }
     
     try {
       setActionLoading(true);
+      // First ensure all auth users have balance records
+      await leaveBalancesAPI.ensureAllUsersHaveBalances();
+      // Then run the yearly rollover
       await leaveBalancesAPI.triggerYearlyRollover();
-      showToast('Yearly reset and rollover completed successfully!', 'success');
+      showToast('Yearly reset and rollover completed successfully! All users have been processed.', 'success');
       // Trigger a balance update event to refresh UI
       window.dispatchEvent(new CustomEvent('leaveBalancesUpdated'));
     } catch (error) {

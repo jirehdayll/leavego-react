@@ -17,6 +17,7 @@ export const ROLE_DISPLAY_NAMES: Record<UserRole, string> = {
 export const APP_ROUTES = {
   LOGIN: '/login',
   RESET_PASSWORD: '/reset-password',
+  PASSWORD_RESET: '/password-reset',
   ROOT: '/',
   SELECTION: '/selection',
   DASHBOARD: '/dashboard',

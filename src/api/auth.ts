@@ -40,8 +40,9 @@ export const authAPI = {
 
   resetPassword: async (email: string) => {
     return handleApiCall(async () => {
+      const baseUrl = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`,
+        redirectTo: `${baseUrl}/password-reset`,
       });
       if (error) throw error;
     }, 'authAPI.resetPassword');
@@ -67,8 +68,9 @@ export const authAPI = {
   /** Sends Supabase password recovery email (anon key; rate-limited). */
   sendPasswordRecoveryEmail: async (email: string) => {
     return handleApiCall(async () => {
+      const baseUrl = import.meta.env.VITE_APP_URL || (typeof window !== 'undefined' ? window.location.origin : '');
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${typeof window !== 'undefined' ? window.location.origin : ''}/reset-password`,
+        redirectTo: `${baseUrl}/password-reset`,
       });
       if (error) throw error;
     }, 'authAPI.sendPasswordRecoveryEmail');

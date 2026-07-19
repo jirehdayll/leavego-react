@@ -112,6 +112,13 @@ export const leaveBalancesAPI = {
     return data;
   },
 
+  // Ensure all auth users have balance records (helper for new accounts)
+  async ensureAllUsersHaveBalances() {
+    const { data, error } = await supabase.rpc('ensure_all_users_have_balances');
+    if (error) throw error;
+    return data;
+  },
+
   // Subscribe to balance changes for a user
   subscribeToBalanceChanges(userId: string, callback: (payload: any) => void) {
     return supabase
